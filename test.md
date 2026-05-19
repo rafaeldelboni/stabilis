@@ -1,3 +1,10 @@
+---
+title: My Article Title
+date: 2024-01-15
+author: John Doe
+tags: [markdown, tutorial, web]
+---
+
 # Hello from Markdown
                                                                                                                
 This is **GFM** rendered natively via md4c.

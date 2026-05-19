@@ -3,6 +3,7 @@ const std = @import("std");
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
+
     const exe = b.addExecutable(.{
         .name = "stabilis",
         .root_module = b.createModule(.{
@@ -38,7 +39,7 @@ pub fn build(b: *std.Build) void {
         .name = "stabilis-check",
         .root_module = exe.root_module,
     });
-    const check = b.step("check", "Check if foo compiles");
+    const check = b.step("check", "Check if stabilis compiles");
     check.dependOn(&exe_check.step);
 
     const run_step = b.step("run", "Run the app");
