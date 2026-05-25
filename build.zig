@@ -39,8 +39,13 @@ pub fn build(b: *std.Build) void {
         .name = "stabilis-check",
         .root_module = exe.root_module,
     });
+    const test_check = b.addTest(.{
+        .root_module = exe.root_module,
+    });
+    test_check.root_module.linkLibrary(md4c_lib);
     const check = b.step("check", "Check if stabilis compiles");
     check.dependOn(&exe_check.step);
+    check.dependOn(&test_check.step);
 
     const run_step = b.step("run", "Run the app");
 
@@ -56,9 +61,8 @@ pub fn build(b: *std.Build) void {
     const exe_tests = b.addTest(.{
         .root_module = exe.root_module,
     });
-
-    const run_exe_tests = b.addRunArtifact(exe_tests);
+    exe_tests.root_module.linkLibrary(md4c_lib);
 
     const test_step = b.step("test", "Run tests");
-    test_step.dependOn(&run_exe_tests.step);
+    test_step.dependOn(&b.addRunArtifact(exe_tests).step);
 }

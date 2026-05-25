@@ -18,11 +18,11 @@ const MdCtx = struct {
     }
 };
 
-pub fn toHtml(allocator: std.mem.Allocator, md: []const u8) ![]u8 {
+pub fn toHtml(arena: *std.heap.ArenaAllocator, md: []const u8) ![]u8 {
+    const allocator = arena.allocator();
     var ctx = MdCtx{ .allocator = allocator };
-    errdefer ctx.list.deinit(allocator);
     const rc = md4c.md_html(md.ptr, @intCast(md.len), MdCtx.callback, &ctx, md4c.MD_DIALECT_GITHUB, 0);
     if (rc != 0) return error.Md4cParseError;
     if (ctx.failed) return error.Md4cParseError;
-    return ctx.list.toOwnedSlice(allocator);
+    return ctx.list.items;
 }

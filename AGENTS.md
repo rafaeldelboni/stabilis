@@ -808,6 +808,14 @@ for the SSG; bb is for the one-shot.
   `@truncate`.
 - **`std.heap.ArenaAllocator` is your FP best friend.** Every per-unit
   pure-ish function gets one.
+- **`ArrayList` is unmanaged in Zig 0.16.** `std.ArrayList(T)` no longer
+  stores an allocator. Initialize with `.empty`, pass allocator to each
+  mutating call (`append`, `ensureTotalCapacity`, etc.). The managed
+  version is now `std.ArrayListManaged(T)` and rarely needed. Arena
+  users can skip `deinit` — the arena owns the memory.
+- **Always check `/usr/lib/zig/std/` for current Zig 0.16 APIs.** The
+  language changed significantly from pre-0.16 training data. When in
+  doubt about a stdlib API, search the source rather than guessing.
 
 ---
 
