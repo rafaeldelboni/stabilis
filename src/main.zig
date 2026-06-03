@@ -13,14 +13,11 @@ pub fn main(init: std.process.Init) !void {
     defer arena.deinit();
 
     const raw_file = try fs_reader.readFile(io, &arena, "test.md");
+    std.debug.print("Raw: {s}\n", .{raw_file});
 
-    const content = frontmatter.split(raw_file);
-    std.debug.print("Raw Frontmatter: {s}\n", .{content.frontmatter});
-    std.debug.print("Raw Source: {s}\n", .{content.source});
-
-    const yaml = try yaml_lexer.parse(&arena, content.frontmatter);
-    std.debug.print("Frontmatter: {s}\n", .{try debug.dumpJson(arena.allocator(), yaml)});
-    // std.debug.print("json: {s}\n", .{fmt});
+    const content = try frontmatter.parse(&arena, raw_file);
+    const frontmatter_meta = content.frontmatter;
+    std.debug.print("Frontmatter: {s}\n", .{try debug.dumpJson(arena.allocator(), frontmatter_meta)});
     const html = try markdown.toHtml(&arena, content.source);
     std.debug.print("Html: {s}", .{html});
 
