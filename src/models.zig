@@ -1,3 +1,26 @@
+pub const DateTime = struct {
+    sec: u6, // [0, 60]
+    min: u6, // [0, 59]
+    hour: u5, // [0, 23]
+    day: u5, // [1, 31]
+    month: u4, // [1, 12]
+    year: i16, // C.E.
+};
+
+pub const MapEntry = struct {
+    key: []const u8,
+    value: YamlNode,
+};
+
+pub const YamlNode = union(enum) {
+    string: []const u8,
+    boolean: bool,
+    list: []const YamlNode,
+    map: []const MapEntry,
+    datetime: DateTime,
+    null,
+};
+
 pub const ImageSpec = struct {
     file: []const u8,
     caption: ?[]const u8,

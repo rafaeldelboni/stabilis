@@ -1,7 +1,9 @@
 const std = @import("std");
 
-const markdown = @import("adapters/markdown.zig");
 const frontmatter = @import("adapters/frontmatter.zig");
+const markdown = @import("adapters/markdown.zig");
+const yaml_lexer = @import("adapters/yaml_lexer.zig");
+const debug = @import("debug.zig");
 const fs_reader = @import("ports/fs_reader.zig");
 const fs_writer = @import("ports/fs_writer.zig");
 
@@ -16,6 +18,9 @@ pub fn main(init: std.process.Init) !void {
     std.debug.print("Raw Frontmatter: {s}\n", .{content.frontmatter});
     std.debug.print("Raw Source: {s}\n", .{content.source});
 
+    const yaml = try yaml_lexer.parse(&arena, content.frontmatter);
+    std.debug.print("Frontmatter: {s}\n", .{try debug.dumpJson(arena.allocator(), yaml)});
+    // std.debug.print("json: {s}\n", .{fmt});
     const html = try markdown.toHtml(&arena, content.source);
     std.debug.print("Html: {s}", .{html});
 
