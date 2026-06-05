@@ -341,7 +341,7 @@ fn templateFor(kind: PageKind) []const u8 {
         .home         => "home.html",
         .post         => "post.html",
         .page         => "page.html",
-        .section_list => "posts-list.html",
+        .section_list => "post-list.html",
         .gallery      => "gallery.html",
     };
 }
@@ -834,7 +834,81 @@ for the SSG; bb is for the one-shot.
 
 ---
 
-## 14. References
+## 14. Implementation decisions
+
+### 14.1 `example/` directory
+
+`example/` lives at the repo root as both integration test fixture and
+usage example. It contains `site.yaml`, `content/`, and `templates/`.
+Tests point at it; `main.zig` uses it as the default content root during
+development. Later, the real blog gets its own separate repo.
+
+### 14.2 Template engine
+
+**Signature**: `fn render(arena: *ArenaAllocator, template: []const u8, partials: PartialMap, ctx: anytype) ![]const u8`
+
+**Syntax** (standard Handlebars):
+| Notation | Meaning |
+|---|---|
+| `{{ var }}` | HTML-escaped output |
+| `{{{ var }}}` | Raw/unescaped HTML |
+| `{{# list }}...{{/ list }}` | Section iteration |
+| `{{> partial }}` | Partial include |
+| `{{ . }}` | Current context in scalar iteration |
+
+**Design**:
+- Templates are **read from disk at runtime** — the CLI is standalone, no
+  `@embedFile` or recompilation on template change.
+- Field access is **comptime-zero-cost**: `anytype` monomorphization +
+  `inline for` over `@typeInfo` + `@field` resolves struct field offsets
+  at compile time. Only runtime cost is the string comparison to dispatch
+  which variable name was found in the template text.
+- **Recursive**: partials (`{{> }}`) recurse with same `ctx`, different
+  template text. Sections (`{{# }}`) recurse with each slice element as
+  the new `ctx`. Scalars bottom out at `@field` access.
+- **Partials**: controller pre-loads all `.html` files into a
+  `std.StringHashMap([]const u8)`, passed down to `render`. The engine
+  does the `.get` when it encounters `{{> name }}`.
+- **Pure**: no `Io` in signature, no allocator beyond the output arena.
+
+### 14.3 Template context
+
+Template context is the `Page` struct directly — a flat struct with
+optional fields (`?[]const u8` for date, `[]const []const u8` for tags,
+`[]const Page` for children). Templates ignore fields they don't
+reference. No per-kind context structs (`PostCtx`, `HomeCtx`). One
+`render` call, one struct shape per page kind in practice (some kinds have
+extra fields populated, some leave them null/empty).
+
+### 14.4 Template lookup
+
+Hardcoded `switch(PageKind)`. Missing template = build error. No
+hierarchy, no fallback, no glob. The binding is a ~6-line function.
+Future: allow `layout:` in frontmatter to override.
+
+### 14.5 PageKind
+
+Kept `.home` as a distinct kind despite being structurally identical to
+`.page`. Both render body content; the difference is routing (`/` vs
+`/about/`) and which template file fires. Simplifies the `switch` mapping
+for now; may collapse later.
+
+### 14.6 YAML parser
+
+Now supports **nested block maps** via recursive calls that strip one
+indentation level per recursion. Handles:
+- `key: value` (scalar)
+- `key: { sub: val }` (inline flow map)
+- `key: [a, b]` (inline flow list)
+- `key:\n  - item` (block list)
+- `key:\n  subkey: val` (nested block map)
+- Deep nesting: `menu:\n  main:\n    - { name: Home, url: / }`
+
+Covers ~15% of the YAML 1.2 spec — and 100% of what an SSG needs.
+
+---
+
+## 15. References
 
 - [Mark Seemann — Functional architecture is Ports and Adapters](https://blog.ploeh.dk/2016/03/18/functional-architecture-is-ports-and-adapters/)
 - [Zig 0.16 release notes](https://ziglang.org/download/0.16.0/release-notes.html)

@@ -1,0 +1,14 @@
+{{> partials/header.html }}
+
+  <h1>{{ title }}</h1>
+  {{{ body }}}
+
+  <h2>Recent posts</h2>
+  <ul>
+    {{# posts }}
+    <li><a href="{{ url }}">{{ title }}</a> — {{ date }}</li>
+    {{/ posts }}
+  </ul>
+
+</body>
+</html>

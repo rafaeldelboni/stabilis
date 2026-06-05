@@ -40,3 +40,37 @@ pub const Frontmatter = struct {
 };
 
 pub const ContentEntry = struct { frontmatter: Frontmatter, source: []const u8 };
+
+const Page = struct {
+    kind: PageKind,
+    frontmatter: Frontmatter,
+    body_html: []const u8, // rendered markdown → HTML
+    url: []const u8, // e.g. "/posts/hello-world/"
+    source_path: []const u8, // relative, e.g. "content/posts/hello-world.md"
+};
+
+const PageKind = union(enum) {
+    home,
+    post,
+    page,
+    gallery,
+    section_list,
+};
+
+const Site = struct {
+    config: SiteConfig,
+    pages: []const Page,
+    posts: []const Page,
+    menu_main: []const MenuItem,
+    menu_footer: []const MenuItem,
+};
+
+const SiteConfig = struct {
+    title: []const u8,
+    base_url: []const u8,
+};
+
+const MenuItem = struct {
+    name: []const u8,
+    url: []const u8,
+};
