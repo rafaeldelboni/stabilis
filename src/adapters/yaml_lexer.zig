@@ -1,6 +1,7 @@
 const std = @import("std");
 const str = @import("../string.zig");
 const models = @import("../models.zig");
+const debug = @import("../debug.zig");
 const MapEntry = models.MapEntry;
 const YamlNode = models.YamlNode;
 const DateTime = models.DateTime;
@@ -125,14 +126,18 @@ fn parseYamlNode(arena: *std.heap.ArenaAllocator, input: []const u8) error{OutOf
     return .{ .string = unquote(trimmed) };
 }
 
-/// Parses a YAML frontmatter block into a slice of MapEntry. Each line
-/// is split on the first colon into a key and value. Values with content
-/// are dispatched through parseYamlNode. Empty values trigger block-list
-/// collection of subsequent `  - item` lines.
+/// Parses a YAML subset into a slice of MapEntry. Handles the constructs
+/// needed for site config and frontmatter: flat key-value pairs, inline
+/// flow maps (`{ key: val }`), inline flow lists (`[a, b]`), block lists
+/// (`key:\n  - item`), and nested block maps (`key:\n  subkey: val`).
+/// Nesting is resolved via recursive calls that strip one indentation
+/// level per recursion.
 ///
 /// The caller provides an arena for all allocations; all returned slices
 /// live in the arena and are freed when the arena is deinitialized.
-pub fn parse(arena: *std.heap.ArenaAllocator, source: []const u8) ![]const MapEntry {
+pub fn parse(arena: *std.heap.ArenaAllocator, source: []const u8) error{OutOfMemory}![]const MapEntry {
+    const indentation = "  ";
+    const block_list_indicator = "- ";
     const allocator = arena.allocator();
     var map: std.ArrayList(MapEntry) = .empty;
 
@@ -147,17 +152,25 @@ pub fn parse(arena: *std.heap.ArenaAllocator, source: []const u8) ![]const MapEn
         if (raw_value.len != 0) {
             try map.append(allocator, .{ .key = key, .value = try parseYamlNode(arena, raw_value) });
         } else {
+            var nested_buf: std.ArrayList(u8) = .empty;
             var list: std.ArrayList(YamlNode) = .empty;
             while (lines.peek()) |peeked| {
                 const stripped = std.mem.trimEnd(u8, peeked, "\r");
-                if (std.mem.cutPrefix(u8, stripped, "  - ")) |item| {
-                    try list.append(allocator, try parseYamlNode(arena, item));
-                    _ = lines.next();
+                if (std.mem.cutPrefix(u8, stripped, indentation)) |item| {
+                    if (std.mem.cutPrefix(u8, item, block_list_indicator)) |list_item| {
+                        try list.append(allocator, try parseYamlNode(arena, list_item));
+                        _ = lines.next();
+                    } else {
+                        if (nested_buf.items.len > 0) try nested_buf.append(allocator, '\n');
+                        try nested_buf.appendSlice(allocator, item);
+                        _ = lines.next();
+                    }
                 } else {
                     break;
                 }
             }
-            try map.append(allocator, .{ .key = key, .value = .{ .list = list.items } });
+            if (list.items.len > 0) try map.append(allocator, .{ .key = key, .value = .{ .list = list.items } });
+            if (nested_buf.items.len > 0) try map.append(allocator, .{ .key = key, .value = .{ .map = try parse(arena, nested_buf.items) } });
         }
     }
     return map.items;
@@ -187,6 +200,7 @@ test "parse yaml subset content" {
 
     const entries = try parse(&arena, source);
 
+    // std.debug.print("Frontmatter: {s}\n", .{try debug.dumpJson(arena.allocator(), entries)});
     try std.testing.expectEqual(@as(usize, 9), entries.len);
 
     // title: "Hello World" (quoted string)
@@ -262,6 +276,40 @@ test "parse yaml subset content" {
     try std.testing.expectEqualStrings("03.jpg", entries[8].value.list[2].map[0].value.string);
     try std.testing.expectEqualStrings("caption", entries[8].value.list[2].map[1].key);
     try std.testing.expectEqualStrings("The cabin", entries[8].value.list[2].map[1].value.string);
+}
+
+test "parse nested block map" {
+    const source =
+        \\menu:
+        \\  main:
+        \\    - { name: Home, url: / }
+        \\    - { name: Posts, url: /posts/ }
+    ;
+
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+
+    const entries = try parse(&arena, source);
+
+    try std.testing.expectEqual(@as(usize, 1), entries.len);
+    try std.testing.expectEqualStrings("menu", entries[0].key);
+    try std.testing.expect(entries[0].value == .map);
+
+    const menu_map = entries[0].value.map;
+    try std.testing.expectEqual(@as(usize, 1), menu_map.len);
+    try std.testing.expectEqualStrings("main", menu_map[0].key);
+    try std.testing.expect(menu_map[0].value == .list);
+
+    const main_list = menu_map[0].value.list;
+    try std.testing.expectEqual(@as(usize, 2), main_list.len);
+
+    try std.testing.expect(main_list[0] == .map);
+    try std.testing.expectEqualStrings("Home", main_list[0].map[0].value.string);
+    try std.testing.expectEqualStrings("/", main_list[0].map[1].value.string);
+
+    try std.testing.expect(main_list[1] == .map);
+    try std.testing.expectEqualStrings("Posts", main_list[1].map[0].value.string);
+    try std.testing.expectEqualStrings("/posts/", main_list[1].map[1].value.string);
 }
 
 test "parseYamlNode: plain string" {

@@ -1,0 +1,17 @@
+{{> partials/header.html }}
+
+  <section>
+    <h1>{{ title }}</h1>
+    {{{ body }}}
+    <ul>
+      {{# posts }}
+      <li>
+        <a href="{{ url }}">{{ title }}</a>
+        <time>{{ date }}</time>
+      </li>
+      {{/ posts }}
+    </ul>
+  </section>
+
+</body>
+</html>

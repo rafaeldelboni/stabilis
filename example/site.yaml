@@ -1,0 +1,6 @@
+title: Example Blog
+base_url: http://localhost:8000
+menu:
+  main:
+    - { name: Home, url: / }
+    - { name: Posts, url: /posts/ }

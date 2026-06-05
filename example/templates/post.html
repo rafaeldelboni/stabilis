@@ -1,0 +1,15 @@
+{{> partials/header.html }}
+
+  <article>
+    <h1>{{ title }}</h1>
+    <time>{{ date }}</time>
+    {{# tags }}
+    <span class="tag">{{ . }}</span>
+    {{/ tags }}
+    <div class="content">
+      {{{ body }}}
+    </div>
+  </article>
+
+</body>
+</html>
