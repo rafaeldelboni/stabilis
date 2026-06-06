@@ -1,5 +1,11 @@
 const std = @import("std");
 
+pub const SliceBetween = struct {
+    content: []const u8,
+    open_index: usize,
+    close_index: usize,
+};
+
 pub const DateTime = struct {
     sec: u6, // [0, 60]
     min: u6, // [0, 59]

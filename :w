@@ -22,18 +22,26 @@ pub fn walkDir(io: Io, arena: *std.heap.ArenaAllocator, path: []const u8) !void 
     while (try dir_entries.next(io)) |dir_entry| {
         switch (dir_entry.kind) {
             .file => {
-                const file_base = std.Io.Dir.path.basename(dir_entry.name);
-                std.debug.print("file: {s}:{s} - {s}\n", .{ path, file_base, dir_entry.name });
+                const file_ext = std.Io.Dir.path.extension(dir_entry.name);
+                const file_base = std.Io.Dir.path.extension(dir_entry.name);
+                std.debug.print("[{s: <5}] - {s}\n", .{ file_ext, file_base });
             },
             .directory => {
-                const new = try std.Io.Dir.path.join(allocator, &.{ path, dir_entry.name });
-                std.debug.print("directory: {s}\n", .{dir_entry.name});
+                std.Io.Dir.path.join(allocator, .{path, dir_entry.name} );
+                var buf: std.ArrayList(u8) = .empty;
+                try buf.appendSlice(allocator, path);
+                try buf.appendSlice(allocator, dir_entry.name);
+                try buf.appendSlice(allocator, "/");
+                const new = buf.items;
+                std.debug.print("[=DIR=] - {s}\n", .{dir_entry.name});
                 try walkDir(io, arena, new);
             },
             else => {},
         }
     }
     // std.debug.print("{s}\n", .{debug.dumpJson(arena.allocator(), dir)});
+    std.debug.print("{s}\n", .{"true"});
+
     // sdt.Io.Dir.op
     // std.Io.Dir.walk(dir: Dir, allocator: Allocator)
 }

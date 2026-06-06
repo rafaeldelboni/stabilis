@@ -1,9 +1,9 @@
 const std = @import("std");
 
-const str = @import("../string.zig");
 const models = @import("../models.zig");
-
 const CtxValue = models.CtxValue;
+const SliceBetween = models.SliceBetween;
+const str = @import("../string.zig");
 
 const RenderError = error{
     UnclosedSection,
@@ -36,7 +36,7 @@ fn escapeHtml(allocator: std.mem.Allocator, input: []const u8) ![]const u8 {
 }
 
 /// Classifies a `{{ }}` tag into its kind (raw, section, partial, variable) and extracts the key name.
-fn parseTag(result: str.SliceResult) Tag {
+fn parseTag(result: SliceBetween) Tag {
     const tag_content = std.mem.trim(u8, result.content, " \n\t\r");
     const close_pos = result.close_index + 2;
 
@@ -167,11 +167,11 @@ pub fn render(
         switch (tag.kind) {
             .raw => try renderRaw(allocator, context, tag.name, &output),
             .section_open => {
-                const session = try findSectionEnd(template, tag.name, tag.close_pos);
+                const section = try findSectionEnd(template, tag.name, tag.close_pos);
                 if (context.get(tag.name)) |value| {
-                    try renderSection(arena, session.inner, templates, context, value, &output);
+                    try renderSection(arena, section.inner, templates, context, value, &output);
                 }
-                pos = session.end;
+                pos = section.end;
             },
             .partial => {
                 const partial_tmpl = templates.get(tag.name) orelse return error.UnknownPartial;

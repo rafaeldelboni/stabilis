@@ -1,17 +1,14 @@
 const std = @import("std");
 
-pub const SliceResult = struct {
-    content: []const u8,
-    open_index: usize,
-    close_index: usize,
-};
+const models = @import("models.zig");
+const SliceBetween = models.SliceBetween;
 
 pub fn sliceBetween(
     source: []const u8,
     open: []const u8,
     close: []const u8,
     start_index: usize,
-) ?SliceResult {
+) ?SliceBetween {
     const open_index = std.mem.findPos(u8, source, start_index, open) orelse return null;
     const content_start_index = open_index + open.len;
     const close_index = std.mem.findPos(u8, source, content_start_index, close) orelse return null;
