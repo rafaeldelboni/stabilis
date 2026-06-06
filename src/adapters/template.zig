@@ -59,22 +59,28 @@ fn parseTag(result: str.SliceResult) Tag {
 }
 
 /// Finds the matching `{{/ name }}` closing tag, handling nested same-name sections via depth counting.
-fn findSectionEnd(template: []const u8, start: usize) !struct { inner: []const u8, end: usize } {
+fn findSectionEnd(template: []const u8, name: []const u8, start: usize) !struct { inner: []const u8, end: usize } {
     var depth: usize = 1;
     var search_pos = start;
+    var section_end = start;
     while (depth > 0) {
         const result = str.sliceBetween(template, "{{", "}}", search_pos) orelse {
-            break;
+            return error.UnclosedSection;
         };
         const tag = parseTag(result);
-        switch (tag.kind) {
-            .section_open => depth += 1,
-            .section_close => depth -= 1,
-            else => {},
+        if (std.mem.eql(u8, tag.name, name)) {
+            switch (tag.kind) {
+                .section_open => depth += 1,
+                .section_close => {
+                    depth -= 1;
+                    section_end = result.open_index;
+                },
+                else => {},
+            }
         }
         search_pos = tag.close_pos;
     }
-    return .{ .inner = template[start..search_pos], .end = search_pos };
+    return .{ .inner = template[start..section_end], .end = search_pos };
 }
 
 /// Iterates over a list value, merging parent scope into each item, and renders the section body for each.
@@ -161,7 +167,7 @@ pub fn render(
         switch (tag.kind) {
             .raw => try renderRaw(allocator, context, tag.name, &output),
             .section_open => {
-                const session = try findSectionEnd(template, tag.close_pos);
+                const session = try findSectionEnd(template, tag.name, tag.close_pos);
                 if (context.get(tag.name)) |value| {
                     try renderSection(arena, session.inner, templates, context, value, &output);
                 }
@@ -420,4 +426,51 @@ test "escapeHtml mixes entities and plain text" {
     defer arena.deinit();
     const result = try escapeHtml(arena.allocator(), "<p>Tom & Jerry \"cartoon\"</p>");
     try std.testing.expectEqualStrings("&lt;p&gt;Tom &amp; Jerry &quot;cartoon&quot;&lt;/p&gt;", result);
+}
+
+test "findSectionEnd simple section" {
+    const template = "{{# items }}content{{/ items }}";
+    const result = try findSectionEnd(template, "items", 12);
+    try std.testing.expectEqualStrings("content", result.inner);
+    try std.testing.expectEqual(@as(usize, template.len), result.end);
+}
+
+test "findSectionEnd unclosed section returns error" {
+    const template = "{{# items }}no closing tag";
+    try std.testing.expectError(error.UnclosedSection, findSectionEnd(template, "items", 12));
+}
+
+test "findSectionEnd handles nested same-name sections" {
+    const template = "a{{# x }}outer{{# x }}inner{{/ x }}{{/ x }}b";
+    const result = try findSectionEnd(template, "x", 9);
+    try std.testing.expectEqualStrings("outer{{# x }}inner{{/ x }}", result.inner);
+    try std.testing.expectEqual(@as(usize, 43), result.end);
+}
+
+test "findSectionEnd different named sections do not nest" {
+    const template = "{{# a }}content{{/ a }}";
+    const result = try findSectionEnd(template, "a", 8);
+    try std.testing.expectEqualStrings("content", result.inner);
+    try std.testing.expectEqual(@as(usize, template.len), result.end);
+}
+
+test "findSectionEnd empty section body" {
+    const template = "{{# x }}{{/ x }}";
+    const result = try findSectionEnd(template, "x", 8);
+    try std.testing.expectEqualStrings("", result.inner);
+    try std.testing.expectEqual(@as(usize, template.len), result.end);
+}
+
+test "findSectionEnd mismatched close tag does not close" {
+    const template = "{{# a }}{{# b }}{{/ b }}{{/ a }}";
+    const result = try findSectionEnd(template, "a", 8);
+    try std.testing.expectEqualStrings("{{# b }}{{/ b }}", result.inner);
+    try std.testing.expectEqual(@as(usize, template.len), result.end);
+}
+
+test "findSectionEnd section with surrounding text" {
+    const template = "before{{# x }}mid{{/ x }}after";
+    const result = try findSectionEnd(template, "x", 14);
+    try std.testing.expectEqualStrings("mid", result.inner);
+    try std.testing.expectEqual(@as(usize, 25), result.end);
 }
