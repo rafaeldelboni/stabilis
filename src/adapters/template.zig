@@ -60,7 +60,7 @@ fn findSectionEnd(template: []const u8, name: []const u8, start: usize) !struct 
     var open_buf: [256]u8 = undefined;
     var close_buf: [256]u8 = undefined;
 
-    // build strings for search for open & close tag `{{# name }}` & `{{/ name }}`
+    // build strings for search for open & close tag `{# name }` & `{{/ name }}`
     const open_tag = try std.fmt.bufPrint(&open_buf, "{{# {s} }}", .{name});
     const close_tag = try std.fmt.bufPrint(&close_buf, "{{{{/ {s} }}}}", .{name});
 
