@@ -28,6 +28,7 @@ test {
     _ = @import("adapters/yaml_lexer.zig");
     _ = @import("adapters/frontmatter.zig");
     _ = @import("adapters/markdown.zig");
+    _ = @import("adapters/template.zig");
     _ = @import("string.zig");
     _ = @import("models.zig");
     _ = @import("ports/fs_reader.zig");

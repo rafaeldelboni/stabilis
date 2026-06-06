@@ -1,0 +1,21 @@
+# Progress
+
+- [x] models.zig (Frontmatter, PageKind, Page, Post, MenuItem, Site, RenderCtx, YamlNode)
+- [x] Frontmatter parser (adapters/frontmatter.zig)
+- [x] Markdown to HTML adapter (adapters/markdown.zig)
+- [x] YAML lexer (adapters/yaml_lexer.zig)
+- [x] String utility - sliceBetween (string.zig)
+- [x] Debug dumpJson (debug.zig)
+- [x] File I/O ports (fs_reader.zig, fs_writer.zig)
+- [x] Template HTML files (header, home, page, post, post-list)
+- [x] logic/template.zig - templateFor stub
+- [x] Template engine render function (adapters/template.zig)
+- [ ] Site building pipeline (walk content/, parse all files, assemble Site)
+- [ ] Site -> CtxValue adapter
+- [ ] Routing (filepath → PageKind → URL)
+- [ ] Menu resolution (from config + frontmatter opt-ins)
+- [ ] Shortcode system
+- [ ] CLI commands (new, build, serve, migrate)
+- [ ] File watcher for dev mode
+- [ ] Dev server + SSE live reload
+- [ ] RSS/Atom feed generation

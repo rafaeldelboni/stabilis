@@ -1,3 +1,5 @@
+const std = @import("std");
+
 pub const DateTime = struct {
     sec: u6, // [0, 60]
     min: u6, // [0, 59]
@@ -41,36 +43,43 @@ pub const Frontmatter = struct {
 
 pub const ContentEntry = struct { frontmatter: Frontmatter, source: []const u8 };
 
-const Page = struct {
-    kind: PageKind,
-    frontmatter: Frontmatter,
-    body_html: []const u8, // rendered markdown → HTML
-    url: []const u8, // e.g. "/posts/hello-world/"
-    source_path: []const u8, // relative, e.g. "content/posts/hello-world.md"
-};
-
-const PageKind = union(enum) {
+pub const PageKind = union(enum) {
     home,
     post,
     page,
-    gallery,
-    section_list,
+    post_list,
 };
 
-const Site = struct {
-    config: SiteConfig,
-    pages: []const Page,
-    posts: []const Page,
-    menu_main: []const MenuItem,
-    menu_footer: []const MenuItem,
+pub const Page = struct {
+    kind: PageKind = .page,
+    frontmatter: Frontmatter,
+    body_html: []const u8,
+    url: []const u8,
+    source_path: []const u8,
 };
 
-const SiteConfig = struct {
-    title: []const u8,
-    base_url: []const u8,
+pub const Post = struct {
+    kind: PageKind = .post,
+    frontmatter: Frontmatter,
+    body_html: []const u8,
+    url: []const u8,
+    source_path: []const u8,
 };
 
-const MenuItem = struct {
+pub const MenuItem = struct {
     name: []const u8,
     url: []const u8,
+};
+
+pub const Site = struct {
+    title: []const u8,
+    base_url: []const u8,
+    pages: []const Page,
+    posts: []const Post,
+    menu_main: []const MenuItem,
+};
+
+pub const CtxValue = union(enum) {
+    string: []const u8,
+    list: []const std.StringHashMap(CtxValue),
 };

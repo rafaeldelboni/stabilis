@@ -78,7 +78,7 @@ pub fn parse(arena: *std.heap.ArenaAllocator, source: []const u8) !ContentEntry 
     if (str.sliceBetween(source, open_delimiter, close_delimiter, 0)) |frontmatter| {
         const body_start = frontmatter.close_index + close_delimiter.len;
         const body = if (body_start < source.len and source[body_start] == '\n')
-            source[body_start + 1 ..]
+           source[body_start + 1 ..]
         else
             source[body_start..];
         const frontmatter_map = try yaml_lexer.parse(arena, frontmatter.content);
