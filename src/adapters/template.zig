@@ -17,7 +17,7 @@ const Tag = struct {
     name: []const u8,
     close_pos: usize,
 
-    const Kind = enum { raw, section, partial, variable };
+    const Kind = enum { raw, section_open, section_close, partial, variable };
 };
 
 /// Replaces `&`, `<`, `>`, `"` with HTML entities.
@@ -45,7 +45,10 @@ fn parseTag(result: str.SliceResult) Tag {
         return Tag{ .kind = .raw, .name = name, .close_pos = close_pos + 1 };
     } else if (std.mem.cutPrefix(u8, tag_content, "#")) |name_raw| {
         const name = std.mem.trim(u8, name_raw, " ");
-        return Tag{ .kind = .section, .name = name, .close_pos = close_pos };
+        return Tag{ .kind = .section_open, .name = name, .close_pos = close_pos };
+    } else if (std.mem.cutPrefix(u8, tag_content, "/")) |name_raw| {
+        const name = std.mem.trim(u8, name_raw, " ");
+        return Tag{ .kind = .section_close, .name = name, .close_pos = close_pos };
     } else if (std.mem.cutPrefix(u8, tag_content, ">")) |name_raw| {
         const name = std.mem.trim(u8, name_raw, " ");
         return Tag{ .kind = .partial, .name = name, .close_pos = close_pos };
@@ -56,30 +59,22 @@ fn parseTag(result: str.SliceResult) Tag {
 }
 
 /// Finds the matching `{{/ name }}` closing tag, handling nested same-name sections via depth counting.
-fn findSectionEnd(template: []const u8, name: []const u8, start: usize) !struct { inner: []const u8, end: usize } {
-    var open_buf: [256]u8 = undefined;
-    var close_buf: [256]u8 = undefined;
-
-    // build strings for search for open & close tag `{# name }` & `{{/ name }}`
-    const open_tag = try std.fmt.bufPrint(&open_buf, "{{# {s} }}", .{name});
-    const close_tag = try std.fmt.bufPrint(&close_buf, "{{{{/ {s} }}}}", .{name});
-
+fn findSectionEnd(template: []const u8, start: usize) !struct { inner: []const u8, end: usize } {
     var depth: usize = 1;
     var search_pos = start;
     while (depth > 0) {
-        const next_open = std.mem.findPos(u8, template, search_pos, open_tag);
-        const next_close = std.mem.findPos(u8, template, search_pos, close_tag) orelse
-            return error.UnclosedSection;
-        if (next_open != null and next_open.? < next_close) {
-            depth += 1;
-            search_pos = next_open.? + open_tag.len;
-        } else {
-            depth -= 1;
-            search_pos = next_close + close_tag.len;
+        const result = str.sliceBetween(template, "{{", "}}", search_pos) orelse {
+            break;
+        };
+        const tag = parseTag(result);
+        switch (tag.kind) {
+            .section_open => depth += 1,
+            .section_close => depth -= 1,
+            else => {},
         }
+        search_pos = tag.close_pos;
     }
-    const section_end = search_pos - close_tag.len;
-    return .{ .inner = template[start..section_end], .end = search_pos };
+    return .{ .inner = template[start..search_pos], .end = search_pos };
 }
 
 /// Iterates over a list value, merging parent scope into each item, and renders the section body for each.
@@ -165,8 +160,8 @@ pub fn render(
         pos = tag.close_pos;
         switch (tag.kind) {
             .raw => try renderRaw(allocator, context, tag.name, &output),
-            .section => {
-                const session = try findSectionEnd(template, tag.name, tag.close_pos);
+            .section_open => {
+                const session = try findSectionEnd(template, tag.close_pos);
                 if (context.get(tag.name)) |value| {
                     try renderSection(arena, session.inner, templates, context, value, &output);
                 }
@@ -178,6 +173,7 @@ pub fn render(
                 try output.appendSlice(allocator, html);
             },
             .variable => try renderVariable(allocator, context, tag.name, &output),
+            else => {},
         }
     }
     return output.items;

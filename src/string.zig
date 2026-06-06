@@ -12,7 +12,7 @@ pub fn sliceBetween(
     close: []const u8,
     start_index: usize,
 ) ?SliceResult {
-    const open_index = std.mem.findPos(u8, source, start_index, open,) orelse return null;
+    const open_index = std.mem.findPos(u8, source, start_index, open) orelse return null;
     const content_start_index = open_index + open.len;
     const close_index = std.mem.findPos(u8, source, content_start_index, close) orelse return null;
     return .{
