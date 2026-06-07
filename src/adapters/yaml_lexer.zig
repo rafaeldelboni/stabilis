@@ -1,7 +1,9 @@
 const std = @import("std");
 
 const debug = @import("../debug.zig");
+const logic = @import("../logic/yaml_lexer.zig");
 const models = @import("../models.zig");
+
 const MapEntry = models.MapEntry;
 const YamlNode = models.YamlNode;
 const DateTime = models.DateTime;
@@ -137,8 +139,6 @@ fn parseYamlNode(arena: *std.heap.ArenaAllocator, input: []const u8) error{OutOf
 /// The caller provides an arena for all allocations; all returned slices
 /// live in the arena and are freed when the arena is deinitialized.
 pub fn parse(arena: *std.heap.ArenaAllocator, source: []const u8) error{OutOfMemory}![]const MapEntry {
-    const indentation = "  ";
-    const block_list_indicator = "- ";
     const allocator = arena.allocator();
     var map: std.ArrayList(MapEntry) = .empty;
 
@@ -150,28 +150,40 @@ pub fn parse(arena: *std.heap.ArenaAllocator, source: []const u8) error{OutOfMem
         const key = line[0..colon_pos];
         const raw_value = std.mem.trim(u8, line[colon_pos + 1 ..], " ");
 
+        // is inline value
         if (raw_value.len != 0) {
             try map.append(allocator, .{ .key = key, .value = try parseYamlNode(arena, raw_value) });
-        } else {
-            var nested_buf: std.ArrayList(u8) = .empty;
-            var list: std.ArrayList(YamlNode) = .empty;
+        }
+        // is block value
+        else {
+            var block_list_items: std.ArrayList(YamlNode) = .empty;
+            var nested_map: std.ArrayList(u8) = .empty;
             while (lines.peek()) |peeked| {
                 const stripped = std.mem.trimEnd(u8, peeked, "\r");
-                if (std.mem.cutPrefix(u8, stripped, indentation)) |item| {
-                    if (std.mem.cutPrefix(u8, item, block_list_indicator)) |list_item| {
-                        try list.append(allocator, try parseYamlNode(arena, list_item));
+                if (logic.extractIndentedLine(stripped)) |item| {
+                    if (logic.extractBlockListItem(item)) |list_item| {
+                        try block_list_items.append(allocator, try parseYamlNode(arena, list_item));
                         _ = lines.next();
                     } else {
-                        if (nested_buf.items.len > 0) try nested_buf.append(allocator, '\n');
-                        try nested_buf.appendSlice(allocator, item);
+                        // Preserve newline separators between nested lines for parse recursion
+                        if (nested_map.items.len > 0) try nested_map.append(allocator, '\n');
+                        try nested_map.appendSlice(allocator, item);
                         _ = lines.next();
                     }
                 } else {
                     break;
                 }
             }
-            if (list.items.len > 0) try map.append(allocator, .{ .key = key, .value = .{ .list = list.items } });
-            if (nested_buf.items.len > 0) try map.append(allocator, .{ .key = key, .value = .{ .map = try parse(arena, nested_buf.items) } });
+            // Emit any block-list items we collected.
+            if (block_list_items.items.len > 0) try map.append(allocator, .{
+                .key = key,
+                .value = .{ .list = block_list_items.items },
+            });
+            // Emit a nested map from any collected map entries (recursive parse).
+            if (nested_map.items.len > 0) try map.append(allocator, .{
+                .key = key,
+                .value = .{ .map = try parse(arena, nested_map.items) },
+            });
         }
     }
     return map.items;

@@ -1,5 +1,6 @@
 const std = @import("std");
 
+const logic = @import("../logic/template.zig");
 const models = @import("../models.zig");
 const CtxValue = models.CtxValue;
 const SliceBetween = models.SliceBetween;
@@ -10,14 +11,6 @@ const RenderError = error{
     UnknownPartial,
     OutOfMemory,
     NoSpaceLeft,
-};
-
-const Tag = struct {
-    kind: Kind,
-    name: []const u8,
-    close_pos: usize,
-
-    const Kind = enum { raw, section_open, section_close, partial, variable };
 };
 
 /// Replaces `&`, `<`, `>`, `"` with HTML entities.
@@ -35,29 +28,6 @@ fn escapeHtml(allocator: std.mem.Allocator, input: []const u8) ![]const u8 {
     return buf.items;
 }
 
-/// Classifies a `{{ }}` tag into its kind (raw, section, partial, variable) and extracts the key name.
-fn parseTag(result: SliceBetween) Tag {
-    const tag_content = std.mem.trim(u8, result.content, " \n\t\r");
-    const close_pos = result.close_index + 2;
-
-    if (std.mem.cutPrefix(u8, tag_content, "{")) |expr| {
-        const name = std.mem.trim(u8, std.mem.trimEnd(u8, expr, "}"), " ");
-        return Tag{ .kind = .raw, .name = name, .close_pos = close_pos + 1 };
-    } else if (std.mem.cutPrefix(u8, tag_content, "#")) |name_raw| {
-        const name = std.mem.trim(u8, name_raw, " ");
-        return Tag{ .kind = .section_open, .name = name, .close_pos = close_pos };
-    } else if (std.mem.cutPrefix(u8, tag_content, "/")) |name_raw| {
-        const name = std.mem.trim(u8, name_raw, " ");
-        return Tag{ .kind = .section_close, .name = name, .close_pos = close_pos };
-    } else if (std.mem.cutPrefix(u8, tag_content, ">")) |name_raw| {
-        const name = std.mem.trim(u8, name_raw, " ");
-        return Tag{ .kind = .partial, .name = name, .close_pos = close_pos };
-    } else {
-        const name = std.mem.trim(u8, tag_content, " ");
-        return Tag{ .kind = .variable, .name = name, .close_pos = close_pos };
-    }
-}
-
 /// Finds the matching `{{/ name }}` closing tag, handling nested same-name sections via depth counting.
 fn findSectionEnd(template: []const u8, name: []const u8, start: usize) !struct { inner: []const u8, end: usize } {
     var depth: usize = 1;
@@ -67,7 +37,7 @@ fn findSectionEnd(template: []const u8, name: []const u8, start: usize) !struct 
         const result = str.sliceBetween(template, "{{", "}}", search_pos) orelse {
             return error.UnclosedSection;
         };
-        const tag = parseTag(result);
+        const tag = logic.parseTag(result);
         if (std.mem.eql(u8, tag.name, name)) {
             switch (tag.kind) {
                 .section_open => depth += 1,
@@ -162,7 +132,7 @@ pub fn render(
             break;
         };
         try output.appendSlice(allocator, template[pos..result.open_index]);
-        const tag = parseTag(result);
+        const tag = logic.parseTag(result);
         pos = tag.close_pos;
         switch (tag.kind) {
             .raw => try renderRaw(allocator, context, tag.name, &output),

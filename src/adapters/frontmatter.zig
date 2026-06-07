@@ -1,17 +1,13 @@
 const std = @import("std");
 
 const models = @import("../models.zig");
+const logic = @import("../logic/frontmatter.zig");
 const ContentEntry = models.ContentEntry;
 const Frontmatter = models.Frontmatter;
 const MapEntry = models.MapEntry;
 const YamlNode = models.YamlNode;
 const str = @import("../string.zig");
 const yaml_lexer = @import("yaml_lexer.zig");
-
-fn startsWithFrontmatter(delimiter: []const u8, source: []const u8) bool {
-    if (source.len < delimiter.len) return false;
-    return std.mem.startsWith(u8, source, delimiter);
-}
 
 fn asString(arena: *std.heap.ArenaAllocator, value: YamlNode) !?[]const u8 {
     return switch (value) {
@@ -27,7 +23,6 @@ fn asString(arena: *std.heap.ArenaAllocator, value: YamlNode) !?[]const u8 {
         else => null,
     };
 }
-
 
 fn listToStrings(arena: *std.heap.ArenaAllocator, list: []const YamlNode) ![]const []const u8 {
     const allocator = arena.allocator();
@@ -73,7 +68,7 @@ pub fn parse(arena: *std.heap.ArenaAllocator, source: []const u8) !ContentEntry 
     const delimiter = "---";
     const open_delimiter = delimiter ++ "\n";
     const close_delimiter = "\n" ++ delimiter;
-    if (!startsWithFrontmatter(delimiter, source))
+    if (!logic.startsWithFrontmatter(delimiter, source))
         return .{ .frontmatter = .{}, .source = source };
     if (str.sliceBetween(source, open_delimiter, close_delimiter, 0)) |frontmatter| {
         const body_start = frontmatter.close_index + close_delimiter.len;
@@ -87,19 +82,6 @@ pub fn parse(arena: *std.heap.ArenaAllocator, source: []const u8) !ContentEntry 
             .source = body,
         };
     } else return .{ .frontmatter = .{}, .source = source };
-}
-
-test "startsWithFrontmatter detects opening --- delimiter" {
-    try std.testing.expectEqual(true, startsWithFrontmatter("---", "---"));
-    try std.testing.expectEqual(true, startsWithFrontmatter("---", "---content"));
-    try std.testing.expectEqual(true, startsWithFrontmatter("---", "---content---"));
-    try std.testing.expectEqual(true, startsWithFrontmatter("---", "---\n"));
-    try std.testing.expectEqual(true, startsWithFrontmatter("---", "---\r\n"));
-    try std.testing.expectEqual(false, startsWithFrontmatter("---", "content---"));
-    try std.testing.expectEqual(false, startsWithFrontmatter("---", ""));
-    try std.testing.expectEqual(false, startsWithFrontmatter("---", "--"));
-    try std.testing.expectEqual(false, startsWithFrontmatter("---", "  ---"));
-    try std.testing.expectEqual(false, startsWithFrontmatter("---", "\t---"));
 }
 
 test "parse frontmatter-shaped content" {
