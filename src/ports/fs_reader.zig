@@ -50,7 +50,6 @@ pub fn walkDir(io: Io, arena: *std.heap.ArenaAllocator, path: []const u8) ![]Fil
     return output.items;
 }
 
-
 // integration test: requires example/ directory
 test "walkDir reads example directory" {
     const allocator = std.testing.allocator;
