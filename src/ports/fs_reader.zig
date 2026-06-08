@@ -1,14 +1,8 @@
 const std = @import("std");
 const Io = std.Io;
 
-const File = struct {
-    cwd_path: []const u8,
-    dir_path: []const u8,
-    abs_path: []const u8,
-    file_ext: []const u8,
-    file_name: []const u8,
-    contents: []const u8,
-};
+const models = @import("../models.zig");
+const File = models.File;
 
 pub fn readFile(io: Io, arena: *std.heap.ArenaAllocator, path: []const u8) ![]u8 {
     const allocator = arena.allocator();
@@ -37,7 +31,6 @@ pub fn walkDir(io: Io, arena: *std.heap.ArenaAllocator, path: []const u8) ![]Fil
                     .abs_path = try std.Io.Dir.path.resolve(allocator, &.{ dir_path, dir_entry.name }),
                     .file_ext = try allocator.dupe(u8, std.Io.Dir.path.extension(dir_entry.name)),
                     .file_name = try allocator.dupe(u8, dir_entry.name),
-                    .contents = try std.Io.Dir.readFileAlloc(dir, io, dir_entry.name, allocator, .unlimited),
                 });
             },
             .directory => {

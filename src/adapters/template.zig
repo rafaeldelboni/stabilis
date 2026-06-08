@@ -4,6 +4,7 @@ const logic = @import("../logic/template.zig");
 const models = @import("../models.zig");
 const CtxValue = models.CtxValue;
 const SliceBetween = models.SliceBetween;
+const Templates = models.Templates;
 const str = @import("../string.zig");
 
 const RenderError = error{
@@ -57,7 +58,7 @@ fn findSectionEnd(template: []const u8, name: []const u8, start: usize) !struct 
 fn renderSection(
     arena: *std.heap.ArenaAllocator,
     inner: []const u8,
-    templates: std.StringHashMap([]const u8),
+    templates: Templates,
     context: std.StringHashMap(CtxValue),
     value: CtxValue,
     output: *std.ArrayList(u8),
@@ -119,7 +120,7 @@ fn renderRaw(
 pub fn render(
     arena: *std.heap.ArenaAllocator,
     template: []const u8,
-    templates: std.StringHashMap([]const u8),
+    templates: Templates,
     context: std.StringHashMap(CtxValue),
 ) RenderError![]const u8 {
     const allocator = arena.allocator();

@@ -25,12 +25,16 @@ pub fn main(init: std.process.Init) !void {
 }
 
 test {
-    _ = @import("adapters/yaml_lexer.zig");
     _ = @import("adapters/frontmatter.zig");
     _ = @import("adapters/markdown.zig");
+    _ = @import("adapters/site.zig");
     _ = @import("adapters/template.zig");
-    _ = @import("string.zig");
-    _ = @import("models.zig");
+    _ = @import("adapters/yaml_lexer.zig");
+    _ = @import("logic/frontmatter.zig");
+    _ = @import("logic/template.zig");
+    _ = @import("logic/yaml_lexer.zig");
     _ = @import("ports/fs_reader.zig");
     _ = @import("ports/fs_writer.zig");
+    _ = @import("models.zig");
+    _ = @import("string.zig");
 }
