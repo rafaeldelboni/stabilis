@@ -14,11 +14,13 @@ This project follows the **Ports and Adapters** architecture (also known as hexa
 
 - **Ports** — the boundaries of the application. They interact with the outside world: filesystem, databases, HTTP, CLI, etc. In this project, `src/ports/` contains pure I/O primitives (e.g., `fs_reader.zig` for reading files, `fs_writer.zig` for writing files). Ports know nothing about the domain model.
 
-- **Adapters** — translate between ports and the application model. They take data from ports (e.g., raw file paths and bytes) and produce domain types (e.g., `Site`, `Template`, `Page`). They also handle composition — wiring ports together with domain logic. In this project, `src/adapters/` contains these translation layers.
+- **Adapters** — pure translation layers between a port and the domain model. They take data from ports (e.g., raw file paths and bytes) and produce domain types (e.g., `Site`, `Template`, `Page`), or vice versa. Adapters do *not* orchestrate or wire layers together. In this project, `src/adapters/` contains these translation layers.
 
 - **Logic** — pure domain functions with no I/O. They operate only on domain types and have no side effects. In this project, `src/logic/` contains pure functions (e.g., YAML lexing, template tag parsing, frontmatter parsing).
 
 - **Models** — domain types shared across all layers. In this project, `src/models.zig` defines `Site`, `Page`, `Post`, `Template`, `Frontmatter`, etc.
+
+- **Composition Root** — orchestration lives at the edge of the system (e.g., `main`), not in adapters. It pulls in impure ports, runs the pure core, and wires the pieces together. The pattern is a big pure core wrapped in a thin impure shell.
 
 ### Dependencies flow inward
 
@@ -41,4 +43,3 @@ ports/  <--  adapters/  <--  logic/
 ### References
 
 - [Functional architecture is Ports and Adapters — Mark Seemann](https://blog.ploeh.dk/2016/03/18/functional-architecture-is-ports-and-adapters/)
-- [Layers, Onions, Ports, Adapters — it's all the same](https://blog.ploeh.dk/2013/12/03/layers-onions-ports-adapters-its-all-the-same)
