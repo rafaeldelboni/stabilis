@@ -73,5 +73,5 @@ test "smoke test" {
     };
 
     const results = try parse(&arena, &config, &walkDirResult);
-    std.debug.print("{s}\n", .{try debug.dumpJson(arena.allocator(), results)});
+    try debug.printJson(&arena, results);
 }
