@@ -23,16 +23,13 @@ pub const DateTime = struct {
     year: i16, // C.E.
 };
 
-pub const MapEntry = struct {
-    key: []const u8,
-    value: YamlNode,
-};
+pub const MapEntries = std.StringHashMap(YamlNode);
 
 pub const YamlNode = union(enum) {
     string: []const u8,
     boolean: bool,
     list: []const YamlNode,
-    map: []const MapEntry,
+    map: MapEntries,
     datetime: DateTime,
     null,
 };

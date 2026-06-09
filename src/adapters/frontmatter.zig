@@ -4,24 +4,26 @@ const logic = @import("../logic/frontmatter.zig");
 const models = @import("../models.zig");
 const ContentEntry = models.ContentEntry;
 const Frontmatter = models.Frontmatter;
-const MapEntry = models.MapEntry;
+const MapEntries = models.MapEntries;
 const YamlNode = models.YamlNode;
 const str = @import("../string.zig");
 const yaml_lexer = @import("yaml_lexer.zig");
 
-fn asString(arena: *std.heap.ArenaAllocator, value: YamlNode) !?[]const u8 {
-    return switch (value) {
-        .string => |s| s,
-        .boolean => |b| if (b) "true" else "false",
-        .datetime => |d| blk: {
-            const buf = try arena.allocator().alloc(u8, 20);
-            break :blk try std.fmt.bufPrint(buf, "{d}-{d:0>2}-{d:0>2}T{d:0>2}:{d:0>2}:{d:0>2}Z", .{
-                d.year, d.month, d.day, d.hour, d.min, d.sec,
-            });
-        },
-        .null => null,
-        else => null,
-    };
+fn asString(arena: *std.heap.ArenaAllocator, value: ?YamlNode) !?[]const u8 {
+    if (value) |v| {
+        return switch (v) {
+            .string => |s| s,
+            .boolean => |b| if (b) "true" else "false",
+            .datetime => |d| blk: {
+                const buf = try arena.allocator().alloc(u8, 20);
+                break :blk try std.fmt.bufPrint(buf, "{d}-{d:0>2}-{d:0>2}T{d:0>2}:{d:0>2}:{d:0>2}Z", .{
+                    d.year, d.month, d.day, d.hour, d.min, d.sec,
+                });
+            },
+            .null => null,
+            else => null,
+        };
+    } else return null;
 }
 
 fn listToStrings(arena: *std.heap.ArenaAllocator, list: []const YamlNode) ![]const []const u8 {
@@ -35,24 +37,22 @@ fn listToStrings(arena: *std.heap.ArenaAllocator, list: []const YamlNode) ![]con
     return strings.items;
 }
 
-fn mapToFrontmatter(arena: *std.heap.ArenaAllocator, entries: []const MapEntry) !Frontmatter {
+fn mapToFrontmatter(arena: *std.heap.ArenaAllocator, entries: MapEntries) !Frontmatter {
     var fm = Frontmatter{};
-    for (entries) |entry| {
-        if (std.mem.eql(u8, entry.key, "author")) fm.author = (try asString(arena, entry.value)) orelse fm.author;
-        if (std.mem.eql(u8, entry.key, "title")) fm.title = (try asString(arena, entry.value)) orelse fm.title;
-        if (std.mem.eql(u8, entry.key, "date")) fm.date = (try asString(arena, entry.value)) orelse fm.date;
-        if (std.mem.eql(u8, entry.key, "slug")) fm.slug = (try asString(arena, entry.value)) orelse fm.slug;
-        if (std.mem.eql(u8, entry.key, "description")) fm.description = (try asString(arena, entry.value)) orelse fm.description;
-        if (std.mem.eql(u8, entry.key, "cover")) fm.cover = (try asString(arena, entry.value)) orelse fm.cover;
-        if (std.mem.eql(u8, entry.key, "draft")) {
-            if (entry.value == .boolean) fm.draft = entry.value.boolean;
-        }
-        if (std.mem.eql(u8, entry.key, "tags")) {
-            if (entry.value == .list) fm.tags = try listToStrings(arena, entry.value.list);
-        }
-        if (std.mem.eql(u8, entry.key, "menus")) {
-            if (entry.value == .list) fm.menus = try listToStrings(arena, entry.value.list);
-        }
+    fm.author = (try asString(arena, entries.get("author"))) orelse fm.author;
+    fm.title = (try asString(arena, entries.get("title"))) orelse fm.title;
+    fm.date = (try asString(arena, entries.get("date"))) orelse fm.date;
+    fm.slug = (try asString(arena, entries.get("slug"))) orelse fm.slug;
+    fm.description = (try asString(arena, entries.get("description"))) orelse fm.description;
+    fm.cover = (try asString(arena, entries.get("cover"))) orelse fm.cover;
+    if (entries.get("draft")) |draft| {
+        if (draft == .boolean) fm.draft = draft.boolean;
+    }
+    if (entries.get("tags")) |tags| {
+        if (tags == .list) fm.tags = try listToStrings(arena, tags.list);
+    }
+    if (entries.get("menus")) |menus| {
+        if (menus == .list) fm.menus = try listToStrings(arena, menus.list);
     }
     return fm;
 }
@@ -211,15 +211,15 @@ test "mapToFrontmatter: maps known keys to Frontmatter fields" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
 
-    const entries = [_]MapEntry{
-        .{ .key = "title", .value = .{ .string = "Hello" } },
-        .{ .key = "draft", .value = .{ .boolean = true } },
-        .{ .key = "tags", .value = .{ .list = &.{
-            .{ .string = "zig" },
-            .{ .string = "ssg" },
-        } } },
-    };
-    const fm = try mapToFrontmatter(&arena, &entries);
+    var entries = MapEntries.init(arena.allocator());
+    try entries.put("title", .{ .string = "Hello" });
+    try entries.put("draft", .{ .boolean = true });
+    try entries.put("tags", .{ .list = &.{
+        .{ .string = "zig" },
+        .{ .string = "ssg" },
+    } });
+
+    const fm = try mapToFrontmatter(&arena, entries);
     try std.testing.expectEqualStrings("Hello", fm.title.?);
     try std.testing.expectEqual(true, fm.draft);
     try std.testing.expectEqual(@as(usize, 2), fm.tags.len);
@@ -231,11 +231,11 @@ test "mapToFrontmatter: unknown keys are ignored" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
 
-    const entries = [_]MapEntry{
-        .{ .key = "custom_field", .value = .{ .string = "ignored" } },
-        .{ .key = "title", .value = .{ .string = "Only This" } },
-    };
-    const fm = try mapToFrontmatter(&arena, &entries);
+    var entries = MapEntries.init(arena.allocator());
+    try entries.put("custom_field", .{ .string = "ignored" });
+    try entries.put("title", .{ .string = "Only This" });
+
+    const fm = try mapToFrontmatter(&arena, entries);
     try std.testing.expectEqualStrings("Only This", fm.title.?);
     try std.testing.expect(fm.date == null);
     try std.testing.expectEqual(false, fm.draft);
@@ -245,7 +245,8 @@ test "mapToFrontmatter: empty entries returns default Frontmatter" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
 
-    const fm = try mapToFrontmatter(&arena, &.{});
+    const entries = MapEntries.init(arena.allocator());
+    const fm = try mapToFrontmatter(&arena, entries);
     try std.testing.expect(fm.title == null);
     try std.testing.expectEqual(false, fm.draft);
     try std.testing.expectEqual(@as(usize, 0), fm.tags.len);
@@ -300,5 +301,5 @@ test "asString: list and map return null" {
     defer arena.deinit();
 
     try std.testing.expect((try asString(&arena, .{ .list = &.{} })) == null);
-    try std.testing.expect((try asString(&arena, .{ .map = &.{} })) == null);
+    try std.testing.expect((try asString(&arena, .{ .map = MapEntries.init(arena.allocator()) })) == null);
 }
