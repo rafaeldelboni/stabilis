@@ -12,7 +12,7 @@ pub fn main(init: std.process.Init) !void {
     var arena: std.heap.ArenaAllocator = std.heap.ArenaAllocator.init(init.gpa);
     defer arena.deinit();
 
-    const raw_file = try fs_reader.readFile(io, &arena, "test.md");
+    const raw_file = try fs_reader.readFile(io, &arena, "example/content/posts/hello-world.md");
     std.debug.print("Raw: {s}\n", .{raw_file});
 
     const content = try frontmatter.parse(&arena, raw_file);

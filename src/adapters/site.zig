@@ -3,6 +3,7 @@ const std = @import("std");
 const debug = @import("../debug.zig");
 const models = @import("../models.zig");
 const File = models.File;
+const MenuItem = models.MenuItem;
 const MapEntries = models.MapEntries;
 const Templates = models.Templates;
 const YamlNode = models.YamlNode;
@@ -16,7 +17,6 @@ pub fn parse(
     const allocator = arena.allocator();
     // sequence
     // parse confg MapEntry array (title, base_url, menu_main)
-    _ = config;
     // parse files File array
     _ = files;
     // on each file detect type and
@@ -24,10 +24,17 @@ pub fn parse(
     //    parse pages
     //    parse posts
     //    parse posts
+    var main_menu: std.ArrayList(MenuItem) = .empty;
+    for (config.get("menu").?.map.get("main").?.list) |entry| {
+        try main_menu.append(allocator, .{
+            .name = entry.map.get("name").?.string,
+            .url = entry.map.get("url").?.string,
+        });
+    }
     return Site{
-        .title = "banana blog",
-        .base_url = "banana/url",
-        .menu_main = &.{},
+        .title = config.get("title").?.string,
+        .base_url = config.get("base_url").?.string,
+        .menu_main = main_menu.items,
         .templates = std.StringHashMap([]const u8).init(allocator),
         .pages = &.{},
         .posts = &.{},
