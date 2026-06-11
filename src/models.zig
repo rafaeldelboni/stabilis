@@ -7,11 +7,12 @@ pub const SliceBetween = struct {
 };
 
 pub const File = struct {
-    cwd_path: []const u8,
+    rel_path: []const u8,
     dir_path: []const u8,
     abs_path: []const u8,
     file_ext: []const u8,
     file_name: []const u8,
+    contents: []const u8,
 };
 
 pub const DateTime = struct {
@@ -64,19 +65,8 @@ pub const PageKind = union(enum) {
 pub const Templates = std.StringHashMap([]const u8);
 
 pub const Page = struct {
-    kind: PageKind = .page,
-    frontmatter: Frontmatter,
-    body_html: []const u8,
-    url: []const u8,
-    source_path: []const u8,
-};
-
-pub const Post = struct {
-    kind: PageKind = .post,
-    frontmatter: Frontmatter,
-    body_html: []const u8,
-    url: []const u8,
-    source_path: []const u8,
+    kind: PageKind,
+    context: std.StringHashMap(CtxValue),
 };
 
 pub const MenuItem = struct {
@@ -89,7 +79,7 @@ pub const Site = struct {
     base_url: []const u8,
     templates: Templates,
     pages: []const Page,
-    posts: []const Post,
+    posts: []const Page,
     menu_main: []const MenuItem,
 };
 

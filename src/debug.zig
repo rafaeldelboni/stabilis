@@ -1,5 +1,17 @@
 const std = @import("std");
 
+fn canWrite(comptime T: type) bool {
+    return switch (@typeInfo(T)) {
+        .@"fn", .@"opaque" => false,
+        .optional => |o| canWrite(o.child),
+        .pointer => |p| switch (@typeInfo(p.child)) {
+            .@"fn", .@"opaque" => false,
+            else => p.size != .many,
+        },
+        else => true,
+    };
+}
+
 fn isMap(comptime T: type) bool {
     const Ty = if (@typeInfo(T) == .optional) @typeInfo(T).optional.child else T;
     if (@typeInfo(Ty) != .@"struct") return false;
@@ -11,7 +23,7 @@ fn isMap(comptime T: type) bool {
     return false;
 }
 
-fn writeValue(j: *std.json.Stringify, value: anytype) !void {
+fn writeValue(j: *std.json.Stringify, value: anytype) anyerror!void {
     if (comptime isMap(@TypeOf(value))) {
         try j.beginObject();
         var it = value.iterator();
@@ -22,11 +34,37 @@ fn writeValue(j: *std.json.Stringify, value: anytype) !void {
         try j.endObject();
         return;
     }
-    if (comptime @typeInfo(@TypeOf(value)) != .@"struct") return j.write(value);
+    if (comptime @typeInfo(@TypeOf(value)) != .@"struct") {
+        if (comptime !canWrite(@TypeOf(value))) return j.write("--");
+        if (comptime @typeInfo(@TypeOf(value)) == .@"union") {
+            switch (value) {
+                inline else => |payload| {
+                    if (@TypeOf(payload) == void) return j.write(@tagName(value));
+                    try j.beginObject();
+                    try j.objectField(@tagName(value));
+                    try writeValue(j, payload);
+                    try j.endObject();
+                    return;
+                },
+            }
+        }
+        if (comptime @typeInfo(@TypeOf(value)) == .pointer) {
+            const ptr_info = @typeInfo(@TypeOf(value)).pointer;
+            if (ptr_info.size == .one and @typeInfo(ptr_info.child) == .@"struct")
+                return writeValue(j, value.*);
+            if (ptr_info.size == .slice and @typeInfo(ptr_info.child) != .int) {
+                try j.beginArray();
+                for (value) |elem| try writeValue(j, elem);
+                try j.endArray();
+                return;
+            }
+        }
+        return j.write(value);
+    }
 
     try j.beginObject();
     inline for (@typeInfo(@TypeOf(value)).@"struct".fields) |f| {
-        if (f.type != void) {
+        if (f.type != void and canWrite(f.type)) {
             const v = @field(value, f.name);
             const opt = @typeInfo(f.type) == .optional;
             if (!opt or v != null) {
