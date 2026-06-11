@@ -2,6 +2,7 @@ const std = @import("std");
 
 const logic = @import("../logic/template.zig");
 const models = @import("../models.zig");
+const Context = models.Context;
 const CtxValue = models.CtxValue;
 const SliceBetween = models.SliceBetween;
 const Templates = models.Templates;
@@ -59,7 +60,7 @@ fn renderSection(
     arena: *std.heap.ArenaAllocator,
     inner: []const u8,
     templates: Templates,
-    context: std.StringHashMap(CtxValue),
+    context: Context,
     value: CtxValue,
     output: *std.ArrayList(u8),
 ) !void {
@@ -67,14 +68,14 @@ fn renderSection(
     switch (value) {
         .list => |items| {
             for (items) |item| {
-                var child_ctx = std.StringHashMap(CtxValue).init(allocator);
-                var parent_it = context.iterator();
+                var child_ctx: Context = .{};
+                var parent_it = context.map.iterator();
                 while (parent_it.next()) |entry| {
-                    try child_ctx.put(entry.key_ptr.*, entry.value_ptr.*);
+                    try child_ctx.map.put(allocator, entry.key_ptr.*, entry.value_ptr.*);
                 }
-                var item_it = item.iterator();
+                var item_it = item.map.iterator();
                 while (item_it.next()) |entry| {
-                    try child_ctx.put(entry.key_ptr.*, entry.value_ptr.*);
+                    try child_ctx.map.put(allocator, entry.key_ptr.*, entry.value_ptr.*);
                 }
                 const html = try render(arena, inner, templates, child_ctx);
                 try output.appendSlice(allocator, html);
@@ -87,11 +88,11 @@ fn renderSection(
 /// Looks up a key in context and appends its HTML-escaped string value to output.
 fn renderVariable(
     allocator: std.mem.Allocator,
-    context: std.StringHashMap(CtxValue),
+    context: Context,
     name: []const u8,
     output: *std.ArrayList(u8),
 ) !void {
-    if (context.get(name)) |value| {
+    if (context.map.get(name)) |value| {
         switch (value) {
             .string => |s| try output.appendSlice(allocator, try escapeHtml(allocator, s)),
             else => {},
@@ -102,11 +103,11 @@ fn renderVariable(
 /// Looks up a key in context and appends its raw string value to output (no escaping).
 fn renderRaw(
     allocator: std.mem.Allocator,
-    context: std.StringHashMap(CtxValue),
+    context: Context,
     name: []const u8,
     output: *std.ArrayList(u8),
 ) !void {
-    if (context.get(name)) |value| {
+    if (context.map.get(name)) |value| {
         switch (value) {
             .string => |s| try output.appendSlice(allocator, s),
             else => {},
@@ -121,7 +122,7 @@ pub fn render(
     arena: *std.heap.ArenaAllocator,
     template: []const u8,
     templates: Templates,
-    context: std.StringHashMap(CtxValue),
+    context: Context,
 ) RenderError![]const u8 {
     const allocator = arena.allocator();
     var output: std.ArrayList(u8) = .empty;
@@ -139,13 +140,13 @@ pub fn render(
             .raw => try renderRaw(allocator, context, tag.name, &output),
             .section_open => {
                 const section = try findSectionEnd(template, tag.name, tag.close_pos);
-                if (context.get(tag.name)) |value| {
+                if (context.map.get(tag.name)) |value| {
                     try renderSection(arena, section.inner, templates, context, value, &output);
                 }
                 pos = section.end;
             },
             .partial => {
-                const partial_tmpl = templates.get(tag.name) orelse return error.UnknownPartial;
+                const partial_tmpl = templates.map.get(tag.name) orelse return error.UnknownPartial;
                 const html = try render(arena, partial_tmpl, templates, context);
                 try output.appendSlice(allocator, html);
             },
@@ -191,48 +192,48 @@ test "render home example" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     const allocator = arena.allocator();
     defer arena.deinit();
-    var context = std.StringHashMap(CtxValue).init(allocator);
+    var context: Context = .{};
 
-    try context.put("title", .{ .string = "<Home Page>" });
-    try context.put("body", .{ .string = "<h1>Hello</h1>" });
+    try context.map.put(allocator, "title", .{ .string = "<Home Page>" });
+    try context.map.put(allocator, "body", .{ .string = "<h1>Hello</h1>" });
 
-    var posts_list = std.ArrayList(std.StringHashMap(CtxValue)).initCapacity(allocator, 2) catch unreachable;
+    var posts_list = std.ArrayList(Context).initCapacity(allocator, 2) catch unreachable;
     {
-        var ctx = std.StringHashMap(CtxValue).init(allocator);
-        try ctx.put("name", .{ .string = "Bananas" });
-        try ctx.put("url", .{ .string = "/posts/bananas" });
-        try ctx.put("date", .{ .string = "1977-01-01" });
+        var ctx: Context = .{};
+        try ctx.map.put(allocator, "name", .{ .string = "Bananas" });
+        try ctx.map.put(allocator, "url", .{ .string = "/posts/bananas" });
+        try ctx.map.put(allocator, "date", .{ .string = "1977-01-01" });
         try posts_list.append(allocator, ctx);
     }
     {
-        var ctx = std.StringHashMap(CtxValue).init(allocator);
-        try ctx.put("name", .{ .string = "Apples" });
-        try ctx.put("url", .{ .string = "/posts/apples" });
-        try ctx.put("date", .{ .string = "1977-01-02" });
+        var ctx: Context = .{};
+        try ctx.map.put(allocator, "name", .{ .string = "Apples" });
+        try ctx.map.put(allocator, "url", .{ .string = "/posts/apples" });
+        try ctx.map.put(allocator, "date", .{ .string = "1977-01-02" });
         try posts_list.append(allocator, ctx);
     }
-    try context.put("posts", .{ .list = posts_list.items });
+    try context.map.put(allocator, "posts", .{ .list = posts_list.items });
 
-    var menu_list = std.ArrayList(std.StringHashMap(CtxValue)).initCapacity(allocator, 2) catch unreachable;
+    var menu_list = std.ArrayList(Context).initCapacity(allocator, 2) catch unreachable;
     {
-        var ctx = std.StringHashMap(CtxValue).init(allocator);
-        try ctx.put("name", .{ .string = "Home" });
-        try ctx.put("url", .{ .string = "/site/home" });
+        var ctx: Context = .{};
+        try ctx.map.put(allocator, "name", .{ .string = "Home" });
+        try ctx.map.put(allocator, "url", .{ .string = "/site/home" });
         try menu_list.append(allocator, ctx);
     }
     {
-        var ctx = std.StringHashMap(CtxValue).init(allocator);
-        try ctx.put("name", .{ .string = "About" });
-        try ctx.put("url", .{ .string = "/site/about" });
+        var ctx: Context = .{};
+        try ctx.map.put(allocator, "name", .{ .string = "About" });
+        try ctx.map.put(allocator, "url", .{ .string = "/site/about" });
         try menu_list.append(allocator, ctx);
     }
-    try context.put("menu_main", .{ .list = menu_list.items });
+    try context.map.put(allocator, "menu_main", .{ .list = menu_list.items });
 
-    var templates = std.StringHashMap([]const u8).init(arena.allocator());
-    defer templates.deinit();
+    var templates: Templates = .{};
+    defer templates.deinit(allocator);
 
-    try templates.put("partials/header.html", header_template);
-    try templates.put("home.html", home_template);
+    try templates.map.put(allocator, "partials/header.html", header_template);
+    try templates.map.put(allocator, "home.html", home_template);
 
     const entries = try render(&arena, home_template, templates, context);
 
@@ -275,19 +276,19 @@ test "non-string value in {{ }} tag does not crash" {
     defer arena.deinit();
     const allocator = arena.allocator();
 
-    var context = std.StringHashMap(CtxValue).init(allocator);
-    defer context.deinit();
-    try context.put("items", .{ .list = &.{
+    var context: Context = .{};
+    defer context.deinit(allocator);
+    try context.map.put(allocator, "items", .{ .list = &.{
         blk: {
-            var ctx = std.StringHashMap(CtxValue).init(allocator);
-            try ctx.put("name", .{ .string = "foo" });
-            try ctx.put("url", .{ .string = "/bar" });
+            var ctx: Context = .{};
+            try ctx.map.put(allocator, "name", .{ .string = "foo" });
+            try ctx.map.put(allocator, "url", .{ .string = "/bar" });
             break :blk ctx;
         },
     } });
 
-    var templates = std.StringHashMap([]const u8).init(allocator);
-    defer templates.deinit();
+    var templates: Templates = .{};
+    defer templates.deinit(allocator);
 
     const result = try render(&arena, "{{ items }}", templates, context);
     try std.testing.expectEqualStrings("", result);
@@ -298,20 +299,20 @@ test "child section inherits parent scope" {
     defer arena.deinit();
     const allocator = arena.allocator();
 
-    var context = std.StringHashMap(CtxValue).init(allocator);
-    defer context.deinit();
-    try context.put("site_name", .{ .string = "MySite" });
-    try context.put("items", .{ .list = &.{
+    var context: Context = .{};
+    defer context.deinit(allocator);
+    try context.map.put(allocator, "site_name", .{ .string = "MySite" });
+    try context.map.put(allocator, "items", .{ .list = &.{
         blk: {
-            var ctx = std.StringHashMap(CtxValue).init(allocator);
-            try ctx.put("name", .{ .string = "Home" });
-            try ctx.put("url", .{ .string = "/" });
+            var ctx: Context = .{};
+            try ctx.map.put(allocator, "name", .{ .string = "Home" });
+            try ctx.map.put(allocator, "url", .{ .string = "/" });
             break :blk ctx;
         },
     } });
 
-    var templates = std.StringHashMap([]const u8).init(allocator);
-    defer templates.deinit();
+    var templates: Templates = .{};
+    defer templates.deinit(allocator);
 
     const result = try render(&arena, "{{# items }}{{ site_name }}:{{ name }}{{/ items }}", templates, context);
     try std.testing.expectEqualStrings("MySite:Home", result);
@@ -322,19 +323,19 @@ test "nested same-name sections resolve correctly" {
     defer arena.deinit();
     const allocator = arena.allocator();
 
-    var context = std.StringHashMap(CtxValue).init(allocator);
-    defer context.deinit();
-    try context.put("x", .{ .list = &.{
+    var context: Context = .{};
+    defer context.deinit(allocator);
+    try context.map.put(allocator, "x", .{ .list = &.{
         blk: {
-            var ctx = std.StringHashMap(CtxValue).init(allocator);
-            try ctx.put("name", .{ .string = "outer" });
-            try ctx.put("url", .{ .string = "/o" });
+            var ctx: Context = .{};
+            try ctx.map.put(allocator, "name", .{ .string = "outer" });
+            try ctx.map.put(allocator, "url", .{ .string = "/o" });
             break :blk ctx;
         },
     } });
 
-    var templates = std.StringHashMap([]const u8).init(allocator);
-    defer templates.deinit();
+    var templates: Templates = .{};
+    defer templates.deinit(allocator);
 
     const tmpl = "{{# x }}{{ name }}-{{# x }}{{ name }}{{/ x }}{{/ x }}";
     const result = try render(&arena, tmpl, templates, context);
@@ -346,12 +347,12 @@ test "triple brace {{{ }}} renders raw html without stray characters" {
     defer arena.deinit();
     const allocator = arena.allocator();
 
-    var context = std.StringHashMap(CtxValue).init(allocator);
-    defer context.deinit();
-    try context.put("body", .{ .string = "<h1>Hello</h1>" });
+    var context: Context = .{};
+    defer context.deinit(allocator);
+    try context.map.put(allocator, "body", .{ .string = "<h1>Hello</h1>" });
 
-    var templates = std.StringHashMap([]const u8).init(allocator);
-    defer templates.deinit();
+    var templates: Templates = .{};
+    defer templates.deinit(allocator);
 
     const result = try render(&arena, "start{{{ body }}}end", templates, context);
     try std.testing.expectEqualStrings("start<h1>Hello</h1>end", result);

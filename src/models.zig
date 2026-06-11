@@ -24,7 +24,7 @@ pub const DateTime = struct {
     year: i16, // C.E.
 };
 
-pub const MapEntries = std.StringHashMap(YamlNode);
+pub const MapEntries = std.json.ArrayHashMap(YamlNode);
 
 pub const YamlNode = union(enum) {
     string: []const u8,
@@ -55,18 +55,20 @@ pub const Frontmatter = struct {
 
 pub const ContentEntry = struct { frontmatter: Frontmatter, source: []const u8 };
 
-pub const PageKind = union(enum) {
+pub const PageKind = enum {
     home,
     post,
     page,
     post_list,
 };
 
-pub const Templates = std.StringHashMap([]const u8);
+pub const Templates = std.json.ArrayHashMap([]const u8);
+
+pub const Context = std.json.ArrayHashMap(CtxValue);
 
 pub const Page = struct {
     kind: PageKind,
-    context: std.StringHashMap(CtxValue),
+    context: Context,
 };
 
 pub const MenuItem = struct {
@@ -85,5 +87,5 @@ pub const Site = struct {
 
 pub const CtxValue = union(enum) {
     string: []const u8,
-    list: []const std.StringHashMap(CtxValue),
+    list: []const Context,
 };
