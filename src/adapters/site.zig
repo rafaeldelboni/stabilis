@@ -47,17 +47,17 @@ pub fn parse(
     //    parse posts
     //    parse posts
     var main_menu: std.ArrayList(MenuItem) = .empty;
-    for (config.get("menu").?.map.get("main").?.list) |entry| {
+    for (config.map.get("menu").?.map.map.get("main").?.list) |entry| {
         try main_menu.append(allocator, .{
-            .name = entry.map.get("name").?.string,
-            .url = entry.map.get("url").?.string,
+            .name = entry.map.map.get("name").?.string,
+            .url = entry.map.map.get("url").?.string,
         });
     }
     return Site{
-        .title = config.get("title").?.string,
-        .base_url = config.get("base_url").?.string,
+        .title = config.map.get("title").?.string,
+        .base_url = config.map.get("base_url").?.string,
         .menu_main = main_menu.items,
-        .templates = std.StringHashMap([]const u8).init(allocator),
+        .templates = .{},
         .pages = &.{},
         .posts = &.{},
     };
@@ -80,25 +80,25 @@ test "smoke test" {
         .{ .rel_path = "site.yaml", .dir_path = "/home/delboni/Workspaces/zig/stabilis/example/", .abs_path = "/home/delboni/Workspaces/zig/stabilis/example/site.yaml", .file_ext = ".yaml", .file_name = "site.yaml", .contents = "title: Example Blog\nbase_url: http://localhost:8000\nmenu:\n  main:\n    - { name: Home, url: / }\n    - { name: Posts, url: /posts/ }\n" },
     };
 
-    var home_map = MapEntries.init(arena.allocator());
-    try home_map.put("name", .{ .string = "Home" });
-    try home_map.put("url", .{ .string = "/" });
+    var home_map: MapEntries = .{};
+    try home_map.map.put(arena.allocator(), "name", .{ .string = "Home" });
+    try home_map.map.put(arena.allocator(), "url", .{ .string = "/" });
 
-    var posts_map = MapEntries.init(arena.allocator());
-    try posts_map.put("name", .{ .string = "Posts" });
-    try posts_map.put("url", .{ .string = "/posts/" });
+    var posts_map: MapEntries = .{};
+    try posts_map.map.put(arena.allocator(), "name", .{ .string = "Posts" });
+    try posts_map.map.put(arena.allocator(), "url", .{ .string = "/posts/" });
 
-    var main_map = MapEntries.init(arena.allocator());
-    try main_map.put("main", .{ .list = &[_]YamlNode{
+    var main_map: MapEntries = .{};
+    try main_map.map.put(arena.allocator(), "main", .{ .list = &[_]YamlNode{
         .{ .map = home_map },
         .{ .map = posts_map },
     } });
 
-    var config = MapEntries.init(arena.allocator());
-    try config.put("title", .{ .string = "Example Blog" });
-    try config.put("base_url", .{ .string = "http://localhost:8000" });
-    try config.put("menu", .{ .map = main_map });
+    var config: MapEntries = .{};
+    try config.map.put(arena.allocator(), "title", .{ .string = "Example Blog" });
+    try config.map.put(arena.allocator(), "base_url", .{ .string = "http://localhost:8000" });
+    try config.map.put(arena.allocator(), "menu", .{ .map = main_map });
 
     const results = try parse(&arena, config, &walkDirResult);
-    try debug.printJson(&arena, results);
+    debug.printJson(results);
 }

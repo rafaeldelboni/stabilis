@@ -65,14 +65,14 @@ fn parseInlineMap(arena: *std.heap.ArenaAllocator, input: []const u8) error{OutO
 
     const allocator = arena.allocator();
     const source = str.sliceBetween(input, open_delimiter, close_delimiter, 0) orelse return null;
-    var map_entries = MapEntries.init(allocator);
+    var map_entries: MapEntries = .{};
     var items = std.mem.splitScalar(u8, source.content, ',');
 
     while (items.next()) |raw_item| {
         var key_value = std.mem.splitScalar(u8, raw_item, ':');
         const trim_key = std.mem.trim(u8, key_value.first(), " ");
         const trim_value = std.mem.trim(u8, key_value.next() orelse "", " ");
-        try map_entries.put(trim_key, try parseYamlNode(arena, trim_value));
+        try map_entries.map.put(allocator, trim_key, try parseYamlNode(arena, trim_value));
     }
 
     return map_entries;
@@ -135,7 +135,7 @@ fn parseYamlNode(arena: *std.heap.ArenaAllocator, input: []const u8) error{OutOf
 /// live in the arena and are freed when the arena is deinitialized.
 pub fn parse(arena: *std.heap.ArenaAllocator, source: []const u8) error{OutOfMemory}!MapEntries {
     const allocator = arena.allocator();
-    var map_entries = MapEntries.init(allocator);
+    var map_entries: MapEntries = .{};
 
     var lines = std.mem.splitScalar(u8, source, '\n');
     while (lines.next()) |raw_line| {
@@ -147,7 +147,7 @@ pub fn parse(arena: *std.heap.ArenaAllocator, source: []const u8) error{OutOfMem
 
         // is inline value
         if (raw_value.len != 0) {
-            try map_entries.put(key, try parseYamlNode(arena, raw_value));
+            try map_entries.map.put(allocator, key, try parseYamlNode(arena, raw_value));
         }
         // is block value
         else {
@@ -170,13 +170,15 @@ pub fn parse(arena: *std.heap.ArenaAllocator, source: []const u8) error{OutOfMem
                 }
             }
             // Emit any block-list items we collected.
-            if (block_list_items.items.len > 0) try map_entries.put(
+            if (block_list_items.items.len > 0) try map_entries.map.put(
+                allocator,
                 key,
                 .{ .list = block_list_items.items },
             );
 
             // Emit a nested map from any collected map entries (recursive parse).
-            if (nested_map.items.len > 0) try map_entries.put(
+            if (nested_map.items.len > 0) try map_entries.map.put(
+                allocator,
                 key,
                 .{ .map = try parse(arena, nested_map.items) },
             );
@@ -210,66 +212,66 @@ test "parse yaml subset content" {
     const entries = try parse(&arena, source);
 
     // std.debug.print("Frontmatter: {s}\n", .{try debug.dumpJson(arena.allocator(), entries)});
-    try std.testing.expectEqual(@as(usize, 9), entries.count());
+    try std.testing.expectEqual(@as(usize, 9), entries.map.count());
 
     // title: "Hello World" (quoted string)
-    try std.testing.expect(entries.get("title").? == .string);
-    try std.testing.expectEqualStrings("Hello World", entries.get("title").?.string);
+    try std.testing.expect(entries.map.get("title").? == .string);
+    try std.testing.expectEqualStrings("Hello World", entries.map.get("title").?.string);
 
     // date: 2026-05-18T10:00:00Z (datetime)
-    try std.testing.expect(entries.get("date").? == .datetime);
-    try std.testing.expectEqual(@as(i16, 2026), entries.get("date").?.datetime.year);
-    try std.testing.expectEqual(@as(u4, 5), entries.get("date").?.datetime.month);
-    try std.testing.expectEqual(@as(u5, 18), entries.get("date").?.datetime.day);
-    try std.testing.expectEqual(@as(u5, 10), entries.get("date").?.datetime.hour);
-    try std.testing.expectEqual(@as(u6, 0), entries.get("date").?.datetime.min);
-    try std.testing.expectEqual(@as(u6, 0), entries.get("date").?.datetime.sec);
+    try std.testing.expect(entries.map.get("date").? == .datetime);
+    try std.testing.expectEqual(@as(i16, 2026), entries.map.get("date").?.datetime.year);
+    try std.testing.expectEqual(@as(u4, 5), entries.map.get("date").?.datetime.month);
+    try std.testing.expectEqual(@as(u5, 18), entries.map.get("date").?.datetime.day);
+    try std.testing.expectEqual(@as(u5, 10), entries.map.get("date").?.datetime.hour);
+    try std.testing.expectEqual(@as(u6, 0), entries.map.get("date").?.datetime.min);
+    try std.testing.expectEqual(@as(u6, 0), entries.map.get("date").?.datetime.sec);
 
     // slug: hello-world (unquoted string)
-    try std.testing.expectEqualStrings("hello-world", entries.get("slug").?.string);
+    try std.testing.expectEqualStrings("hello-world", entries.map.get("slug").?.string);
 
     // description: A post about Zig and blogging (unquoted multi-word)
-    try std.testing.expectEqualStrings("A post about Zig and blogging", entries.get("description").?.string);
+    try std.testing.expectEqualStrings("A post about Zig and blogging", entries.map.get("description").?.string);
 
     // draft: false (boolean)
-    try std.testing.expect(entries.get("draft").? == .boolean);
-    try std.testing.expectEqual(false, entries.get("draft").?.boolean);
+    try std.testing.expect(entries.map.get("draft").? == .boolean);
+    try std.testing.expectEqual(false, entries.map.get("draft").?.boolean);
 
     // cover: 03.jpg (unquoted string)
-    try std.testing.expectEqualStrings("03.jpg", entries.get("cover").?.string);
+    try std.testing.expectEqualStrings("03.jpg", entries.map.get("cover").?.string);
 
     // tags: [zig, blogging, ssg] (block list of strings)
-    try std.testing.expect(entries.get("tags").? == .list);
-    try std.testing.expectEqual(@as(usize, 3), entries.get("tags").?.list.len);
-    try std.testing.expectEqualStrings("zig", entries.get("tags").?.list[0].string);
-    try std.testing.expectEqualStrings("blogging", entries.get("tags").?.list[1].string);
-    try std.testing.expectEqualStrings("ssg", entries.get("tags").?.list[2].string);
+    try std.testing.expect(entries.map.get("tags").? == .list);
+    try std.testing.expectEqual(@as(usize, 3), entries.map.get("tags").?.list.len);
+    try std.testing.expectEqualStrings("zig", entries.map.get("tags").?.list[0].string);
+    try std.testing.expectEqualStrings("blogging", entries.map.get("tags").?.list[1].string);
+    try std.testing.expectEqualStrings("ssg", entries.map.get("tags").?.list[2].string);
 
     // menus: [main] (inline flow list with one item)
-    try std.testing.expect(entries.get("menus").? == .list);
-    try std.testing.expectEqual(@as(usize, 2), entries.get("menus").?.list.len);
-    try std.testing.expectEqualStrings("main", entries.get("menus").?.list[0].string);
-    try std.testing.expectEqualStrings("about", entries.get("menus").?.list[1].string);
+    try std.testing.expect(entries.map.get("menus").? == .list);
+    try std.testing.expectEqual(@as(usize, 2), entries.map.get("menus").?.list.len);
+    try std.testing.expectEqualStrings("main", entries.map.get("menus").?.list[0].string);
+    try std.testing.expectEqualStrings("about", entries.map.get("menus").?.list[1].string);
 
     // images: block list of inline flow maps
-    try std.testing.expect(entries.get("images").? == .list);
-    try std.testing.expectEqual(@as(usize, 3), entries.get("images").?.list.len);
+    try std.testing.expect(entries.map.get("images").? == .list);
+    try std.testing.expectEqual(@as(usize, 3), entries.map.get("images").?.list.len);
 
     // images[0]: { file: 01.jpg, caption: "Arriving at dusk" }
-    try std.testing.expect(entries.get("images").?.list[0] == .map);
-    try std.testing.expectEqual(@as(usize, 2), entries.get("images").?.list[0].map.count());
-    try std.testing.expectEqualStrings("01.jpg", entries.get("images").?.list[0].map.get("file").?.string);
-    try std.testing.expectEqualStrings("Arriving at dusk", entries.get("images").?.list[0].map.get("caption").?.string);
+    try std.testing.expect(entries.map.get("images").?.list[0] == .map);
+    try std.testing.expectEqual(@as(usize, 2), entries.map.get("images").?.list[0].map.map.count());
+    try std.testing.expectEqualStrings("01.jpg", entries.map.get("images").?.list[0].map.map.get("file").?.string);
+    try std.testing.expectEqualStrings("Arriving at dusk", entries.map.get("images").?.list[0].map.map.get("caption").?.string);
 
     // images[1]: { file: 02.jpg, caption: } (null caption)
-    try std.testing.expect(entries.get("images").?.list[1] == .map);
-    try std.testing.expectEqualStrings("02.jpg", entries.get("images").?.list[1].map.get("file").?.string);
-    try std.testing.expectEqualStrings("", entries.get("images").?.list[1].map.get("caption").?.string);
+    try std.testing.expect(entries.map.get("images").?.list[1] == .map);
+    try std.testing.expectEqualStrings("02.jpg", entries.map.get("images").?.list[1].map.map.get("file").?.string);
+    try std.testing.expectEqualStrings("", entries.map.get("images").?.list[1].map.map.get("caption").?.string);
 
     // images[2]: { file: 03.jpg, caption: The cabin }
-    try std.testing.expect(entries.get("images").?.list[2] == .map);
-    try std.testing.expectEqualStrings("03.jpg", entries.get("images").?.list[2].map.get("file").?.string);
-    try std.testing.expectEqualStrings("The cabin", entries.get("images").?.list[2].map.get("caption").?.string);
+    try std.testing.expect(entries.map.get("images").?.list[2] == .map);
+    try std.testing.expectEqualStrings("03.jpg", entries.map.get("images").?.list[2].map.map.get("file").?.string);
+    try std.testing.expectEqualStrings("The cabin", entries.map.get("images").?.list[2].map.map.get("caption").?.string);
 }
 
 test "parse nested block map" {
@@ -285,23 +287,23 @@ test "parse nested block map" {
 
     const entries = try parse(&arena, source);
 
-    try std.testing.expectEqual(@as(usize, 1), entries.count());
-    try std.testing.expect(entries.get("menu").? == .map);
+    try std.testing.expectEqual(@as(usize, 1), entries.map.count());
+    try std.testing.expect(entries.map.get("menu").? == .map);
 
-    const menu_map = entries.get("menu").?.map;
-    try std.testing.expectEqual(@as(usize, 1), menu_map.count());
-    try std.testing.expect(menu_map.get("main").? == .list);
+    const menu_map = entries.map.get("menu").?.map;
+    try std.testing.expectEqual(@as(usize, 1), menu_map.map.count());
+    try std.testing.expect(menu_map.map.get("main").? == .list);
 
-    const main_list = menu_map.get("main").?.list;
+    const main_list = menu_map.map.get("main").?.list;
     try std.testing.expectEqual(@as(usize, 2), main_list.len);
 
     try std.testing.expect(main_list[0] == .map);
-    try std.testing.expectEqualStrings("Home", main_list[0].map.get("name").?.string);
-    try std.testing.expectEqualStrings("/", main_list[0].map.get("url").?.string);
+    try std.testing.expectEqualStrings("Home", main_list[0].map.map.get("name").?.string);
+    try std.testing.expectEqualStrings("/", main_list[0].map.map.get("url").?.string);
 
     try std.testing.expect(main_list[1] == .map);
-    try std.testing.expectEqualStrings("Posts", main_list[1].map.get("name").?.string);
-    try std.testing.expectEqualStrings("/posts/", main_list[1].map.get("url").?.string);
+    try std.testing.expectEqualStrings("Posts", main_list[1].map.map.get("name").?.string);
+    try std.testing.expectEqualStrings("/posts/", main_list[1].map.map.get("url").?.string);
 }
 
 test "parseYamlNode: plain string" {
@@ -405,7 +407,7 @@ test "parseYamlNode: inline map" {
 
     const result = try parseYamlNode(&arena, "{ file: 01.jpg, caption: hello }");
     try std.testing.expect(result == .map);
-    try std.testing.expectEqual(@as(usize, 2), result.map.count());
+    try std.testing.expectEqual(@as(usize, 2), result.map.map.count());
 }
 
 test "parseYamlNode: quoted inline list stays string" {
@@ -487,9 +489,9 @@ test "parseInlineMap: simple inline map" {
     const input = try allocator.dupe(u8, "{ file: 01.jpg, caption: hello }");
     const result = try parseInlineMap(&arena, input);
     try std.testing.expect(result != null);
-    try std.testing.expectEqual(@as(usize, 2), result.?.count());
-    try std.testing.expectEqualStrings("01.jpg", result.?.get("file").?.string);
-    try std.testing.expectEqualStrings("hello", result.?.get("caption").?.string);
+    try std.testing.expectEqual(@as(usize, 2), result.?.map.count());
+    try std.testing.expectEqualStrings("01.jpg", result.?.map.get("file").?.string);
+    try std.testing.expectEqualStrings("hello", result.?.map.get("caption").?.string);
 }
 
 test "parseInlineMap: returns null for non-map input" {
