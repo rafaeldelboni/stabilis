@@ -88,4 +88,5 @@ pub const Site = struct {
 pub const CtxValue = union(enum) {
     string: []const u8,
     list: []const Context,
+    bool: bool,
 };

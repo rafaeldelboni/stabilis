@@ -181,7 +181,7 @@ test "render home example" {
         \\  <h2>Recent posts</h2>
         \\  <ul>
         \\    {{# posts }}
-        \\    <li><a href="{{ url }}">{{ name }}</a> — {{ date }}</li>
+        \\    <li><a href="{{ url }}">{{ title }}</a> — {{ date }}</li>
         \\    {{/ posts }}
         \\  </ul>
         \\
@@ -200,14 +200,14 @@ test "render home example" {
     var posts_list = std.ArrayList(Context).initCapacity(allocator, 2) catch unreachable;
     {
         var ctx: Context = .{};
-        try ctx.map.put(allocator, "name", .{ .string = "Bananas" });
+        try ctx.map.put(allocator, "title", .{ .string = "Bananas" });
         try ctx.map.put(allocator, "url", .{ .string = "/posts/bananas" });
         try ctx.map.put(allocator, "date", .{ .string = "1977-01-01" });
         try posts_list.append(allocator, ctx);
     }
     {
         var ctx: Context = .{};
-        try ctx.map.put(allocator, "name", .{ .string = "Apples" });
+        try ctx.map.put(allocator, "title", .{ .string = "Apples" });
         try ctx.map.put(allocator, "url", .{ .string = "/posts/apples" });
         try ctx.map.put(allocator, "date", .{ .string = "1977-01-02" });
         try posts_list.append(allocator, ctx);
@@ -356,6 +356,32 @@ test "triple brace {{{ }}} renders raw html without stray characters" {
 
     const result = try render(&arena, "start{{{ body }}}end", templates, context);
     try std.testing.expectEqualStrings("start<h1>Hello</h1>end", result);
+}
+
+test "flat string list via \".\" key" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    var context: Context = .{};
+
+    var tags_list = std.ArrayList(Context).initCapacity(allocator, 2) catch unreachable;
+    {
+        var ctx: Context = .{};
+        try ctx.map.put(allocator, ".", .{ .string = "zig" });
+        tags_list.appendAssumeCapacity(ctx);
+    }
+    {
+        var ctx: Context = .{};
+        try ctx.map.put(allocator, ".", .{ .string = "programming" });
+        tags_list.appendAssumeCapacity(ctx);
+    }
+    try context.map.put(allocator, "tags", .{ .list = tags_list.items });
+
+    const templates: Templates = .{};
+
+    const result = try render(&arena, "{{# tags }}<li>{{ . }}</li>{{/ tags }}", templates, context);
+    try std.testing.expectEqualStrings("<li>zig</li><li>programming</li>", result);
 }
 
 test "escapeHtml replaces ampersand" {

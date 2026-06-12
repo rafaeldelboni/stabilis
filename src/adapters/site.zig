@@ -2,6 +2,7 @@ const std = @import("std");
 
 const debug = @import("../debug.zig");
 const models = @import("../models.zig");
+const Context = models.Context;
 const File = models.File;
 const MenuItem = models.MenuItem;
 const MapEntries = models.MapEntries;
@@ -9,21 +10,41 @@ const Templates = models.Templates;
 const YamlNode = models.YamlNode;
 const Page = models.Page;
 const PageKind = models.PageKind;
+const ImageSpec = models.ImageSpec;
 const Site = models.Site;
+const frontmatter = @import("frontmatter.zig");
+const yaml_lexer = @import("yaml_lexer.zig");
+
+fn isConfig(file: File) bool {
+    return std.mem.eql(u8, file.rel_path, "site.yaml");
+}
+
+fn isTemplate(file: File) bool {
+    return std.mem.startsWith(u8, file.rel_path, "templates/");
+}
+
+fn isPostList(file: File) bool {
+    return std.mem.eql(u8, file.rel_path, "content/posts/_index.md");
+}
+
+fn isPost(file: File) bool {
+    return std.mem.startsWith(u8, file.rel_path, "content/posts/");
+}
+
+fn isHomePage(file: File) bool {
+    return std.mem.eql(u8, file.rel_path, "content/_index.md");
+}
+
+fn isPage(file: File) bool {
+    return std.mem.startsWith(u8, file.rel_path, "content/");
+}
 
 fn parsePageKind(file: File) ?PageKind {
-    if (std.mem.startsWith(u8, file.rel_path, "content/posts/_index.md")) {
-        return PageKind.post_list;
-    }
-    if (std.mem.startsWith(u8, file.rel_path, "content/posts/")) {
-        return PageKind.post;
-    }
-    if (std.mem.startsWith(u8, file.rel_path, "content/_index.md")) {
-        return PageKind.home;
-    }
-    if (std.mem.startsWith(u8, file.rel_path, "content/")) {
-        return PageKind.page;
-    }
+    if (isPostList(file)) return PageKind.post_list;
+    if (isPost(file)) return PageKind.post;
+    if (isHomePage(file)) return PageKind.home;
+    if (isPage(file)) return PageKind.page;
+    return null;
 }
 
 fn parsePage(file: File) !Page {
@@ -31,35 +52,89 @@ fn parsePage(file: File) !Page {
     return Page{ .kind = PageKind.page, .context = &{} };
 }
 
+fn parseStringList(allocator: std.mem.Allocator, list: []const []const u8) ![]Context {
+    var outer_context = try std.ArrayList(Context).initCapacity(allocator, list.len);
+    for (list) |item| {
+        var inner_context: Context = .{};
+        try inner_context.map.put(allocator, ".", .{ .string = item });
+        outer_context.appendAssumeCapacity(inner_context);
+    }
+    return outer_context.items;
+}
+
+fn parseImageList(allocator: std.mem.Allocator, images: []const ImageSpec) ![]Context {
+    var outer_context = try std.ArrayList(Context).initCapacity(allocator, images.len);
+    for (images) |image| {
+        var inner_context: Context = .{};
+        try inner_context.map.put(allocator, "file", .{ .string = image.file });
+        if (image.caption) |caption| {
+            try inner_context.map.put(allocator, "caption", .{ .string = caption });
+        }
+        outer_context.appendAssumeCapacity(inner_context);
+    }
+    return outer_context.items;
+}
+
 pub fn parse(
     arena: *std.heap.ArenaAllocator,
-    config: MapEntries,
     files: []const File,
 ) !Site {
     const allocator = arena.allocator();
-    // sequence
-    // parse confg MapEntry array (title, base_url, menu_main)
-    // parse files File array
-    _ = files;
+    var config: MapEntries = .{};
+    var site_title: []const u8 = "";
+    var site_base_url: []const u8 = "";
+    var pages: std.ArrayList(Page) = .empty;
+    var posts: std.ArrayList(Page) = .empty;
+    // todo
     // on each file detect type and
     //    parse templates
-    //    parse pages
-    //    parse posts
-    //    parse posts
+
+    for (files) |file| {
+        if (parsePageKind(file)) |page_kind| {
+            const page = try frontmatter.parse(arena, file.contents);
+            var context: Context = .{};
+            try context.map.put(allocator, "body", .{ .string = page.source }); // todo convert md -> html
+            if (page.frontmatter.title) |title| try context.map.put(allocator, "title", .{ .string = title });
+            try switch (page_kind) {
+                .post => {
+                    if (page.frontmatter.author) |author| try context.map.put(allocator, "author", .{ .string = author });
+                    if (page.frontmatter.date) |date| try context.map.put(allocator, "date", .{ .string = date });
+                    if (page.frontmatter.slug) |slug| try context.map.put(allocator, "slug", .{ .string = slug });
+                    if (page.frontmatter.description) |description| try context.map.put(allocator, "description", .{ .string = description });
+                    if (page.frontmatter.draft) try context.map.put(allocator, "draft", .{ .bool = true });
+                    if (page.frontmatter.cover) |cover| try context.map.put(allocator, "cover", .{ .string = cover });
+                    if (page.frontmatter.tags.len > 0)
+                        try context.map.put(allocator, "tags", .{ .list = try parseStringList(allocator, page.frontmatter.tags) });
+                    if (page.frontmatter.menus.len > 0)
+                        try context.map.put(allocator, "menus", .{ .list = try parseStringList(allocator, page.frontmatter.menus) });
+                    if (page.frontmatter.images.len > 0)
+                        try context.map.put(allocator, "images", .{ .list = try parseImageList(allocator, page.frontmatter.images) });
+                    try posts.append(allocator, Page{ .kind = page_kind, .context = context });
+                },
+                else => pages.append(allocator, Page{ .kind = page_kind, .context = context }),
+            };
+        }
+        if (isConfig(file))
+            config = try yaml_lexer.parse(arena, file.contents);
+    }
     var main_menu: std.ArrayList(MenuItem) = .empty;
-    for (config.map.get("menu").?.map.map.get("main").?.list) |entry| {
-        try main_menu.append(allocator, .{
-            .name = entry.map.map.get("name").?.string,
-            .url = entry.map.map.get("url").?.string,
-        });
+    if (config.map.count() > 0) {
+        site_title = config.map.get("title").?.string;
+        site_base_url = config.map.get("base_url").?.string;
+        for (config.map.get("menu").?.map.map.get("main").?.list) |entry| {
+            try main_menu.append(allocator, .{
+                .name = entry.map.map.get("name").?.string,
+                .url = entry.map.map.get("url").?.string,
+            });
+        }
     }
     return Site{
-        .title = config.map.get("title").?.string,
-        .base_url = config.map.get("base_url").?.string,
+        .title = site_title,
+        .base_url = site_base_url,
         .menu_main = main_menu.items,
         .templates = .{},
-        .pages = &.{},
-        .posts = &.{},
+        .pages = pages.items,
+        .posts = posts.items,
     };
 }
 
@@ -80,25 +155,25 @@ test "smoke test" {
         .{ .rel_path = "site.yaml", .dir_path = "/home/delboni/Workspaces/zig/stabilis/example/", .abs_path = "/home/delboni/Workspaces/zig/stabilis/example/site.yaml", .file_ext = ".yaml", .file_name = "site.yaml", .contents = "title: Example Blog\nbase_url: http://localhost:8000\nmenu:\n  main:\n    - { name: Home, url: / }\n    - { name: Posts, url: /posts/ }\n" },
     };
 
-    var home_map: MapEntries = .{};
-    try home_map.map.put(arena.allocator(), "name", .{ .string = "Home" });
-    try home_map.map.put(arena.allocator(), "url", .{ .string = "/" });
+    // var home_map: MapEntries = .{};
+    // try home_map.map.put(arena.allocator(), "name", .{ .string = "Home" });
+    // try home_map.map.put(arena.allocator(), "url", .{ .string = "/" });
+    //
+    // var posts_map: MapEntries = .{};
+    // try posts_map.map.put(arena.allocator(), "name", .{ .string = "Posts" });
+    // try posts_map.map.put(arena.allocator(), "url", .{ .string = "/posts/" });
+    //
+    // var main_map: MapEntries = .{};
+    // try main_map.map.put(arena.allocator(), "main", .{ .list = &[_]YamlNode{
+    //     .{ .map = home_map },
+    //     .{ .map = posts_map },
+    // } });
 
-    var posts_map: MapEntries = .{};
-    try posts_map.map.put(arena.allocator(), "name", .{ .string = "Posts" });
-    try posts_map.map.put(arena.allocator(), "url", .{ .string = "/posts/" });
+    // var config: MapEntries = .{};
+    // try config.map.put(arena.allocator(), "title", .{ .string = "Example Blog" });
+    // try config.map.put(arena.allocator(), "base_url", .{ .string = "http://localhost:8000" });
+    // try config.map.put(arena.allocator(), "menu", .{ .map = main_map });
 
-    var main_map: MapEntries = .{};
-    try main_map.map.put(arena.allocator(), "main", .{ .list = &[_]YamlNode{
-        .{ .map = home_map },
-        .{ .map = posts_map },
-    } });
-
-    var config: MapEntries = .{};
-    try config.map.put(arena.allocator(), "title", .{ .string = "Example Blog" });
-    try config.map.put(arena.allocator(), "base_url", .{ .string = "http://localhost:8000" });
-    try config.map.put(arena.allocator(), "menu", .{ .map = main_map });
-
-    const results = try parse(&arena, config, &walkDirResult);
+    const results = try parse(&arena, &walkDirResult);
     debug.printJson(results);
 }
