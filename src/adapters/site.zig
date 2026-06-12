@@ -1,6 +1,7 @@
 const std = @import("std");
 
 const debug = @import("../debug.zig");
+const logic = @import("../logic/site.zig");
 const models = @import("../models.zig");
 const Context = models.Context;
 const File = models.File;
@@ -13,37 +14,14 @@ const PageKind = models.PageKind;
 const ImageSpec = models.ImageSpec;
 const Site = models.Site;
 const frontmatter = @import("frontmatter.zig");
+const markdown = @import("markdown.zig");
 const yaml_lexer = @import("yaml_lexer.zig");
 
-fn isConfig(file: File) bool {
-    return std.mem.eql(u8, file.rel_path, "site.yaml");
-}
-
-fn isTemplate(file: File) bool {
-    return std.mem.startsWith(u8, file.rel_path, "templates/");
-}
-
-fn isPostList(file: File) bool {
-    return std.mem.eql(u8, file.rel_path, "content/posts/_index.md");
-}
-
-fn isPost(file: File) bool {
-    return std.mem.startsWith(u8, file.rel_path, "content/posts/");
-}
-
-fn isHomePage(file: File) bool {
-    return std.mem.eql(u8, file.rel_path, "content/_index.md");
-}
-
-fn isPage(file: File) bool {
-    return std.mem.startsWith(u8, file.rel_path, "content/");
-}
-
 fn parsePageKind(file: File) ?PageKind {
-    if (isPostList(file)) return PageKind.post_list;
-    if (isPost(file)) return PageKind.post;
-    if (isHomePage(file)) return PageKind.home;
-    if (isPage(file)) return PageKind.page;
+    if (logic.isPostList(file)) return PageKind.post_list;
+    if (logic.isPost(file)) return PageKind.post;
+    if (logic.isHomePage(file)) return PageKind.home;
+    if (logic.isPage(file)) return PageKind.page;
     return null;
 }
 
@@ -81,19 +59,18 @@ pub fn parse(
 ) !Site {
     const allocator = arena.allocator();
     var config: MapEntries = .{};
+    var templates: Templates = .{};
     var site_title: []const u8 = "";
     var site_base_url: []const u8 = "";
     var pages: std.ArrayList(Page) = .empty;
     var posts: std.ArrayList(Page) = .empty;
-    // todo
-    // on each file detect type and
-    //    parse templates
 
     for (files) |file| {
         if (parsePageKind(file)) |page_kind| {
             const page = try frontmatter.parse(arena, file.contents);
+            const html = try markdown.toHtml(arena, page.source);
             var context: Context = .{};
-            try context.map.put(allocator, "body", .{ .string = page.source }); // todo convert md -> html
+            try context.map.put(allocator, "body", .{ .string = html });
             if (page.frontmatter.title) |title| try context.map.put(allocator, "title", .{ .string = title });
             try switch (page_kind) {
                 .post => {
@@ -114,7 +91,10 @@ pub fn parse(
                 else => pages.append(allocator, Page{ .kind = page_kind, .context = context }),
             };
         }
-        if (isConfig(file))
+        if (logic.isTemplate(file))
+            if (std.mem.cutPrefix(u8, file.rel_path, logic.templates_path_prefix)) |template_key|
+                try templates.map.put(allocator, template_key, file.contents);
+        if (logic.isConfig(file))
             config = try yaml_lexer.parse(arena, file.contents);
     }
     var main_menu: std.ArrayList(MenuItem) = .empty;
@@ -132,7 +112,7 @@ pub fn parse(
         .title = site_title,
         .base_url = site_base_url,
         .menu_main = main_menu.items,
-        .templates = .{},
+        .templates = templates,
         .pages = pages.items,
         .posts = posts.items,
     };
@@ -154,25 +134,6 @@ test "smoke test" {
         .{ .rel_path = "templates/post-list.html", .dir_path = "/home/delboni/Workspaces/zig/stabilis/example/templates", .abs_path = "/home/delboni/Workspaces/zig/stabilis/example/templates/post-list.html", .file_ext = ".html", .file_name = "post-list.html", .contents = "{{> partials/header.html }}\n\n  <section>\n    <h1>{{ title }}</h1>\n    {{{ body }}}\n    <ul>\n      {{# posts }}\n      <li>\n        <a href=\"{{ url }}\">{{ title }}</a>\n        <time>{{ date }}</time>\n      </li>\n      {{/ posts }}\n    </ul>\n  </section>\n\n</body>\n</html>\n" },
         .{ .rel_path = "site.yaml", .dir_path = "/home/delboni/Workspaces/zig/stabilis/example/", .abs_path = "/home/delboni/Workspaces/zig/stabilis/example/site.yaml", .file_ext = ".yaml", .file_name = "site.yaml", .contents = "title: Example Blog\nbase_url: http://localhost:8000\nmenu:\n  main:\n    - { name: Home, url: / }\n    - { name: Posts, url: /posts/ }\n" },
     };
-
-    // var home_map: MapEntries = .{};
-    // try home_map.map.put(arena.allocator(), "name", .{ .string = "Home" });
-    // try home_map.map.put(arena.allocator(), "url", .{ .string = "/" });
-    //
-    // var posts_map: MapEntries = .{};
-    // try posts_map.map.put(arena.allocator(), "name", .{ .string = "Posts" });
-    // try posts_map.map.put(arena.allocator(), "url", .{ .string = "/posts/" });
-    //
-    // var main_map: MapEntries = .{};
-    // try main_map.map.put(arena.allocator(), "main", .{ .list = &[_]YamlNode{
-    //     .{ .map = home_map },
-    //     .{ .map = posts_map },
-    // } });
-
-    // var config: MapEntries = .{};
-    // try config.map.put(arena.allocator(), "title", .{ .string = "Example Blog" });
-    // try config.map.put(arena.allocator(), "base_url", .{ .string = "http://localhost:8000" });
-    // try config.map.put(arena.allocator(), "menu", .{ .map = main_map });
 
     const results = try parse(&arena, &walkDirResult);
     debug.printJson(results);
