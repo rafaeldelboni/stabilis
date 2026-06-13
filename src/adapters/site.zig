@@ -1,13 +1,11 @@
 const std = @import("std");
 
-const debug = @import("../debug.zig");
 const logic = @import("../logic/site.zig");
 const models = @import("../models.zig");
 const Context = models.Context;
 const File = models.File;
 const MapEntries = models.MapEntries;
 const Templates = models.Templates;
-const YamlNode = models.YamlNode;
 const Page = models.Page;
 const PageKind = models.PageKind;
 const ImageSpec = models.ImageSpec;
@@ -113,23 +111,236 @@ pub fn parse(
     };
 }
 
-test "smoke test" {
-    const allocator = std.testing.allocator;
-    var arena = std.heap.ArenaAllocator.init(allocator);
+fn testFile(rel_path: []const u8, contents: []const u8) File {
+    return .{
+        .rel_path = rel_path,
+        .dir_path = "",
+        .abs_path = "",
+        .file_ext = "",
+        .file_name = "",
+        .contents = contents,
+    };
+}
+
+test "parseStringList wraps strings as Context with \".\" key" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
 
-    const walkDirResult = [_]File{
-        .{ .rel_path = "content/posts/_index.md", .dir_path = "/home/delboni/Workspaces/zig/stabilis/example/content/posts", .abs_path = "/home/delboni/Workspaces/zig/stabilis/example/content/posts/_index.md", .file_ext = ".md", .file_name = "_index.md", .contents = "---\ntitle: Posts\ndescription: All blog posts, newest first.\n---\n\nThings I've written.\n" },
-        .{ .rel_path = "content/posts/hello-world.md", .dir_path = "/home/delboni/Workspaces/zig/stabilis/example/content/posts", .abs_path = "/home/delboni/Workspaces/zig/stabilis/example/content/posts/hello-world.md", .file_ext = ".md", .file_name = "hello-world.md", .contents = "---\ntitle: Hello, World\ndate: 2026-06-01T10:00:00Z\ntags: [zig, blogging]\ndescription: First post on the new SSG.\n---\n\n## Getting started\n\nThis is the **first post**. It has:\n\n- Frontmatter with tags\n- A date\n- Markdown body\n\n```zig\nconst std = @import(\"std\");\n\npub fn main() !void {\n    std.debug.print(\"Hello from Zig!\\n\", .{});\n}\n```\n" },
-        .{ .rel_path = "content/_index.md", .dir_path = "/home/delboni/Workspaces/zig/stabilis/example/content", .abs_path = "/home/delboni/Workspaces/zig/stabilis/example/content/_index.md", .file_ext = ".md", .file_name = "_index.md", .contents = "---\ntitle: Welcome\n---\n\n# Hello\n\nThis is a static site built with **stabilis**.\n" },
-        .{ .rel_path = "templates/partials/header.html", .dir_path = "/home/delboni/Workspaces/zig/stabilis/example/templates/partials", .abs_path = "/home/delboni/Workspaces/zig/stabilis/example/templates/partials/header.html", .file_ext = ".html", .file_name = "header.html", .contents = "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"utf-8\">\n  <title>{{ title }}</title>\n</head>\n<body>\n  <nav>\n    {{# menu_main }}\n    <a href=\"{{ url }}\">{{ name }}</a>\n    {{/ menu_main }}\n  </nav>\n" },
-        .{ .rel_path = "templates/page.html", .dir_path = "/home/delboni/Workspaces/zig/stabilis/example/templates", .abs_path = "/home/delboni/Workspaces/zig/stabilis/example/templates/page.html", .file_ext = ".html", .file_name = "page.html", .contents = "{{> partials/header.html }}\n\n  <h1>{{ title }}</h1>\n  <div class=\"content\">\n    {{{ body }}}\n  </div>\n\n</body>\n</html>\n" },
-        .{ .rel_path = "templates/home.html", .dir_path = "/home/delboni/Workspaces/zig/stabilis/example/templates", .abs_path = "/home/delboni/Workspaces/zig/stabilis/example/templates/home.html", .file_ext = ".html", .file_name = "home.html", .contents = "{{> partials/header.html }}\n\n  <h1>{{ title }}</h1>\n  {{{ body }}}\n\n  <h2>Recent posts</h2>\n  <ul>\n    {{# posts }}\n    <li><a href=\"{{ url }}\">{{ title }}</a> \u{2014} {{ date }}</li>\n    {{/ posts }}\n  </ul>\n\n</body>\n</html>\n" },
-        .{ .rel_path = "templates/post.html", .dir_path = "/home/delboni/Workspaces/zig/stabilis/example/templates", .abs_path = "/home/delboni/Workspaces/zig/stabilis/example/templates/post.html", .file_ext = ".html", .file_name = "post.html", .contents = "{{> partials/header.html }}\n\n  <article>\n    <h1>{{ title }}</h1>\n    <time>{{ date }}</time>\n    {{# tags }}\n    <span class=\"tag\">{{ . }}</span>\n    {{/ tags }}\n    <div class=\"content\">\n      {{{ body }}}\n    </div>\n  </article>\n\n</body>\n</html>\n" },
-        .{ .rel_path = "templates/post-list.html", .dir_path = "/home/delboni/Workspaces/zig/stabilis/example/templates", .abs_path = "/home/delboni/Workspaces/zig/stabilis/example/templates/post-list.html", .file_ext = ".html", .file_name = "post-list.html", .contents = "{{> partials/header.html }}\n\n  <section>\n    <h1>{{ title }}</h1>\n    {{{ body }}}\n    <ul>\n      {{# posts }}\n      <li>\n        <a href=\"{{ url }}\">{{ title }}</a>\n        <time>{{ date }}</time>\n      </li>\n      {{/ posts }}\n    </ul>\n  </section>\n\n</body>\n</html>\n" },
-        .{ .rel_path = "site.yaml", .dir_path = "/home/delboni/Workspaces/zig/stabilis/example/", .abs_path = "/home/delboni/Workspaces/zig/stabilis/example/site.yaml", .file_ext = ".yaml", .file_name = "site.yaml", .contents = "title: Example Blog\nbase_url: http://localhost:8000\nmenu:\n  main:\n    - { name: Home, url: / }\n    - { name: Posts, url: /posts/ }\n" },
+    const result = try parseStringList(arena.allocator(), &.{ "zig", "blogging" });
+    try std.testing.expectEqual(@as(usize, 2), result.len);
+    try std.testing.expectEqualStrings("zig", result[0].map.get(".").?.string);
+    try std.testing.expectEqualStrings("blogging", result[1].map.get(".").?.string);
+}
+
+test "parseStringList empty input returns empty slice" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+
+    const result = try parseStringList(arena.allocator(), &.{});
+    try std.testing.expectEqual(@as(usize, 0), result.len);
+}
+
+test "parsePageKind: home, post, page, post_list" {
+    try std.testing.expectEqual(PageKind.home, parsePageKind(testFile("content/_index.md", "")).?);
+    try std.testing.expectEqual(PageKind.post, parsePageKind(testFile("content/posts/my-post.md", "")).?);
+    try std.testing.expectEqual(PageKind.post_list, parsePageKind(testFile("content/posts/_index.md", "")).?);
+    try std.testing.expectEqual(PageKind.page, parsePageKind(testFile("content/about.md", "")).?);
+}
+
+test "parsePageKind: non-content files return null" {
+    try std.testing.expect(parsePageKind(testFile("site.yaml", "")) == null);
+    try std.testing.expect(parsePageKind(testFile("templates/home.html", "")) == null);
+    try std.testing.expect(parsePageKind(testFile("README.md", "")) == null);
+}
+
+test "parse with only config populates site metadata" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+
+    const files = [_]File{
+        testFile("site.yaml",
+            \\title: My Site
+            \\base_url: https://example.com
+            \\menu:
+            \\  main:
+            \\    - { name: About, url: /about }
+        ),
     };
 
-    const results = try parse(&arena, &walkDirResult);
-    debug.printJson(results);
+    const site = try parse(&arena, &files);
+    try std.testing.expectEqualStrings("My Site", site.title);
+    try std.testing.expectEqualStrings("https://example.com", site.base_url);
+    try std.testing.expectEqual(@as(usize, 1), site.menu_main.len);
+    try std.testing.expectEqualStrings("About", site.menu_main[0].map.get("name").?.string);
+    try std.testing.expectEqualStrings("/about", site.menu_main[0].map.get("url").?.string);
+    try std.testing.expectEqual(@as(usize, 0), site.pages.len);
+    try std.testing.expectEqual(@as(usize, 0), site.posts.len);
+    try std.testing.expectEqual(@as(usize, 0), site.templates.map.count());
+}
+
+test "parse empty files returns defaults" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+
+    const files = [_]File{};
+    const site = try parse(&arena, &files);
+    try std.testing.expectEqualStrings("", site.title);
+    try std.testing.expectEqualStrings("", site.base_url);
+    try std.testing.expectEqual(@as(usize, 0), site.menu_main.len);
+    try std.testing.expectEqual(@as(usize, 0), site.pages.len);
+    try std.testing.expectEqual(@as(usize, 0), site.posts.len);
+}
+
+test "parse post populates posts list with frontmatter in context" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+
+    const files = [_]File{
+        testFile("content/posts/hello.md",
+            \\---
+            \\title: Hello World
+            \\date: 2026-06-01
+            \\tags: [zig, ssg]
+            \\draft: true
+            \\---
+            \\## Intro
+            \\Body text.
+        ),
+    };
+
+    const site = try parse(&arena, &files);
+    try std.testing.expectEqual(@as(usize, 1), site.posts.len);
+    try std.testing.expectEqual(@as(usize, 0), site.pages.len);
+
+    const post = site.posts[0];
+    try std.testing.expectEqual(PageKind.post, post.kind);
+    try std.testing.expectEqualStrings("Hello World", post.context.map.get("title").?.string);
+    try std.testing.expectEqualStrings("2026-06-01", post.context.map.get("date").?.string);
+    try std.testing.expectEqualStrings("zig", post.context.map.get("tags").?.list[0].map.get(".").?.string);
+    try std.testing.expectEqualStrings("ssg", post.context.map.get("tags").?.list[1].map.get(".").?.string);
+    try std.testing.expectEqual(true, post.context.map.get("draft").?.bool);
+    try std.testing.expect(std.mem.containsAtLeast(u8, post.context.map.get("body").?.string, 1, "<h2>"));
+}
+
+test "parse page (non-post) goes to pages list" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+
+    const files = [_]File{
+        testFile("content/about.md",
+            \\---
+            \\title: About Us
+            \\---
+            \\# About
+            \\We make things.
+        ),
+    };
+
+    const site = try parse(&arena, &files);
+    try std.testing.expectEqual(@as(usize, 0), site.posts.len);
+    try std.testing.expectEqual(@as(usize, 1), site.pages.len);
+    try std.testing.expectEqual(PageKind.page, site.pages[0].kind);
+    try std.testing.expectEqualStrings("About Us", site.pages[0].context.map.get("title").?.string);
+    try std.testing.expect(std.mem.containsAtLeast(u8, site.pages[0].context.map.get("body").?.string, 1, "<h1>"));
+}
+
+test "parse loads templates into templates map" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+
+    const files = [_]File{
+        testFile("templates/base.html", "<html>{{ body }}</html>"),
+        testFile("templates/partials/nav.html", "<nav>{{ items }}</nav>"),
+    };
+
+    const site = try parse(&arena, &files);
+    try std.testing.expectEqual(@as(usize, 2), site.templates.map.count());
+    try std.testing.expectEqualStrings("<html>{{ body }}</html>", site.templates.map.get("base.html").?);
+    try std.testing.expectEqualStrings("<nav>{{ items }}</nav>", site.templates.map.get("partials/nav.html").?);
+}
+
+test "smoke: full site with config, pages, posts, templates" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+
+    const files = [_]File{
+        testFile("site.yaml",
+            \\title: Example Blog
+            \\base_url: http://localhost:8000
+            \\menu:
+            \\  main:
+            \\    - { name: Home, url: / }
+            \\    - { name: Posts, url: /posts/ }
+        ),
+        testFile("content/_index.md",
+            \\---
+            \\title: Welcome
+            \\---
+            \\# Hello
+            \\This is a static site built with **stabilis**.
+        ),
+        testFile("content/posts/_index.md",
+            \\---
+            \\title: Posts
+            \\description: All blog posts, newest first.
+            \\---
+            \\Things I've written.
+        ),
+        testFile("content/posts/hello-world.md",
+            \\---
+            \\title: Hello, World
+            \\date: 2026-06-01T10:00:00Z
+            \\tags: [zig, blogging]
+            \\description: First post on the new SSG.
+            \\---
+            \\## Getting started
+            \\This is the **first post**.
+        ),
+        testFile("templates/partials/header.html", "<!DOCTYPE html>\n<html>\n<head><title>{{ title }}</title></head>\n<body>\n<nav>{{# menu_main }}<a href=\"{{ url }}\">{{ name }}</a>{{/ menu_main }}</nav>\n"),
+        testFile("templates/home.html", "{{> partials/header.html }}\n<h1>{{ title }}</h1>\n{{{ body }}}\n<h2>Recent posts</h2>\n<ul>\n{{# posts }}<li><a href=\"{{ url }}\">{{ title }}</a></li>\n{{/ posts }}</ul>\n</body></html>\n"),
+        testFile("templates/post.html", "{{> partials/header.html }}\n<h1>{{ title }}</h1>\n<span>{{ date }}</span>\n{{{ body }}}\n</body></html>\n"),
+        testFile("templates/post-list.html", "{{> partials/header.html }}\n<h1>{{ title }}</h1>\n{{{ body }}}\n<ul>{{# posts }}<li><a href=\"{{ url }}\">{{ title }}</a></li>{{/ posts }}</ul>\n</body></html>\n"),
+    };
+
+    const site = try parse(&arena, &files);
+
+    // site metadata
+    try std.testing.expectEqualStrings("Example Blog", site.title);
+    try std.testing.expectEqualStrings("http://localhost:8000", site.base_url);
+
+    // menu
+    try std.testing.expectEqual(@as(usize, 2), site.menu_main.len);
+    try std.testing.expectEqualStrings("Home", site.menu_main[0].map.get("name").?.string);
+    try std.testing.expectEqualStrings("/", site.menu_main[0].map.get("url").?.string);
+    try std.testing.expectEqualStrings("Posts", site.menu_main[1].map.get("name").?.string);
+    try std.testing.expectEqualStrings("/posts/", site.menu_main[1].map.get("url").?.string);
+
+    // pages: home + post_list (both under content/ but not content/posts/)
+    try std.testing.expectEqual(@as(usize, 2), site.pages.len);
+
+    const home_page = site.pages[0];
+    try std.testing.expectEqual(PageKind.home, home_page.kind);
+    try std.testing.expectEqualStrings("Welcome", home_page.context.map.get("title").?.string);
+    try std.testing.expect(std.mem.containsAtLeast(u8, home_page.context.map.get("body").?.string, 1, "<h1>"));
+
+    // posts
+    try std.testing.expectEqual(@as(usize, 1), site.posts.len);
+
+    const post = site.posts[0];
+    try std.testing.expectEqual(PageKind.post, post.kind);
+    try std.testing.expectEqualStrings("Hello, World", post.context.map.get("title").?.string);
+    try std.testing.expectEqualStrings("2026-06-01T10:00:00Z", post.context.map.get("date").?.string);
+    try std.testing.expectEqualStrings("First post on the new SSG.", post.context.map.get("description").?.string);
+    try std.testing.expect(std.mem.containsAtLeast(u8, post.context.map.get("body").?.string, 1, "<h2>"));
+
+    const tags = post.context.map.get("tags").?.list;
+    try std.testing.expectEqual(@as(usize, 2), tags.len);
+    try std.testing.expectEqualStrings("zig", tags[0].map.get(".").?.string);
+    try std.testing.expectEqualStrings("blogging", tags[1].map.get(".").?.string);
+
+    // templates
+    try std.testing.expect(site.templates.map.get("partials/header.html") != null);
+    try std.testing.expect(site.templates.map.get("home.html") != null);
+    try std.testing.expect(site.templates.map.get("post.html") != null);
+    try std.testing.expect(site.templates.map.get("post-list.html") != null);
 }
