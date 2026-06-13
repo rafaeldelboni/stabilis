@@ -4,6 +4,7 @@ const logic = @import("../logic/template.zig");
 const models = @import("../models.zig");
 const Context = models.Context;
 const CtxValue = models.CtxValue;
+const PageKind = models.PageKind;
 const SliceBetween = models.SliceBetween;
 const Templates = models.Templates;
 const str = @import("../string.zig");
@@ -14,6 +15,35 @@ const RenderError = error{
     OutOfMemory,
     NoSpaceLeft,
 };
+
+/// Given `kind` and `templates` return the contents of the template for that kind type.
+pub fn pageKindToTemplate(kind: PageKind, templates: Templates) ![]const u8 {
+    return templates.map.get(logic.templateFor(kind)) orelse error.TemplateNotFound;
+}
+
+test "pageKindToTemplate: returns template content" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    var templates: Templates = .{};
+    defer templates.deinit(allocator);
+    try templates.map.put(allocator, "home.html", "<h1>Home</h1>");
+
+    const result = try pageKindToTemplate(.home, templates);
+    try std.testing.expectEqualStrings("<h1>Home</h1>", result);
+}
+
+test "pageKindToTemplate: returns error when template not found" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    var templates: Templates = .{};
+    defer templates.deinit(allocator);
+
+    try std.testing.expectError(error.TemplateNotFound, pageKindToTemplate(.post, templates));
+}
 
 /// Replaces `&`, `<`, `>`, `"` with HTML entities.
 fn escapeHtml(allocator: std.mem.Allocator, input: []const u8) ![]const u8 {

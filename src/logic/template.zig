@@ -42,13 +42,30 @@ pub fn parseTag(result: SliceBetween) Tag {
     }
 }
 
-fn templateFor(kind: PageKind) []const u8 {
+/// Given `kind` return the template name string
+pub fn templateFor(kind: PageKind) []const u8 {
     return switch (kind) {
         .home => "home.html",
         .post => "post.html",
         .page => "page.html",
         .post_list => "posts-list.html",
     };
+}
+
+test "templateFor: home" {
+    try std.testing.expectEqualStrings("home.html", templateFor(.home));
+}
+
+test "templateFor: post" {
+    try std.testing.expectEqualStrings("post.html", templateFor(.post));
+}
+
+test "templateFor: page" {
+    try std.testing.expectEqualStrings("page.html", templateFor(.page));
+}
+
+test "templateFor: post_list" {
+    try std.testing.expectEqualStrings("posts-list.html", templateFor(.post_list));
 }
 
 test "parseTag: variable" {

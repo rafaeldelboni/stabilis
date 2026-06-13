@@ -2,6 +2,7 @@ const std = @import("std");
 
 const logic = @import("../logic/site.zig");
 const models = @import("../models.zig");
+const ContentEntry = models.ContentEntry;
 const Context = models.Context;
 const File = models.File;
 const MapEntries = models.MapEntries;
@@ -13,14 +14,6 @@ const Site = models.Site;
 const frontmatter = @import("frontmatter.zig");
 const markdown = @import("markdown.zig");
 const yaml_lexer = @import("yaml_lexer.zig");
-
-fn parsePageKind(file: File) ?PageKind {
-    if (logic.isPostList(file)) return PageKind.post_list;
-    if (logic.isPost(file)) return PageKind.post;
-    if (logic.isHomePage(file)) return PageKind.home;
-    if (logic.isPage(file)) return PageKind.page;
-    return null;
-}
 
 fn parseStringList(allocator: std.mem.Allocator, list: []const []const u8) ![]Context {
     var outer_context = try std.ArrayList(Context).initCapacity(allocator, list.len);
@@ -45,6 +38,16 @@ fn parseImageList(allocator: std.mem.Allocator, images: []const ImageSpec) ![]Co
     return outer_context.items;
 }
 
+fn parseSlug(file: File, page: ContentEntry) ![]const u8 {
+    if (page.frontmatter.slug) |slug| {
+        return slug;
+    } else {
+        // TODO slugfy title if exists and fallback to file name as last resource
+        var file_name = std.mem.splitScalar(u8, file.file_name, '.');
+        return file_name.first();
+    }
+}
+
 pub fn parse(
     arena: *std.heap.ArenaAllocator,
     files: []const File,
@@ -58,17 +61,17 @@ pub fn parse(
     var posts: std.ArrayList(Page) = .empty;
 
     for (files) |file| {
-        if (parsePageKind(file)) |page_kind| {
+        if (logic.parsePageKind(file)) |page_kind| {
             const page = try frontmatter.parse(arena, file.contents);
             const html = try markdown.toHtml(arena, page.source);
             var context: Context = .{};
             try context.map.put(allocator, "body", .{ .string = html });
             if (page.frontmatter.title) |title| try context.map.put(allocator, "title", .{ .string = title });
-            try switch (page_kind) {
+            switch (page_kind) {
                 .post => {
+                    try context.map.put(allocator, "slug", .{ .string = try parseSlug(file, page) });
                     if (page.frontmatter.author) |author| try context.map.put(allocator, "author", .{ .string = author });
                     if (page.frontmatter.date) |date| try context.map.put(allocator, "date", .{ .string = date });
-                    if (page.frontmatter.slug) |slug| try context.map.put(allocator, "slug", .{ .string = slug });
                     if (page.frontmatter.description) |description| try context.map.put(allocator, "description", .{ .string = description });
                     if (page.frontmatter.draft) try context.map.put(allocator, "draft", .{ .bool = true });
                     if (page.frontmatter.cover) |cover| try context.map.put(allocator, "cover", .{ .string = cover });
@@ -80,8 +83,12 @@ pub fn parse(
                         try context.map.put(allocator, "images", .{ .list = try parseImageList(allocator, page.frontmatter.images) });
                     try posts.append(allocator, Page{ .kind = page_kind, .context = context });
                 },
-                else => pages.append(allocator, Page{ .kind = page_kind, .context = context }),
-            };
+                .page => {
+                    try context.map.put(allocator, "slug", .{ .string = try parseSlug(file, page) });
+                    try pages.append(allocator, Page{ .kind = page_kind, .context = context });
+                },
+                else => try pages.append(allocator, Page{ .kind = page_kind, .context = context }),
+            }
         }
         if (logic.isTemplate(file))
             if (std.mem.cutPrefix(u8, file.rel_path, logic.templates_path_prefix)) |template_key|
@@ -112,12 +119,13 @@ pub fn parse(
 }
 
 fn testFile(rel_path: []const u8, contents: []const u8) File {
+    var split = std.mem.splitBackwardsScalar(u8, rel_path, '/');
     return .{
         .rel_path = rel_path,
         .dir_path = "",
         .abs_path = "",
         .file_ext = "",
-        .file_name = "",
+        .file_name = split.first(),
         .contents = contents,
     };
 }
@@ -138,19 +146,6 @@ test "parseStringList empty input returns empty slice" {
 
     const result = try parseStringList(arena.allocator(), &.{});
     try std.testing.expectEqual(@as(usize, 0), result.len);
-}
-
-test "parsePageKind: home, post, page, post_list" {
-    try std.testing.expectEqual(PageKind.home, parsePageKind(testFile("content/_index.md", "")).?);
-    try std.testing.expectEqual(PageKind.post, parsePageKind(testFile("content/posts/my-post.md", "")).?);
-    try std.testing.expectEqual(PageKind.post_list, parsePageKind(testFile("content/posts/_index.md", "")).?);
-    try std.testing.expectEqual(PageKind.page, parsePageKind(testFile("content/about.md", "")).?);
-}
-
-test "parsePageKind: non-content files return null" {
-    try std.testing.expect(parsePageKind(testFile("site.yaml", "")) == null);
-    try std.testing.expect(parsePageKind(testFile("templates/home.html", "")) == null);
-    try std.testing.expect(parsePageKind(testFile("README.md", "")) == null);
 }
 
 test "parse with only config populates site metadata" {
@@ -220,6 +215,7 @@ test "parse post populates posts list with frontmatter in context" {
     try std.testing.expectEqualStrings("ssg", post.context.map.get("tags").?.list[1].map.get(".").?.string);
     try std.testing.expectEqual(true, post.context.map.get("draft").?.bool);
     try std.testing.expect(std.mem.containsAtLeast(u8, post.context.map.get("body").?.string, 1, "<h2>"));
+    try std.testing.expectEqualStrings("hello", post.context.map.get("slug").?.string);
 }
 
 test "parse page (non-post) goes to pages list" {

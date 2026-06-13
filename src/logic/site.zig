@@ -2,6 +2,7 @@ const std = @import("std");
 
 const models = @import("../models.zig");
 const File = models.File;
+const PageKind = models.PageKind;
 
 pub const config_path = "site.yaml";
 pub const post_list_path = "content/posts/_index.md";
@@ -38,6 +39,77 @@ pub fn isHomePage(file: File) bool {
 /// Returns true if `file` is a content page (under "content/").
 pub fn isPage(file: File) bool {
     return std.mem.startsWith(u8, file.rel_path, pages_path_prefix);
+}
+
+/// Returns PageKind given `file`
+pub fn parsePageKind(file: File) ?PageKind {
+    if (isPostList(file)) return PageKind.post_list;
+    if (isPost(file)) return PageKind.post;
+    if (isHomePage(file)) return PageKind.home;
+    if (isPage(file)) return PageKind.page;
+    return null;
+}
+
+test "parsePageKind: home, post, page, post_list" {
+    try std.testing.expectEqual(PageKind.home, parsePageKind(.{
+        .rel_path = "content/_index.md",
+        .dir_path = "",
+        .abs_path = "",
+        .file_ext = "",
+        .file_name = "",
+        .contents = "",
+    }).?);
+    try std.testing.expectEqual(PageKind.post, parsePageKind(.{
+        .rel_path = "content/posts/my-post.md",
+        .dir_path = "",
+        .abs_path = "",
+        .file_ext = "",
+        .file_name = "",
+        .contents = "",
+    }).?);
+    try std.testing.expectEqual(PageKind.post_list, parsePageKind(.{
+        .rel_path = "content/posts/_index.md",
+        .dir_path = "",
+        .abs_path = "",
+        .file_ext = "",
+        .file_name = "",
+        .contents = "",
+    }).?);
+    try std.testing.expectEqual(PageKind.page, parsePageKind(.{
+        .rel_path = "content/about.md",
+        .dir_path = "",
+        .abs_path = "",
+        .file_ext = "",
+        .file_name = "",
+        .contents = "",
+    }).?);
+}
+
+test "parsePageKind: non-content files return null" {
+    try std.testing.expect(parsePageKind(.{
+        .rel_path = "site.yaml",
+        .dir_path = "",
+        .abs_path = "",
+        .file_ext = "",
+        .file_name = "",
+        .contents = "",
+    }) == null);
+    try std.testing.expect(parsePageKind(.{
+        .rel_path = "templates/home.html",
+        .dir_path = "",
+        .abs_path = "",
+        .file_ext = "",
+        .file_name = "",
+        .contents = "",
+    }) == null);
+    try std.testing.expect(parsePageKind(.{
+        .rel_path = "README.md",
+        .dir_path = "",
+        .abs_path = "",
+        .file_ext = "",
+        .file_name = "",
+        .contents = "",
+    }) == null);
 }
 
 test "isConfig" {
