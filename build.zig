@@ -31,6 +31,7 @@ pub fn build(b: *std.Build) void {
     md4c_lib.root_module.addIncludePath(md4c_dep.path("src"));
 
     exe.root_module.linkLibrary(md4c_lib);
+    exe.root_module.addIncludePath(md4c_dep.path("src"));
 
     b.installArtifact(exe);
 
