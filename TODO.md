@@ -10,8 +10,8 @@
 - [x] Template HTML files (header, home, page, post, post-list)
 - [x] logic/template.zig - templateFor stub
 - [x] Template engine render function (adapters/template.zig)
-- [ ] Site building pipeline (walk content/, parse all files, assemble Site)
-- [ ] Site -> CtxValue adapter
+- [x] Site building pipeline (walk content/, parse all files, assemble Site)
+- [ ] Site -> Context
 - [ ] Routing (filepath → PageKind → URL)
 - [ ] Menu resolution (from config + frontmatter opt-ins)
 - [ ] Shortcode system
