@@ -259,6 +259,31 @@ test "parse loads templates into templates map" {
     try std.testing.expectEqualStrings("<nav>{{ items }}</nav>", site.templates.map.get("partials/nav.html").?);
 }
 
+test "parse post with images builds image context list" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+
+    const files = [_]File{
+        testFile("content/posts/gallery.md",
+            \\---
+            \\title: Gallery
+            \\images:
+            \\  - { file: a.jpg, caption: "First" }
+            \\  - { file: b.jpg, caption: "Second" }
+            \\---
+            \\Look at these.
+        ),
+    };
+
+    const site = try parse(&arena, &files);
+    const images = site.posts[0].context.map.get("images").?.list;
+    try std.testing.expectEqual(@as(usize, 2), images.len);
+    try std.testing.expectEqualStrings("a.jpg", images[0].map.get("file").?.string);
+    try std.testing.expectEqualStrings("First", images[0].map.get("caption").?.string);
+    try std.testing.expectEqualStrings("b.jpg", images[1].map.get("file").?.string);
+    try std.testing.expectEqualStrings("Second", images[1].map.get("caption").?.string);
+}
+
 test "smoke: full site with config, pages, posts, templates" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
