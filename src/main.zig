@@ -8,8 +8,44 @@ const yaml_lexer = @import("adapters/yaml_lexer.zig");
 const debug = @import("debug.zig");
 const models = @import("models.zig");
 const Context = models.Context;
+const Page = models.Page;
+const Site = models.Site;
 const fs_reader = @import("ports/fs_reader.zig");
 const fs_writer = @import("ports/fs_writer.zig");
+
+fn buildFilePath(
+    arena: *std.heap.ArenaAllocator,
+    output_dir: []const u8,
+    page: Page,
+) ![]const u8 {
+    const allocator = arena.allocator();
+    switch (page.kind) {
+        .post => {
+            const post_slug = page.context.map.get("slug").?.string;
+            return try std.Io.Dir.path.join(allocator, &.{ output_dir, "posts", post_slug, "index.html" });
+        },
+        .page => {
+            const page_slug = page.context.map.get("slug").?.string;
+            return try std.Io.Dir.path.join(allocator, &.{ output_dir, "posts", page_slug, "index.html" });
+        },
+        .home => return try std.Io.Dir.path.join(allocator, &.{ output_dir, "index.html" }),
+        .post_list => return try std.Io.Dir.path.join(allocator, &.{ output_dir, "posts", "index.html" }),
+    }
+}
+
+fn parsePageIntoHtml(
+    arena: *std.heap.ArenaAllocator,
+    page: Page,
+    posts_list: []Context,
+    site_data: Site,
+) ![]const u8 {
+    const allocator = arena.allocator();
+    var context: Context = page.context;
+    try context.map.put(allocator, "posts", .{ .list = posts_list });
+    try context.map.put(allocator, "menu_main", .{ .list = site_data.menu_main });
+    const post_template = try template.pageKindToTemplate(page.kind, site_data.templates);
+    return try template.render(arena, post_template, site_data.templates, context);
+}
 
 pub fn main(init: std.process.Init) !void {
     const io = init.io;
@@ -24,20 +60,21 @@ pub fn main(init: std.process.Init) !void {
     const site_data = try site.parse(&arena, files);
     std.debug.print("Site: {s}\n", .{try debug.dumpJson(arena.allocator(), site_data)});
 
-    var posts_list = std.ArrayList(Context).initCapacity(allocator, site_data.posts.len) catch unreachable;
+    var posts_list = try std.ArrayList(Context).initCapacity(allocator, site_data.posts.len);
     for (site_data.posts) |post| try posts_list.append(allocator, post.context);
 
     for (site_data.posts) |post| {
-        var context: Context = post.context;
-        try context.map.put(allocator, "posts", .{ .list = posts_list.items });
-        try context.map.put(allocator, "menu_main", .{ .list = site_data.menu_main });
-        const post_template = try template.pageKindToTemplate(post.kind, site_data.templates);
-        const html = try template.render(&arena, post_template, site_data.templates, context);
-        const post_slug = if (context.map.get("slug")) |v| v.string else error.PostSlugNotFound;
-        const post_file_path = try std.Io.Dir.path.join(allocator, &.{ output_dir, "posts", try post_slug, "index.html" });
-        std.debug.print("{s}\n", .{post_file_path});
-        try fs_writer.writeFileDeep(io, html, post_file_path);
+        const file_path = try buildFilePath(&arena, output_dir, post);
+        const html = try parsePageIntoHtml(&arena, post, posts_list.items, site_data);
+        try fs_writer.writeFileDeep(io, html, file_path);
     }
+
+    // TODO
+    // for (site_data.pages) |page| {
+    //     const file_path = try buildFilePath(&arena, output_dir, page);
+    //     const html = try parsePageIntoHtml(&arena, page, posts_list.items, site_data);
+    //     try fs_writer.writeFileDeep(io, html, file_path);
+    // }
 }
 
 test {
