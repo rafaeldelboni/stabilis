@@ -31,10 +31,11 @@ test {
     _ = @import("adapters/template.zig");
     _ = @import("adapters/yaml_lexer.zig");
     _ = @import("logic/frontmatter.zig");
+    _ = @import("logic/site.zig");
     _ = @import("logic/template.zig");
     _ = @import("logic/yaml_lexer.zig");
+    _ = @import("models.zig");
     _ = @import("ports/fs_reader.zig");
     _ = @import("ports/fs_writer.zig");
-    _ = @import("models.zig");
     _ = @import("string.zig");
 }

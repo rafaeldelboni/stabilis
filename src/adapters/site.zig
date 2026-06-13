@@ -24,11 +24,6 @@ fn parsePageKind(file: File) ?PageKind {
     return null;
 }
 
-fn parsePage(file: File) !Page {
-    _ = file;
-    return Page{ .kind = PageKind.page, .context = &{} };
-}
-
 fn parseStringList(allocator: std.mem.Allocator, list: []const []const u8) ![]Context {
     var outer_context = try std.ArrayList(Context).initCapacity(allocator, list.len);
     for (list) |item| {
