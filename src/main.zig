@@ -12,7 +12,7 @@ pub fn main(init: std.process.Init) !void {
     var arena: std.heap.ArenaAllocator = std.heap.ArenaAllocator.init(init.gpa);
     defer arena.deinit();
 
-    const raw_file = try fs_reader.readFile(io, &arena, "test.md");
+    const raw_file = try fs_reader.readFile(io, &arena, "example/content/posts/hello-world.md");
     std.debug.print("Raw: {s}\n", .{raw_file});
 
     const content = try frontmatter.parse(&arena, raw_file);
@@ -31,10 +31,11 @@ test {
     _ = @import("adapters/template.zig");
     _ = @import("adapters/yaml_lexer.zig");
     _ = @import("logic/frontmatter.zig");
+    _ = @import("logic/site.zig");
     _ = @import("logic/template.zig");
     _ = @import("logic/yaml_lexer.zig");
+    _ = @import("models.zig");
     _ = @import("ports/fs_reader.zig");
     _ = @import("ports/fs_writer.zig");
-    _ = @import("models.zig");
     _ = @import("string.zig");
 }

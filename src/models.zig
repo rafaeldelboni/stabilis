@@ -7,11 +7,12 @@ pub const SliceBetween = struct {
 };
 
 pub const File = struct {
-    cwd_path: []const u8,
+    rel_path: []const u8,
     dir_path: []const u8,
     abs_path: []const u8,
     file_ext: []const u8,
     file_name: []const u8,
+    contents: []const u8,
 };
 
 pub const DateTime = struct {
@@ -23,7 +24,7 @@ pub const DateTime = struct {
     year: i16, // C.E.
 };
 
-pub const MapEntries = std.StringHashMap(YamlNode);
+pub const MapEntries = std.json.ArrayHashMap(YamlNode);
 
 pub const YamlNode = union(enum) {
     string: []const u8,
@@ -54,34 +55,20 @@ pub const Frontmatter = struct {
 
 pub const ContentEntry = struct { frontmatter: Frontmatter, source: []const u8 };
 
-pub const PageKind = union(enum) {
+pub const PageKind = enum {
     home,
     post,
     page,
     post_list,
 };
 
-pub const Templates = std.StringHashMap([]const u8);
+pub const Templates = std.json.ArrayHashMap([]const u8);
+
+pub const Context = std.json.ArrayHashMap(CtxValue);
 
 pub const Page = struct {
-    kind: PageKind = .page,
-    frontmatter: Frontmatter,
-    body_html: []const u8,
-    url: []const u8,
-    source_path: []const u8,
-};
-
-pub const Post = struct {
-    kind: PageKind = .post,
-    frontmatter: Frontmatter,
-    body_html: []const u8,
-    url: []const u8,
-    source_path: []const u8,
-};
-
-pub const MenuItem = struct {
-    name: []const u8,
-    url: []const u8,
+    kind: PageKind,
+    context: Context,
 };
 
 pub const Site = struct {
@@ -89,11 +76,12 @@ pub const Site = struct {
     base_url: []const u8,
     templates: Templates,
     pages: []const Page,
-    posts: []const Post,
-    menu_main: []const MenuItem,
+    posts: []const Page,
+    menu_main: []Context,
 };
 
 pub const CtxValue = union(enum) {
     string: []const u8,
-    list: []const std.StringHashMap(CtxValue),
+    list: []const Context,
+    bool: bool,
 };

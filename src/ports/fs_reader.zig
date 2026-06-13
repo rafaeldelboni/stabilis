@@ -9,14 +9,13 @@ pub fn readFile(io: Io, arena: *std.heap.ArenaAllocator, path: []const u8) ![]u8
     return try std.Io.Dir.readFileAlloc(std.Io.Dir.cwd(), io, path, allocator, .unlimited);
 }
 
-/// Recursively walks `path`, returning a slice of every file found.
-/// Directory entries that are not files or directories (symlinks, etc.) are ignored.
-/// All strings in the returned `File` values are arena-allocated.
-pub fn walkDir(io: Io, arena: *std.heap.ArenaAllocator, path: []const u8) ![]File {
+fn walkDirImpl(io: Io, arena: *std.heap.ArenaAllocator, base_path: []const u8, path: []const u8) ![]File {
     const allocator = arena.allocator();
     var output: std.ArrayList(File) = .empty;
     const cwd = std.Io.Dir.cwd();
-    const dir = try std.Io.Dir.openDir(cwd, io, path, .{ .iterate = true });
+
+    const dir_open_path = try std.Io.Dir.path.join(allocator, &.{ base_path, path });
+    const dir = try std.Io.Dir.openDir(cwd, io, dir_open_path, .{ .iterate = true });
     defer dir.close(io);
 
     const dir_path = try dir.realPathFileAlloc(io, ".", allocator);
@@ -24,23 +23,33 @@ pub fn walkDir(io: Io, arena: *std.heap.ArenaAllocator, path: []const u8) ![]Fil
     while (try dir_entries.next(io)) |dir_entry| {
         switch (dir_entry.kind) {
             .file => {
-                const cwd_path = try cwd.realPathFileAlloc(io, ".", allocator);
+                const abs_path = try std.Io.Dir.path.resolve(allocator, &.{ dir_path, dir_entry.name });
                 try output.append(allocator, File{
-                    .cwd_path = cwd_path,
-                    .dir_path = dir_path,
-                    .abs_path = try std.Io.Dir.path.resolve(allocator, &.{ dir_path, dir_entry.name }),
+                    .dir_path = dir_open_path,
+                    .abs_path = abs_path,
+                    .rel_path = abs_path[base_path.len + 1 ..],
                     .file_ext = try allocator.dupe(u8, std.Io.Dir.path.extension(dir_entry.name)),
                     .file_name = try allocator.dupe(u8, dir_entry.name),
+                    .contents = try std.Io.Dir.readFileAlloc(dir, io, dir_entry.name, allocator, .unlimited),
                 });
             },
             .directory => {
                 const branch_path = try std.Io.Dir.path.join(allocator, &.{ path, dir_entry.name });
-                try output.appendSlice(allocator, try walkDir(io, arena, branch_path));
+                try output.appendSlice(allocator, try walkDirImpl(io, arena, base_path, branch_path));
             },
             else => {},
         }
     }
     return output.items;
+}
+
+/// Recursively walks `path`, returning a slice of every file found.
+/// Directory entries that are not files or directories (symlinks, etc.) are ignored.
+/// All strings in the returned `File` values are arena-allocated.
+pub fn walkDir(io: Io, arena: *std.heap.ArenaAllocator, path: []const u8) ![]File {
+    const cwd = std.Io.Dir.cwd();
+    const abs_path = try cwd.realPathFileAlloc(io, path, arena.allocator());
+    return walkDirImpl(io, arena, abs_path, "/");
 }
 
 // integration test: requires example/ directory

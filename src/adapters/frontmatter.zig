@@ -3,6 +3,7 @@ const std = @import("std");
 const logic = @import("../logic/frontmatter.zig");
 const models = @import("../models.zig");
 const ContentEntry = models.ContentEntry;
+const ImageSpec = models.ImageSpec;
 const Frontmatter = models.Frontmatter;
 const MapEntries = models.MapEntries;
 const YamlNode = models.YamlNode;
@@ -37,22 +38,39 @@ fn listToStrings(arena: *std.heap.ArenaAllocator, list: []const YamlNode) ![]con
     return strings.items;
 }
 
+fn listToImages(arena: *std.heap.ArenaAllocator, list: []const YamlNode) ![]const ImageSpec {
+    const allocator = arena.allocator();
+    var specs: std.ArrayList(ImageSpec) = .empty;
+    for (list) |entry| {
+        if (entry == .map) {
+            try specs.append(allocator, .{
+                .file = (try asString(arena, entry.map.map.get("file"))) orelse "",
+                .caption = try asString(arena, entry.map.map.get("caption")),
+            });
+        }
+    }
+    return specs.items;
+}
+
 fn mapToFrontmatter(arena: *std.heap.ArenaAllocator, entries: MapEntries) !Frontmatter {
     var fm = Frontmatter{};
-    fm.author = (try asString(arena, entries.get("author"))) orelse fm.author;
-    fm.title = (try asString(arena, entries.get("title"))) orelse fm.title;
-    fm.date = (try asString(arena, entries.get("date"))) orelse fm.date;
-    fm.slug = (try asString(arena, entries.get("slug"))) orelse fm.slug;
-    fm.description = (try asString(arena, entries.get("description"))) orelse fm.description;
-    fm.cover = (try asString(arena, entries.get("cover"))) orelse fm.cover;
-    if (entries.get("draft")) |draft| {
+    fm.author = (try asString(arena, entries.map.get("author"))) orelse fm.author;
+    fm.title = (try asString(arena, entries.map.get("title"))) orelse fm.title;
+    fm.date = (try asString(arena, entries.map.get("date"))) orelse fm.date;
+    fm.slug = (try asString(arena, entries.map.get("slug"))) orelse fm.slug;
+    fm.description = (try asString(arena, entries.map.get("description"))) orelse fm.description;
+    fm.cover = (try asString(arena, entries.map.get("cover"))) orelse fm.cover;
+    if (entries.map.get("draft")) |draft| {
         if (draft == .boolean) fm.draft = draft.boolean;
     }
-    if (entries.get("tags")) |tags| {
+    if (entries.map.get("tags")) |tags| {
         if (tags == .list) fm.tags = try listToStrings(arena, tags.list);
     }
-    if (entries.get("menus")) |menus| {
+    if (entries.map.get("menus")) |menus| {
         if (menus == .list) fm.menus = try listToStrings(arena, menus.list);
+    }
+    if (entries.map.get("images")) |images| {
+        if (images == .list) fm.images = try listToImages(arena, images.list);
     }
     return fm;
 }
@@ -207,16 +225,90 @@ test "listToStrings: empty list returns empty slice" {
     try std.testing.expectEqual(@as(usize, 0), result.len);
 }
 
+test "listToImages: converts YamlNode list to ImageSpec slice" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+
+    var img1: MapEntries = .{};
+    try img1.map.put(arena.allocator(), "file", .{ .string = "a.jpg" });
+    try img1.map.put(arena.allocator(), "caption", .{ .string = "First" });
+
+    var img2: MapEntries = .{};
+    try img2.map.put(arena.allocator(), "file", .{ .string = "b.jpg" });
+    try img2.map.put(arena.allocator(), "caption", .{ .string = "Second" });
+
+    const nodes = [_]YamlNode{
+        .{ .map = img1 },
+        .{ .map = img2 },
+    };
+    const result = try listToImages(&arena, &nodes);
+    try std.testing.expectEqual(@as(usize, 2), result.len);
+    try std.testing.expectEqualStrings("a.jpg", result[0].file);
+    try std.testing.expectEqualStrings("First", result[0].caption.?);
+    try std.testing.expectEqualStrings("b.jpg", result[1].file);
+    try std.testing.expectEqualStrings("Second", result[1].caption.?);
+}
+
+test "listToImages: missing caption is null" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+
+    var img: MapEntries = .{};
+    try img.map.put(arena.allocator(), "file", .{ .string = "no-caption.jpg" });
+
+    const nodes = [_]YamlNode{.{ .map = img }};
+    const result = try listToImages(&arena, &nodes);
+    try std.testing.expectEqual(@as(usize, 1), result.len);
+    try std.testing.expectEqualStrings("no-caption.jpg", result[0].file);
+    try std.testing.expect(result[0].caption == null);
+}
+
+test "listToImages: empty list returns empty slice" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+
+    const result = try listToImages(&arena, &.{});
+    try std.testing.expectEqual(@as(usize, 0), result.len);
+}
+
+test "listToImages: skips non-map entries" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+
+    var img: MapEntries = .{};
+    try img.map.put(arena.allocator(), "file", .{ .string = "valid.jpg" });
+
+    const nodes = [_]YamlNode{
+        .{ .string = "not-a-map" },
+        .{ .map = img },
+        .{ .string = "also-not-a-map" },
+    };
+    const result = try listToImages(&arena, &nodes);
+    try std.testing.expectEqual(@as(usize, 1), result.len);
+    try std.testing.expectEqualStrings("valid.jpg", result[0].file);
+}
+
 test "mapToFrontmatter: maps known keys to Frontmatter fields" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
 
-    var entries = MapEntries.init(arena.allocator());
-    try entries.put("title", .{ .string = "Hello" });
-    try entries.put("draft", .{ .boolean = true });
-    try entries.put("tags", .{ .list = &.{
+    var img1: MapEntries = .{};
+    try img1.map.put(arena.allocator(), "file", .{ .string = "a.jpg" });
+    try img1.map.put(arena.allocator(), "caption", .{ .string = "First" });
+
+    var img2: MapEntries = .{};
+    try img2.map.put(arena.allocator(), "file", .{ .string = "b.jpg" });
+
+    var entries: MapEntries = .{};
+    try entries.map.put(arena.allocator(), "title", .{ .string = "Hello" });
+    try entries.map.put(arena.allocator(), "draft", .{ .boolean = true });
+    try entries.map.put(arena.allocator(), "tags", .{ .list = &.{
         .{ .string = "zig" },
         .{ .string = "ssg" },
+    } });
+    try entries.map.put(arena.allocator(), "images", .{ .list = &.{
+        .{ .map = img1 },
+        .{ .map = img2 },
     } });
 
     const fm = try mapToFrontmatter(&arena, entries);
@@ -225,15 +317,20 @@ test "mapToFrontmatter: maps known keys to Frontmatter fields" {
     try std.testing.expectEqual(@as(usize, 2), fm.tags.len);
     try std.testing.expectEqualStrings("zig", fm.tags[0]);
     try std.testing.expectEqualStrings("ssg", fm.tags[1]);
+    try std.testing.expectEqual(@as(usize, 2), fm.images.len);
+    try std.testing.expectEqualStrings("a.jpg", fm.images[0].file);
+    try std.testing.expectEqualStrings("First", fm.images[0].caption.?);
+    try std.testing.expectEqualStrings("b.jpg", fm.images[1].file);
+    try std.testing.expect(fm.images[1].caption == null);
 }
 
 test "mapToFrontmatter: unknown keys are ignored" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
 
-    var entries = MapEntries.init(arena.allocator());
-    try entries.put("custom_field", .{ .string = "ignored" });
-    try entries.put("title", .{ .string = "Only This" });
+    var entries: MapEntries = .{};
+    try entries.map.put(arena.allocator(), "custom_field", .{ .string = "ignored" });
+    try entries.map.put(arena.allocator(), "title", .{ .string = "Only This" });
 
     const fm = try mapToFrontmatter(&arena, entries);
     try std.testing.expectEqualStrings("Only This", fm.title.?);
@@ -245,7 +342,7 @@ test "mapToFrontmatter: empty entries returns default Frontmatter" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
 
-    const entries = MapEntries.init(arena.allocator());
+    const entries: MapEntries = .{};
     const fm = try mapToFrontmatter(&arena, entries);
     try std.testing.expect(fm.title == null);
     try std.testing.expectEqual(false, fm.draft);
@@ -301,5 +398,5 @@ test "asString: list and map return null" {
     defer arena.deinit();
 
     try std.testing.expect((try asString(&arena, .{ .list = &.{} })) == null);
-    try std.testing.expect((try asString(&arena, .{ .map = MapEntries.init(arena.allocator()) })) == null);
+    try std.testing.expect((try asString(&arena, .{ .map = .{} })) == null);
 }
