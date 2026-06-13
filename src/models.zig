@@ -71,18 +71,13 @@ pub const Page = struct {
     context: Context,
 };
 
-pub const MenuItem = struct {
-    name: []const u8,
-    url: []const u8,
-};
-
 pub const Site = struct {
     title: []const u8,
     base_url: []const u8,
     templates: Templates,
     pages: []const Page,
     posts: []const Page,
-    menu_main: []const MenuItem,
+    menu_main: []Context,
 };
 
 pub const CtxValue = union(enum) {

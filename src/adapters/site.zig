@@ -5,7 +5,6 @@ const logic = @import("../logic/site.zig");
 const models = @import("../models.zig");
 const Context = models.Context;
 const File = models.File;
-const MenuItem = models.MenuItem;
 const MapEntries = models.MapEntries;
 const Templates = models.Templates;
 const YamlNode = models.YamlNode;
@@ -97,15 +96,16 @@ pub fn parse(
         if (logic.isConfig(file))
             config = try yaml_lexer.parse(arena, file.contents);
     }
-    var main_menu: std.ArrayList(MenuItem) = .empty;
+
+    var main_menu: std.ArrayList(Context) = .empty;
     if (config.map.count() > 0) {
         site_title = config.map.get("title").?.string;
         site_base_url = config.map.get("base_url").?.string;
         for (config.map.get("menu").?.map.map.get("main").?.list) |entry| {
-            try main_menu.append(allocator, .{
-                .name = entry.map.map.get("name").?.string,
-                .url = entry.map.map.get("url").?.string,
-            });
+            var ctx: Context = .{};
+            try ctx.map.put(allocator, "name", .{ .string = entry.map.map.get("name").?.string });
+            try ctx.map.put(allocator, "url", .{ .string = entry.map.map.get("url").?.string });
+            try main_menu.append(allocator, ctx);
         }
     }
     return Site{
