@@ -4,6 +4,20 @@ A static site generator written in Zig, built to learn the language while conver
 
 Progress tracked in [TODO.md](TODO.md).
 
+## Usage
+
+```sh
+zig build run -- [output_dir] [input_dir]   # run with args
+zig build run -- public example             # explicit dirs
+zig build run                               # defaults to public/ and example/
+./zig-out/bin/stabilis public example       # run compiled binary
+```
+
+| Argument     | Default   | Description              |
+|--------------|-----------|--------------------------|
+| `output_dir` | `public`  | Directory for built site |
+| `input_dir`  | `example` | Source content directory |
+
 ## Contributing
 
 ```sh
