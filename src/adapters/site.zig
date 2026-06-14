@@ -20,7 +20,6 @@ fn parseSlug(file: File, page: ContentEntry) ![]const u8 {
     if (page.frontmatter.slug) |slug| return slug;
     // TODO slugfy title if exists and fallback to file name as last resource
     var file_name = std.mem.splitScalar(u8, file.file_name, '.');
-    if (std.mem.eql(u8, file.file_name, "_index")) return "";
     return file_name.first();
 }
 
@@ -93,10 +92,6 @@ pub fn parse(
                     if (page.frontmatter.images.len > 0)
                         try context.map.put(allocator, "images", .{ .list = try parseImageList(allocator, page.frontmatter.images) });
                     try posts.append(allocator, Page{ .kind = page_kind, .context = context });
-                },
-                .page => {
-                    try context.map.put(allocator, "slug", .{ .string = try parseSlug(file, page) });
-                    try pages.append(allocator, Page{ .kind = page_kind, .context = context });
                 },
                 else => try pages.append(allocator, Page{ .kind = page_kind, .context = context }),
             }
