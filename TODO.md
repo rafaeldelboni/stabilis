@@ -13,7 +13,7 @@
 - [x] Site building pipeline (walk content/, parse all files, assemble Site)
 - [x] Site -> Context
 - [x] Routing (filepath → PageKind → URL)
-- [ ] Slug from Title
+- [x] Slug from Title
 - [ ] Menu resolution (from config + frontmatter opt-ins)
 - [ ] CLI commands (new, build, serve, migrate)
 - [ ] Shortcode system
