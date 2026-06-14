@@ -7,3 +7,14 @@ pub fn writeFile(io: Io, data: []const u8, path: []const u8) !void {
         .data = data,
     });
 }
+
+pub fn writeFileDeep(io: Io, data: []const u8, path: []const u8) !void {
+    if (std.Io.Dir.path.dirname(path)) |dir_path| {
+        try std.Io.Dir.createDirPath(std.Io.Dir.cwd(), io, dir_path);
+    }
+    try writeFile(io, data, path);
+}
+
+pub fn deleteDir(io: Io, path: []const u8) !void {
+    try std.Io.Dir.deleteTree(std.Io.Dir.cwd(), io, path);
+}

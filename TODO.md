@@ -11,11 +11,12 @@
 - [x] logic/template.zig - templateFor stub
 - [x] Template engine render function (adapters/template.zig)
 - [x] Site building pipeline (walk content/, parse all files, assemble Site)
-- [ ] Site -> Context
-- [ ] Routing (filepath → PageKind → URL)
+- [x] Site -> Context
+- [x] Routing (filepath → PageKind → URL)
+- [ ] Slug from Title
 - [ ] Menu resolution (from config + frontmatter opt-ins)
-- [ ] Shortcode system
 - [ ] CLI commands (new, build, serve, migrate)
+- [ ] Shortcode system
 - [ ] File watcher for dev mode
 - [ ] Dev server + SSE live reload
 - [ ] RSS/Atom feed generation
