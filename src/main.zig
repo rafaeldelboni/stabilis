@@ -1,11 +1,7 @@
 const std = @import("std");
 
-const frontmatter = @import("adapters/frontmatter.zig");
-const markdown = @import("adapters/markdown.zig");
 const page = @import("adapters/page.zig");
 const site = @import("adapters/site.zig");
-const template = @import("adapters/template.zig");
-const yaml_lexer = @import("adapters/yaml_lexer.zig");
 const models = @import("models.zig");
 const Context = models.Context;
 const Page = models.Page;
