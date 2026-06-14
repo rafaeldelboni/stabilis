@@ -19,7 +19,7 @@ const yaml_lexer = @import("yaml_lexer.zig");
 fn parseSlug(arena: *std.heap.ArenaAllocator, file: File, page: ContentEntry) ![]const u8 {
     if (std.mem.eql(u8, file.file_name, "_index.md")) return "";
     if (page.frontmatter.slug) |slug| return slug;
-    if (page.frontmatter.title) |title| return try string.parseSlug(arena.allocator(), title);
+    if (page.frontmatter.title) |title| return try string.parseSlug(arena, title);
     var file_name = std.mem.splitScalar(u8, file.file_name, '.');
     return file_name.first();
 }

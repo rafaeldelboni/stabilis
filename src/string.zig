@@ -41,12 +41,10 @@ fn escapeNonAsciiChar(input: u21) ?u8 {
     };
 }
 
-pub fn parseSlug(allocator: std.mem.Allocator, input: []const u8) ![]const u8 {
-    const lower = try allocator.dupe(u8, input);
-    _ = std.ascii.lowerString(lower, lower);
-
+pub fn parseSlug(arena: *std.heap.ArenaAllocator, input: []const u8) ![]const u8 {
+    const allocator = arena.allocator();
     var out: std.ArrayList(u8) = .empty;
-    var iter = (try std.unicode.Utf8View.init(lower)).iterator();
+    var iter = (try std.unicode.Utf8View.init(input)).iterator();
     while (iter.nextCodepoint()) |cp| {
         if (escapeNonAsciiChar(cp)) |c| {
             try out.append(allocator, c);
@@ -55,11 +53,12 @@ pub fn parseSlug(allocator: std.mem.Allocator, input: []const u8) ![]const u8 {
 
         if (cp > std.math.maxInt(u7)) continue;
 
-        if (std.ascii.isWhitespace(@intCast(cp))) {
+        const c: u8 = @intCast(cp);
+        if (std.ascii.isWhitespace(c)) {
             if (out.items.len > 0 and out.items[out.items.len - 1] != '-')
                 try out.append(allocator, '-');
-        } else if (std.ascii.isAlphanumeric(@intCast(cp))) {
-            try out.append(allocator, @intCast(cp));
+        } else if (std.ascii.isAlphanumeric(c)) {
+            try out.append(allocator, std.ascii.toLower(c));
         }
     }
     return out.items;
@@ -70,13 +69,13 @@ test "parseSlug creates valid slug from chaotic title string" {
     defer arena.deinit();
 
     const r1 = "RebuildCast #8 - Ferramentas [Windows, Mac, Linux]";
-    try std.testing.expectEqualSlices(u8, "rebuildcast-8-ferramentas-windows-mac-linux", try parseSlug(arena.allocator(), r1));
+    try std.testing.expectEqualSlices(u8, "rebuildcast-8-ferramentas-windows-mac-linux", try parseSlug(&arena, r1));
 
     const r2 = "RebuildCast #15 - .NET para Devs não .NET";
-    try std.testing.expectEqualSlices(u8, "rebuildcast-15-net-para-devs-nao-net", try parseSlug(arena.allocator(), r2));
+    try std.testing.expectEqualSlices(u8, "rebuildcast-15-net-para-devs-nao-net", try parseSlug(&arena, r2));
 
     const r3 = "á B {} -a 1!~ã ";
-    try std.testing.expectEqualSlices(u8, "a-b-a-1a-", try parseSlug(arena.allocator(), r3));
+    try std.testing.expectEqualSlices(u8, "a-b-a-1a-", try parseSlug(&arena, r3));
 }
 
 test "sliceBetween returns content between delimiters" {
