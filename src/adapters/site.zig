@@ -11,14 +11,15 @@ const Page = models.Page;
 const PageKind = models.PageKind;
 const ImageSpec = models.ImageSpec;
 const Site = models.Site;
+const string = @import("../string.zig");
 const frontmatter = @import("frontmatter.zig");
 const markdown = @import("markdown.zig");
 const yaml_lexer = @import("yaml_lexer.zig");
 
-fn parseSlug(file: File, page: ContentEntry) ![]const u8 {
+fn parseSlug(arena: *std.heap.ArenaAllocator, file: File, page: ContentEntry) ![]const u8 {
     if (std.mem.eql(u8, file.file_name, "_index.md")) return "";
     if (page.frontmatter.slug) |slug| return slug;
-    // TODO slugfy title if exists and fallback to file name as last resource
+    if (page.frontmatter.title) |title| return try string.parseSlug(arena, title);
     var file_name = std.mem.splitScalar(u8, file.file_name, '.');
     return file_name.first();
 }
@@ -75,7 +76,7 @@ pub fn parse(
             var context: Context = .{};
             try context.map.put(allocator, "body", .{ .string = html });
             if (page.frontmatter.title) |title| try context.map.put(allocator, "title", .{ .string = title });
-            const slug = try parseSlug(file, page);
+            const slug = try parseSlug(arena, file, page);
             try context.map.put(allocator, "slug", .{ .string = slug });
             try context.map.put(allocator, "url", .{ .string = try buildUrl(arena, page_kind, slug) });
             switch (page_kind) {
@@ -221,8 +222,8 @@ test "parse post populates posts list with frontmatter in context" {
     try std.testing.expectEqualStrings("ssg", post.context.map.get("tags").?.list[1].map.get(".").?.string);
     try std.testing.expectEqual(true, post.context.map.get("draft").?.bool);
     try std.testing.expect(std.mem.containsAtLeast(u8, post.context.map.get("body").?.string, 1, "<h2>"));
-    try std.testing.expectEqualStrings("hello", post.context.map.get("slug").?.string);
-    try std.testing.expectEqualStrings("/posts/hello", post.context.map.get("url").?.string);
+    try std.testing.expectEqualStrings("hello-world", post.context.map.get("slug").?.string);
+    try std.testing.expectEqualStrings("/posts/hello-world", post.context.map.get("url").?.string);
 }
 
 test "parse page (non-post) goes to pages list" {
@@ -245,7 +246,7 @@ test "parse page (non-post) goes to pages list" {
     try std.testing.expectEqual(PageKind.page, site.pages[0].kind);
     try std.testing.expectEqualStrings("About Us", site.pages[0].context.map.get("title").?.string);
     try std.testing.expect(std.mem.containsAtLeast(u8, site.pages[0].context.map.get("body").?.string, 1, "<h1>"));
-    try std.testing.expectEqualStrings("/about", site.pages[0].context.map.get("url").?.string);
+    try std.testing.expectEqualStrings("/about-us", site.pages[0].context.map.get("url").?.string);
 }
 
 test "parse loads templates into templates map" {

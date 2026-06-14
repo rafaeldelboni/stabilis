@@ -15,12 +15,11 @@ fn asString(arena: *std.heap.ArenaAllocator, value: ?YamlNode) !?[]const u8 {
         return switch (v) {
             .string => |s| s,
             .boolean => |b| if (b) "true" else "false",
-            .datetime => |d| blk: {
-                const buf = try arena.allocator().alloc(u8, 20);
-                break :blk try std.fmt.bufPrint(buf, "{d}-{d:0>2}-{d:0>2}T{d:0>2}:{d:0>2}:{d:0>2}Z", .{
-                    d.year, d.month, d.day, d.hour, d.min, d.sec,
-                });
-            },
+            .datetime => |d| try std.fmt.allocPrint(
+                arena.allocator(),
+                "{d}-{d:0>2}-{d:0>2}T{d:0>2}:{d:0>2}:{d:0>2}Z",
+                .{ d.year, d.month, d.day, d.hour, d.min, d.sec },
+            ),
             .null => null,
             else => null,
         };

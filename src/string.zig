@@ -19,6 +19,65 @@ pub fn sliceBetween(
     };
 }
 
+fn escapeNonAsciiChar(input: u21) ?u8 {
+    return switch (input) {
+        'ą', 'à', 'á', 'ä', 'â', 'ã', 'å', 'æ', 'ă' => 'a',
+        'ć', 'č', 'ĉ' => 'c',
+        'ę', 'è', 'é', 'ë', 'ê' => 'e',
+        'ĝ' => 'g',
+        'ĥ' => 'h',
+        'ì', 'í', 'ï', 'î' => 'i',
+        'ĵ' => 'j',
+        'ł', 'ľ' => 'l',
+        'ń', 'ň', 'ñ' => 'n',
+        'ò', 'ó', 'ö', 'ő', 'ô', 'õ', 'ð', 'ø' => 'o',
+        'ś', 'ș', 'š', 'ŝ' => 's',
+        'ť', 'ț' => 't',
+        'ŭ', 'ù', 'ú', 'ü', 'ű', 'û' => 'u',
+        'ÿ', 'ý' => 'y',
+        'ç' => 'c',
+        'ż', 'ź', 'ž' => 'z',
+        else => null,
+    };
+}
+
+pub fn parseSlug(arena: *std.heap.ArenaAllocator, input: []const u8) ![]const u8 {
+    const allocator = arena.allocator();
+    var out: std.ArrayList(u8) = .empty;
+    var iter = (try std.unicode.Utf8View.init(input)).iterator();
+    while (iter.nextCodepoint()) |cp| {
+        if (escapeNonAsciiChar(cp)) |c| {
+            try out.append(allocator, c);
+            continue;
+        }
+
+        if (cp > std.math.maxInt(u7)) continue;
+
+        const c: u8 = @intCast(cp);
+        if (std.ascii.isWhitespace(c)) {
+            if (out.items.len > 0 and out.items[out.items.len - 1] != '-')
+                try out.append(allocator, '-');
+        } else if (std.ascii.isAlphanumeric(c)) {
+            try out.append(allocator, std.ascii.toLower(c));
+        }
+    }
+    return out.items;
+}
+
+test "parseSlug creates valid slug from chaotic title string" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+
+    const r1 = "RebuildCast #8 - Ferramentas [Windows, Mac, Linux]";
+    try std.testing.expectEqualSlices(u8, "rebuildcast-8-ferramentas-windows-mac-linux", try parseSlug(&arena, r1));
+
+    const r2 = "RebuildCast #15 - .NET para Devs não .NET";
+    try std.testing.expectEqualSlices(u8, "rebuildcast-15-net-para-devs-nao-net", try parseSlug(&arena, r2));
+
+    const r3 = "á B {} -a 1!~ã ";
+    try std.testing.expectEqualSlices(u8, "a-b-a-1a-", try parseSlug(&arena, r3));
+}
+
 test "sliceBetween returns content between delimiters" {
     const r1 = sliceBetween("---hello---", "---", "---", 0).?;
     try std.testing.expectEqualSlices(u8, "hello", r1.content);
