@@ -14,3 +14,7 @@ pub fn writeFileDeep(io: Io, data: []const u8, path: []const u8) !void {
     }
     try writeFile(io, data, path);
 }
+
+pub fn deleteDir(io: Io, path: []const u8) !void {
+    try std.Io.Dir.deleteTree(std.Io.Dir.cwd(), io, path);
+}

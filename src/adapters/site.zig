@@ -15,6 +15,25 @@ const frontmatter = @import("frontmatter.zig");
 const markdown = @import("markdown.zig");
 const yaml_lexer = @import("yaml_lexer.zig");
 
+fn parseSlug(file: File, page: ContentEntry) ![]const u8 {
+    if (std.mem.eql(u8, file.file_name, "_index.md")) return "";
+    if (page.frontmatter.slug) |slug| return slug;
+    // TODO slugfy title if exists and fallback to file name as last resource
+    var file_name = std.mem.splitScalar(u8, file.file_name, '.');
+    if (std.mem.eql(u8, file.file_name, "_index")) return "";
+    return file_name.first();
+}
+
+fn buildUrl(arena: *std.heap.ArenaAllocator, page_kind: PageKind, slug: []const u8) ![]const u8 {
+    const allocator = arena.allocator();
+    switch (page_kind) {
+        .post => return try std.Io.Dir.path.join(allocator, &.{ "/posts", slug }),
+        .page => return try std.Io.Dir.path.join(allocator, &.{ "/", slug }),
+        .home => return "/",
+        .post_list => return "/posts",
+    }
+}
+
 fn parseStringList(allocator: std.mem.Allocator, list: []const []const u8) ![]Context {
     var outer_context = try std.ArrayList(Context).initCapacity(allocator, list.len);
     for (list) |item| {
@@ -38,16 +57,6 @@ fn parseImageList(allocator: std.mem.Allocator, images: []const ImageSpec) ![]Co
     return outer_context.items;
 }
 
-fn parseSlug(file: File, page: ContentEntry) ![]const u8 {
-    if (page.frontmatter.slug) |slug| {
-        return slug;
-    } else {
-        // TODO slugfy title if exists and fallback to file name as last resource
-        var file_name = std.mem.splitScalar(u8, file.file_name, '.');
-        return file_name.first();
-    }
-}
-
 pub fn parse(
     arena: *std.heap.ArenaAllocator,
     files: []const File,
@@ -67,9 +76,11 @@ pub fn parse(
             var context: Context = .{};
             try context.map.put(allocator, "body", .{ .string = html });
             if (page.frontmatter.title) |title| try context.map.put(allocator, "title", .{ .string = title });
+            const slug = try parseSlug(file, page);
+            try context.map.put(allocator, "slug", .{ .string = slug });
+            try context.map.put(allocator, "url", .{ .string = try buildUrl(arena, page_kind, slug) });
             switch (page_kind) {
                 .post => {
-                    try context.map.put(allocator, "slug", .{ .string = try parseSlug(file, page) });
                     if (page.frontmatter.author) |author| try context.map.put(allocator, "author", .{ .string = author });
                     if (page.frontmatter.date) |date| try context.map.put(allocator, "date", .{ .string = date });
                     if (page.frontmatter.description) |description| try context.map.put(allocator, "description", .{ .string = description });
@@ -216,6 +227,7 @@ test "parse post populates posts list with frontmatter in context" {
     try std.testing.expectEqual(true, post.context.map.get("draft").?.bool);
     try std.testing.expect(std.mem.containsAtLeast(u8, post.context.map.get("body").?.string, 1, "<h2>"));
     try std.testing.expectEqualStrings("hello", post.context.map.get("slug").?.string);
+    try std.testing.expectEqualStrings("/posts/hello", post.context.map.get("url").?.string);
 }
 
 test "parse page (non-post) goes to pages list" {
@@ -238,6 +250,7 @@ test "parse page (non-post) goes to pages list" {
     try std.testing.expectEqual(PageKind.page, site.pages[0].kind);
     try std.testing.expectEqualStrings("About Us", site.pages[0].context.map.get("title").?.string);
     try std.testing.expect(std.mem.containsAtLeast(u8, site.pages[0].context.map.get("body").?.string, 1, "<h1>"));
+    try std.testing.expectEqualStrings("/about", site.pages[0].context.map.get("url").?.string);
 }
 
 test "parse loads templates into templates map" {
@@ -342,6 +355,7 @@ test "smoke: full site with config, pages, posts, templates" {
     const home_page = site.pages[0];
     try std.testing.expectEqual(PageKind.home, home_page.kind);
     try std.testing.expectEqualStrings("Welcome", home_page.context.map.get("title").?.string);
+    try std.testing.expectEqualStrings("/", home_page.context.map.get("url").?.string);
     try std.testing.expect(std.mem.containsAtLeast(u8, home_page.context.map.get("body").?.string, 1, "<h1>"));
 
     // posts
@@ -352,6 +366,7 @@ test "smoke: full site with config, pages, posts, templates" {
     try std.testing.expectEqualStrings("Hello, World", post.context.map.get("title").?.string);
     try std.testing.expectEqualStrings("2026-06-01T10:00:00Z", post.context.map.get("date").?.string);
     try std.testing.expectEqualStrings("First post on the new SSG.", post.context.map.get("description").?.string);
+    try std.testing.expectEqualStrings("/posts/hello-world", post.context.map.get("url").?.string);
     try std.testing.expect(std.mem.containsAtLeast(u8, post.context.map.get("body").?.string, 1, "<h2>"));
 
     const tags = post.context.map.get("tags").?.list;

@@ -48,7 +48,7 @@ pub fn templateFor(kind: PageKind) []const u8 {
         .home => "home.html",
         .post => "post.html",
         .page => "page.html",
-        .post_list => "posts-list.html",
+        .post_list => "post-list.html",
     };
 }
 
@@ -65,7 +65,7 @@ test "templateFor: page" {
 }
 
 test "templateFor: post_list" {
-    try std.testing.expectEqualStrings("posts-list.html", templateFor(.post_list));
+    try std.testing.expectEqualStrings("post-list.html", templateFor(.post_list));
 }
 
 test "parseTag: variable" {
