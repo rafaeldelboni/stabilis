@@ -14,7 +14,7 @@
 - [x] Site -> Context
 - [x] Routing (filepath → PageKind → URL)
 - [x] Slug from Title
-- [ ] Menu resolution (from config + frontmatter opt-ins)
+- [x] Menu resolution (from config + frontmatter opt-ins)
 - [ ] CLI commands (new, build, serve, migrate)
 - [ ] Shortcode system
 - [ ] File watcher for dev mode

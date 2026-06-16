@@ -57,6 +57,13 @@ fn parseImageList(allocator: std.mem.Allocator, images: []const ImageSpec) ![]Co
     return outer_context.items;
 }
 
+fn parseMenuEntryContext(allocator: std.mem.Allocator, name: []const u8, url: []const u8) !Context {
+    var ctx: Context = .{};
+    try ctx.map.put(allocator, "name", .{ .string = name });
+    try ctx.map.put(allocator, "url", .{ .string = url });
+    return ctx;
+}
+
 pub fn parse(
     arena: *std.heap.ArenaAllocator,
     files: []const File,
@@ -68,6 +75,7 @@ pub fn parse(
     var site_base_url: []const u8 = "";
     var pages: std.ArrayList(Page) = .empty;
     var posts: std.ArrayList(Page) = .empty;
+    var page_main_menu: std.ArrayList(Context) = .empty;
 
     for (files) |file| {
         if (logic.parsePageKind(file)) |page_kind| {
@@ -79,6 +87,15 @@ pub fn parse(
             const slug = try parseSlug(arena, file, page);
             try context.map.put(allocator, "slug", .{ .string = slug });
             try context.map.put(allocator, "url", .{ .string = try buildUrl(arena, page_kind, slug) });
+            if (page.frontmatter.menus.len > 0) {
+                for (page.frontmatter.menus) |menu| {
+                    if (std.mem.eql(u8, menu, "main")) {
+                        const name = context.map.get("title") orelse context.map.get("slug").?;
+                        const url = context.map.get("url").?;
+                        try page_main_menu.append(allocator, try parseMenuEntryContext(allocator, name.string, url.string));
+                    }
+                }
+            }
             switch (page_kind) {
                 .post => {
                     if (page.frontmatter.author) |author| try context.map.put(allocator, "author", .{ .string = author });
@@ -88,8 +105,6 @@ pub fn parse(
                     if (page.frontmatter.cover) |cover| try context.map.put(allocator, "cover", .{ .string = cover });
                     if (page.frontmatter.tags.len > 0)
                         try context.map.put(allocator, "tags", .{ .list = try parseStringList(allocator, page.frontmatter.tags) });
-                    if (page.frontmatter.menus.len > 0)
-                        try context.map.put(allocator, "menus", .{ .list = try parseStringList(allocator, page.frontmatter.menus) });
                     if (page.frontmatter.images.len > 0)
                         try context.map.put(allocator, "images", .{ .list = try parseImageList(allocator, page.frontmatter.images) });
                     try posts.append(allocator, Page{ .kind = page_kind, .context = context });
@@ -109,12 +124,15 @@ pub fn parse(
         site_title = config.map.get("title").?.string;
         site_base_url = config.map.get("base_url").?.string;
         for (config.map.get("menu").?.map.map.get("main").?.list) |entry| {
-            var ctx: Context = .{};
-            try ctx.map.put(allocator, "name", .{ .string = entry.map.map.get("name").?.string });
-            try ctx.map.put(allocator, "url", .{ .string = entry.map.map.get("url").?.string });
-            try main_menu.append(allocator, ctx);
+            try main_menu.append(allocator, try parseMenuEntryContext(
+                allocator,
+                entry.map.map.get("name").?.string,
+                entry.map.map.get("url").?.string,
+            ));
         }
     }
+    try main_menu.appendSlice(allocator, page_main_menu.items);
+
     return Site{
         .title = site_title,
         .base_url = site_base_url,
@@ -234,6 +252,7 @@ test "parse page (non-post) goes to pages list" {
         testFile("content/about.md",
             \\---
             \\title: About Us
+            \\menus: [main]
             \\---
             \\# About
             \\We make things.
@@ -247,6 +266,8 @@ test "parse page (non-post) goes to pages list" {
     try std.testing.expectEqualStrings("About Us", site.pages[0].context.map.get("title").?.string);
     try std.testing.expect(std.mem.containsAtLeast(u8, site.pages[0].context.map.get("body").?.string, 1, "<h1>"));
     try std.testing.expectEqualStrings("/about-us", site.pages[0].context.map.get("url").?.string);
+
+    try std.testing.expectEqual(@as(usize, 1), site.menu_main.len);
 }
 
 test "parse loads templates into templates map" {
@@ -326,9 +347,18 @@ test "smoke: full site with config, pages, posts, templates" {
             \\## Getting started
             \\This is the **first post**.
         ),
+        testFile("content/about.md",
+            \\---
+            \\title: About Us
+            \\menus: [main]
+            \\---
+            \\# About
+            \\We make things.
+        ),
         testFile("templates/partials/header.html", "<!DOCTYPE html>\n<html>\n<head><title>{{ title }}</title></head>\n<body>\n<nav>{{# menu_main }}<a href=\"{{ url }}\">{{ name }}</a>{{/ menu_main }}</nav>\n"),
         testFile("templates/home.html", "{{> partials/header.html }}\n<h1>{{ title }}</h1>\n{{{ body }}}\n<h2>Recent posts</h2>\n<ul>\n{{# posts }}<li><a href=\"{{ url }}\">{{ title }}</a></li>\n{{/ posts }}</ul>\n</body></html>\n"),
         testFile("templates/post.html", "{{> partials/header.html }}\n<h1>{{ title }}</h1>\n<span>{{ date }}</span>\n{{{ body }}}\n</body></html>\n"),
+        testFile("templates/page.html", "{{> partials/header.html }}\n<h1>{{ title }}</h1>\n<div class=\"content\">\n{{{ body }}}\n</div>\n</body></html>\n"),
         testFile("templates/post-list.html", "{{> partials/header.html }}\n<h1>{{ title }}</h1>\n{{{ body }}}\n<ul>{{# posts }}<li><a href=\"{{ url }}\">{{ title }}</a></li>{{/ posts }}</ul>\n</body></html>\n"),
     };
 
@@ -339,20 +369,28 @@ test "smoke: full site with config, pages, posts, templates" {
     try std.testing.expectEqualStrings("http://localhost:8000", site.base_url);
 
     // menu
-    try std.testing.expectEqual(@as(usize, 2), site.menu_main.len);
+    try std.testing.expectEqual(@as(usize, 3), site.menu_main.len);
     try std.testing.expectEqualStrings("Home", site.menu_main[0].map.get("name").?.string);
     try std.testing.expectEqualStrings("/", site.menu_main[0].map.get("url").?.string);
     try std.testing.expectEqualStrings("Posts", site.menu_main[1].map.get("name").?.string);
     try std.testing.expectEqualStrings("/posts/", site.menu_main[1].map.get("url").?.string);
+    try std.testing.expectEqualStrings("About Us", site.menu_main[2].map.get("name").?.string);
+    try std.testing.expectEqualStrings("/about-us", site.menu_main[2].map.get("url").?.string);
 
-    // pages: home + post_list (both under content/ but not content/posts/)
-    try std.testing.expectEqual(@as(usize, 2), site.pages.len);
+    // pages: home + post_list + about (both under content/ but not content/posts/)
+    try std.testing.expectEqual(@as(usize, 3), site.pages.len);
 
     const home_page = site.pages[0];
     try std.testing.expectEqual(PageKind.home, home_page.kind);
     try std.testing.expectEqualStrings("Welcome", home_page.context.map.get("title").?.string);
     try std.testing.expectEqualStrings("/", home_page.context.map.get("url").?.string);
     try std.testing.expect(std.mem.containsAtLeast(u8, home_page.context.map.get("body").?.string, 1, "<h1>"));
+
+    const about_page = site.pages[2];
+    try std.testing.expectEqual(PageKind.page, about_page.kind);
+    try std.testing.expectEqualStrings("About Us", about_page.context.map.get("title").?.string);
+    try std.testing.expectEqualStrings("/about-us", about_page.context.map.get("url").?.string);
+    try std.testing.expect(std.mem.containsAtLeast(u8, about_page.context.map.get("body").?.string, 1, "<h1>"));
 
     // posts
     try std.testing.expectEqual(@as(usize, 1), site.posts.len);
