@@ -4,6 +4,19 @@ A static site generator written in Zig, built to learn the language while conver
 
 Progress tracked in [TODO.md](TODO.md).
 
+## Installation
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/rafaeldelboni/stabilis/main/install.sh | bash
+```
+
+Or with options:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/rafaeldelboni/stabilis/main/install.sh | bash -s -- --dir ~/.local/bin
+curl -fsSL https://raw.githubusercontent.com/rafaeldelboni/stabilis/main/install.sh | bash -s -- --version v0.1.0
+```
+
 ## Usage
 
 ```sh
