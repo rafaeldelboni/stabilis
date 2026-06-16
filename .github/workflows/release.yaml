@@ -33,7 +33,7 @@ jobs:
 
       - uses: mlugg/setup-zig@v2
 
-      - run: zig build -Dtarget=${{ matrix.target }} -Doptimize=ReleaseSmall --summary all
+      - run: zig build -Dtarget=${{ matrix.target }} -Doptimize=ReleaseSmall -Dcpu=baseline --summary all
 
       - run: |
           mkdir -p ${{ matrix.asset_name }}
