@@ -231,8 +231,9 @@ test "parse 'new post' with --help sets help flag" {
 
 test "parse 'new post' with all flags" {
     const parsed = try parse(&.{
-        "stabilis", "new", "post", "Hello World",
-        "-d", "desc", "-t", "a,b", "--draft",
+        "stabilis", "new",  "post", "Hello World",
+        "-d",       "desc", "-t",   "a,b",
+        "--draft",
     });
     try std.testing.expectEqualStrings("Hello World", parsed.new.post.title);
     try std.testing.expectEqualStrings("desc", parsed.new.post.description.?);
@@ -290,8 +291,9 @@ test "parse 'new page' with --help sets help flag" {
 
 test "parse 'new page' with all flags" {
     const parsed = try parse(&.{
-        "stabilis", "new", "page", "About",
-        "-s", "about", "--draft", "--menus", "main",
+        "stabilis", "new",   "page",    "About",
+        "-s",       "about", "--draft", "--menus",
+        "main",
     });
     try std.testing.expectEqualStrings("About", parsed.new.page.title);
     try std.testing.expectEqualStrings("about", parsed.new.page.slug.?);
