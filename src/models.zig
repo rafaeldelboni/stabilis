@@ -85,3 +85,50 @@ pub const CtxValue = union(enum) {
     list: []const Context,
     bool: bool,
 };
+
+pub const Command = union(enum) {
+    build: BuildArgs,
+    new: NewSub,
+    serve: ServeArgs,
+    version,
+    help,
+};
+
+pub const NewSub = union(enum) {
+    post: NewPostArgs,
+    page: NewPageArgs,
+    help,
+};
+
+pub const NewPostArgs = struct {
+    title: []const u8, // required positional
+    description: ?[]const u8 = null, // -d
+    tags: []const []const u8 = &.{}, // -t (repeated or comma-split in adapter)
+    draft: bool = false, // --draft
+    help: bool = false,
+};
+
+pub const NewPageArgs = struct {
+    title: []const u8, // required positional
+    slug: ?[]const u8 = null, // -s
+    draft: bool = false, // --draft
+    menus: ?[]const u8 = null, // --menus main
+    help: bool = false,
+};
+
+pub const ServeArgs = struct {
+    port: ?u16 = null, // -p, default applied in orchestrator
+    bind: ?[]const u8 = null, // --bind
+    open: bool = false, // --open
+    build_drafts: bool = false, // -D
+    help: bool = false,
+};
+
+pub const BuildArgs = struct {
+    source: ?[]const u8 = null, // default "example"/content applied in orchestrator
+    destination: ?[]const u8 = null, // default "public"
+    build_drafts: bool = false, // -D
+    minify: bool = false,
+    clean_destination_dir: bool = false,
+    help: bool = false,
+};

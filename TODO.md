@@ -15,8 +15,16 @@
 - [x] Routing (filepath → PageKind → URL)
 - [x] Slug from Title
 - [x] Menu resolution (from config + frontmatter opt-ins)
-- [ ] CLI commands (new, build, serve, migrate)
+- [x] CLI domain types in models.zig (Command union, NewSub, BuildArgs, NewPostArgs, NewPageArgs, ServeArgs)
+- [ ] CLI adapter (adapters/cli.zig) — parse(args) !Command, per-command parsers, errors, argv toSlice in main.zig
+- [ ] CLI dispatch in main.zig — switch on Command, route to run* fns, catch errors → help + exit 2
+- [ ] `stabilis build [source] [-d dest] [-D] [--minify] [--cleanDestinationDir]` — refactor build loop; clean-vs-merge default TBD
+- [ ] `stabilis new post <title> [-d desc] [-t tags] [--draft]` — scaffold content/posts/<slug>.md
+- [ ] `stabilis new page <title> [-s slug] [--draft] [--menus main]` — scaffold content/pages/<slug>.md; needs frontmatter emitter
+- [ ] `stabilis serve [-p port] [--bind addr] [--open] [-D]` — dev server + watcher + live reload
+- [ ] `stabilis version | --version | -v` — print version from build.zig.zon
+- [ ] `stabilis help | --help | -h` — top-level + per-command help via `*Args.help`
 - [ ] Shortcode system
-- [ ] File watcher for dev mode
-- [ ] Dev server + SSE live reload
+- [ ] File watcher for dev mode (used by serve)
+- [ ] Dev server + SSE live reload (used by serve)
 - [ ] RSS/Atom feed generation

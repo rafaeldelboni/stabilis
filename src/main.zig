@@ -51,6 +51,7 @@ pub fn main(init: std.process.Init) !void {
 }
 
 test {
+    _ = @import("adapters/cli.zig");
     _ = @import("adapters/frontmatter.zig");
     _ = @import("adapters/markdown.zig");
     _ = @import("adapters/site.zig");
