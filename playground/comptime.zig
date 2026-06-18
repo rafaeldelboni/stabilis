@@ -158,6 +158,123 @@ fn lesson4_help() void {
     }
 }
 
+// ----------------------------------------------------------------------------
+// Lesson 5 — YOUR TURN: let the field's TYPE decide the flag's behavior.
+//
+// Step 4 looped the spec and printed help. Now connect spec -> result struct:
+// for each Flag, look up the type of the field it targets in BuildArgs, and
+// derive whether the flag is a SWITCH (bool, no value) or TAKES A VALUE.
+//
+// This is the insight the whole parser rests on: you never *store* "takes a
+// value" in the spec — you DERIVE it from the field's type. One source of truth.
+//
+// GOAL: print something like
+//      [5] -d, --dest    takes a value  (?[]const u8)
+//      [5] -D, --drafts  switch         (bool)
+//      [5] -m, --minify  switch         (bool)
+//      [5] -p, --port    takes a value  (u16)
+//
+// HINTS:
+//   - This loop MUST be `inline for` (you just saw why — @FieldType needs a
+//     comptime-known name, and flag.field only becomes comptime under `inline`).
+//   - const FieldT = @FieldType(BuildArgs, flag.field);
+//   - const kind = if (FieldT == bool) "switch" else "takes a value";
+//   - Print the field's type name with @typeName(FieldT).
+// ----------------------------------------------------------------------------
+fn lesson5_describe() void {
+    std.debug.print("[5] TODO: derive switch vs takes-a-value from each field's type\n", .{});
+}
+
+// ----------------------------------------------------------------------------
+// Lesson 6 — THE CAPSTONE (do this one solo): one generic parser.
+//
+// Everything so far was prep. Now write a SINGLE function that replaces all four
+// of your hand-written parseXArgs. It takes the result type, the spec table, and
+// the argv slice, and fills a result by walking the args and matching flags.
+//
+// SIGNATURE (already stubbed below):
+//   fn lesson6_parse(comptime T: type, comptime flags: []const Flag,
+//                    args: []const []const u8) !T
+//
+// ALGORITHM:
+//   1. var result: T = .{};                 // every field starts at its default
+//   2. Walk args with an index `i` (use `while`, not `for` — value flags need to
+//      consume the *next* arg by advancing i).
+//   3. For each token, `inline for (flags) |flag|` and check if the token equals
+//      flag.long or flag.short (std.mem.eql(u8, ...)).
+//   4. On a match, look at  const FieldT = @FieldType(T, flag.field);
+//        - if (FieldT == bool):  @field(result, flag.field) = true;   // a switch
+//        - else:                 it takes a value — grab args[i+1], advance i,
+//          return error.MissingValue if there is no next arg, then assign:
+//            * switch (@typeInfo(FieldT)) {
+//                  .int => @field(result, flag.field) = try std.fmt.parseInt(FieldT, raw, 10),
+//                  else => @field(result, flag.field) = raw,   // string-ish
+//              }
+//   5. If no flag matched the token, return error.UnknownFlag.
+//   6. return result;
+//
+// THE PAYOFF — WHY THIS COMPILES AT ALL:
+//   Inside the inline for, `if (FieldT == bool)` is comptime-known, so on a bool
+//   field the value-assignment branch (which would be a type error: string into
+//   bool) is PRUNED before it's compiled; on a string/int field the `= true`
+//   branch is pruned. That dead-branch pruning (lesson 3's deep-dive) is exactly
+//   what lets ONE loop body serve fields of every type. That is the whole trick.
+//
+// SELF-CHECK: `lesson6_demo` below runs your parser on real inputs and prints the
+// result via lesson3's printer (so values show with a "[3]" prefix — that's fine).
+// You're done when the output matches:
+//
+//   [6] case 0: --dest out --minify
+//   [3] source: null
+//   [3] destination: out
+//   [3] build_drafts: false
+//   [3] minify: true
+//   [3] port: 1313
+//   [6] case 1: -D -p 8080
+//   [3] source: null
+//   [3] destination: null
+//   [3] build_drafts: true
+//   [3] minify: false
+//   [3] port: 8080
+//   [6] case 2: --bogus
+//       -> error: UnknownFlag
+//   [6] case 3: -p
+//       -> error: MissingValue
+//
+// EXTENSIONS (not needed to "pass", but this is how you port it to the real
+// adapters/cli.zig): positional args like `source`, list flags like tags/menus
+// ([]const []const u8, comma-split/repeatable), and the attached `--dest=out`
+// form. Each is a small addition on top of this skeleton — try them once the
+// base passes.
+// ----------------------------------------------------------------------------
+fn lesson6_parse(comptime T: type, comptime flags: []const Flag, args: []const []const u8) !T {
+    _ = flags;
+    _ = args;
+    // TODO: implement the algorithm above. Returns all-defaults for now so the
+    //       file still compiles before you start.
+    return .{};
+}
+
+// Self-check harness (already written — you only implement lesson6_parse).
+fn lesson6_demo() void {
+    const cases = [_][]const []const u8{
+        &.{ "--dest", "out", "--minify" },
+        &.{ "-D", "-p", "8080" },
+        &.{"--bogus"},
+        &.{"-p"},
+    };
+    for (cases, 0..) |input, n| {
+        std.debug.print("[6] case {d}:", .{n});
+        for (input) |a| std.debug.print(" {s}", .{a});
+        std.debug.print("\n", .{});
+        const result = lesson6_parse(BuildArgs, &build_flags, input) catch |err| {
+            std.debug.print("    -> error: {s}\n", .{@errorName(err)});
+            continue;
+        };
+        lesson3_readValues(result);
+    }
+}
+
 pub fn main() void {
     lesson1_typesAreValues();
     std.debug.print("\n", .{});
@@ -170,4 +287,10 @@ pub fn main() void {
     std.debug.print("\n", .{});
 
     lesson4_help();
+    std.debug.print("\n", .{});
+
+    lesson5_describe();
+    std.debug.print("\n", .{});
+
+    lesson6_demo();
 }
