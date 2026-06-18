@@ -37,6 +37,7 @@ zig build run                               # defaults to public/ and example/
 zig fmt src/ build.zig # format code
 zig build              # build the project
 zig build test         # run tests
+zig build test -Dtest-filter="<pattern>" --summary all  # run filtered tests
 zig build check        # check compilation (useful for editor on-save)
 zig build run          # run main.zig
 ```

@@ -40,6 +40,19 @@ fn nextValue(args: []const []const u8, i: usize) error{MissingValue}![]const u8 
     return next;
 }
 
+fn parseNumber(s: []const u8) error{InvalidValue}!u16 {
+    return std.fmt.parseInt(u16, s, 10) catch error.InvalidValue;
+}
+
+fn appendSplit(arena: *std.heap.ArenaAllocator, list: *std.ArrayList([]const u8), value: []const u8) !void {
+    const allocator = arena.allocator();
+    var parts = std.mem.splitScalar(u8, value, ',');
+    while (parts.next()) |raw| {
+        const item = std.mem.trim(u8, raw, " ");
+        if (item.len > 0) try list.append(allocator, item);
+    }
+}
+
 fn parseBuildArgs(args: []const []const u8) !BuildArgs {
     var result: BuildArgs = .{};
     var i: usize = 0;
@@ -91,27 +104,175 @@ fn parseBuildArgs(args: []const []const u8) !BuildArgs {
 }
 
 fn parseServeArgs(args: []const []const u8) !ServeArgs {
-    _ = args;
-    const result: ServeArgs = .{};
-    // TODO `stabilis serve [--port|-p port] [-b|--bind addr] [-o|--open] [--build-drafts|-D]`
+    var result: ServeArgs = .{};
+    var i: usize = 0;
+    while (i < args.len) : (i += 1) {
+        const arg = args[i];
+
+        switch (matchFlag(arg, "--port", "-p")) {
+            .none => {},
+            .attached => |v| {
+                result.port = try parseNumber(v);
+                continue;
+            },
+            .separate => {
+                result.port = try parseNumber(try nextValue(args, i));
+                i += 1;
+                continue;
+            },
+        }
+
+        switch (matchFlag(arg, "--bind", "-b")) {
+            .none => {},
+            .attached => |v| {
+                result.bind = v;
+                continue;
+            },
+            .separate => {
+                result.bind = try nextValue(args, i);
+                i += 1;
+                continue;
+            },
+        }
+
+        if (isFlag(arg, "--open", "-o")) {
+            result.open = true;
+            continue;
+        }
+
+        if (isFlag(arg, "--drafts", "-D")) {
+            result.build_drafts = true;
+            continue;
+        }
+
+        if (isFlag(arg, "--help", "-h")) {
+            result.help = true;
+            continue;
+        }
+
+        return error.UnknownFlag;
+    }
     return result;
 }
 
-fn parseNewPostArgs(args: []const []const u8) !NewPostArgs {
-    if (args.len == 0) return error.MissingTitle;
-    const result: NewPostArgs = .{ .title = args[0] };
-    // TODO `stabilis new post <title> [-d desc] [-t tags] [--draft]`
+fn parseNewPostArgs(arena: *std.heap.ArenaAllocator, args: []const []const u8) !NewPostArgs {
+    var result: NewPostArgs = .{ .title = "" };
+    var tags: std.ArrayList([]const u8) = .empty;
+    var i: usize = 0;
+    while (i < args.len) : (i += 1) {
+        const arg = args[i];
+
+        switch (matchFlag(arg, "--desc", "-d")) {
+            .none => {},
+            .attached => |v| {
+                result.description = v;
+                continue;
+            },
+            .separate => {
+                result.description = try nextValue(args, i);
+                i += 1;
+                continue;
+            },
+        }
+
+        switch (matchFlag(arg, "--tags", "-t")) {
+            .none => {},
+            .attached => |v| {
+                try appendSplit(arena, &tags, v);
+                continue;
+            },
+            .separate => {
+                try appendSplit(arena, &tags, try nextValue(args, i));
+                i += 1;
+                continue;
+            },
+        }
+
+        if (isFlag(arg, "--draft", "-D")) {
+            result.draft = true;
+            continue;
+        }
+
+        if (isFlag(arg, "--help", "-h")) {
+            result.help = true;
+            continue;
+        }
+
+        if (arg.len > 0 and arg[0] != '-' and !std.mem.eql(u8, arg, "--")) {
+            result.title = arg;
+            continue;
+        }
+
+        return error.UnknownFlag;
+    }
+    if (result.title.len == 0) return error.MissingTitle;
+    result.tags = tags.items;
     return result;
 }
 
-fn parseNewPageArgs(args: []const []const u8) !NewPageArgs {
-    if (args.len == 0) return error.MissingTitle;
-    const result: NewPageArgs = .{ .title = args[0] };
-    // TODO `stabilis new page <title> [-s slug] [--draft] [--menus main]`
+fn parseNewPageArgs(arena: *std.heap.ArenaAllocator, args: []const []const u8) !NewPageArgs {
+    var result: NewPageArgs = .{ .title = "" };
+    var menus: std.ArrayList([]const u8) = .empty;
+    var i: usize = 0;
+    while (i < args.len) : (i += 1) {
+        const arg = args[i];
+
+        switch (matchFlag(arg, "--slug", "-s")) {
+            .none => {},
+            .attached => |v| {
+                result.slug = v;
+                continue;
+            },
+            .separate => {
+                result.slug = try nextValue(args, i);
+                i += 1;
+                continue;
+            },
+        }
+
+        switch (matchFlag(arg, "--menus", "-m")) {
+            .none => {},
+            .attached => |v| {
+                try appendSplit(arena, &menus, v);
+                continue;
+            },
+            .separate => {
+                try appendSplit(arena, &menus, try nextValue(args, i));
+                i += 1;
+                continue;
+            },
+        }
+
+        if (isFlag(arg, "--draft", "-D")) {
+            result.draft = true;
+            continue;
+        }
+
+        if (isFlag(arg, "--help", "-h")) {
+            result.help = true;
+            continue;
+        }
+
+        if (arg.len > 0 and arg[0] != '-' and !std.mem.eql(u8, arg, "--")) {
+            result.title = arg;
+            continue;
+        }
+
+        return error.UnknownFlag;
+    }
+    if (result.title.len == 0) return error.MissingTitle;
+    result.menus = menus.items;
     return result;
 }
 
-pub fn parse(args: []const []const u8) !Command {
+/// Parses raw CLI args (argv) into a typed Command by dispatching on the
+/// first positional (`build`, `serve`, `new`, `help`, `version`) and parsing
+/// the remaining tokens with the command-specific parser.
+///
+/// `args[0]` is the program name and is ignored. Returns `.help` when no
+/// command is given. List allocations (e.g. post tags, page menus) live in
+/// the caller's arena.
+pub fn parse(arena: *std.heap.ArenaAllocator, args: []const []const u8) !Command {
     if (args.len <= 1) return .help;
     const command_arg = args[1];
     if (std.mem.eql(u8, command_arg, "help") or
@@ -128,331 +289,234 @@ pub fn parse(args: []const []const u8) !Command {
         if (args.len < 3) return .{ .new = .help };
         const sub = args[2];
         if (std.mem.eql(u8, sub, "post"))
-            return .{ .new = .{ .post = try parseNewPostArgs(args[3..]) } };
+            return .{ .new = .{ .post = try parseNewPostArgs(arena, args[3..]) } };
         if (std.mem.eql(u8, sub, "page"))
-            return .{ .new = .{ .page = try parseNewPageArgs(args[3..]) } };
+            return .{ .new = .{ .page = try parseNewPageArgs(arena, args[3..]) } };
         return .{ .new = .help };
     }
     return error.UnknownCommand;
 }
 
-test "parse no args shows help" {
-    const parsed = try parse(&.{"stabilis"});
-    try std.testing.expectEqual(Command.help, parsed);
+test "parse dispatches top-level commands" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+
+    try std.testing.expectEqual(Command.help, try parse(&arena, &.{"stabilis"}));
+    try std.testing.expectEqual(Command.help, try parse(&arena, &.{ "stabilis", "help" }));
+    try std.testing.expectEqual(Command.help, try parse(&arena, &.{ "stabilis", "--help" }));
+    try std.testing.expectEqual(Command.help, try parse(&arena, &.{ "stabilis", "-h" }));
+    try std.testing.expectEqual(Command.version, try parse(&arena, &.{ "stabilis", "version" }));
+    try std.testing.expectEqual(Command.version, try parse(&arena, &.{ "stabilis", "--version" }));
+    try std.testing.expectEqual(Command.version, try parse(&arena, &.{ "stabilis", "-v" }));
+    try std.testing.expectError(error.UnknownCommand, parse(&arena, &.{ "stabilis", "delbongo" }));
+
+    const new_none = try parse(&arena, &.{ "stabilis", "new" });
+    try std.testing.expect(new_none == .new);
+    try std.testing.expect(new_none.new == .help);
+
+    const new_unknown = try parse(&arena, &.{ "stabilis", "new", "unknown" });
+    try std.testing.expect(new_unknown == .new);
+    try std.testing.expect(new_unknown.new == .help);
 }
 
-test "parse 'help' shows help" {
-    const parsed = try parse(&.{ "stabilis", "help" });
-    try std.testing.expectEqual(Command.help, parsed);
+test "parse 'build' parses short, long, and combined flags" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+
+    const defaults = try parse(&arena, &.{ "stabilis", "build" });
+    try std.testing.expect(defaults == .build);
+    try std.testing.expectEqual(@as(?[]const u8, null), defaults.build.source);
+    try std.testing.expectEqual(@as(?[]const u8, null), defaults.build.destination);
+    try std.testing.expectEqual(false, defaults.build.build_drafts);
+    try std.testing.expectEqual(false, defaults.build.minify);
+    try std.testing.expectEqual(false, defaults.build.clean_destination_dir);
+    try std.testing.expectEqual(false, defaults.build.help);
+
+    const pos = try parse(&arena, &.{ "stabilis", "build", "mycontent" });
+    try std.testing.expectEqualStrings("mycontent", pos.build.source.?);
+
+    const d = try parse(&arena, &.{ "stabilis", "build", "-d", "out" });
+    try std.testing.expectEqualStrings("out", d.build.destination.?);
+
+    const dest = try parse(&arena, &.{ "stabilis", "build", "--dest", "out" });
+    try std.testing.expectEqualStrings("out", dest.build.destination.?);
+
+    try std.testing.expectEqual(true, (try parse(&arena, &.{ "stabilis", "build", "-D" })).build.build_drafts);
+    try std.testing.expectEqual(true, (try parse(&arena, &.{ "stabilis", "build", "--drafts" })).build.build_drafts);
+    try std.testing.expectEqual(true, (try parse(&arena, &.{ "stabilis", "build", "--minify" })).build.minify);
+    try std.testing.expectEqual(true, (try parse(&arena, &.{ "stabilis", "build", "--clean-dest-dir" })).build.clean_destination_dir);
+    try std.testing.expectEqual(true, (try parse(&arena, &.{ "stabilis", "build", "--help" })).build.help);
+
+    const combined = try parse(&arena, &.{ "stabilis", "build", "content", "-d", "public", "-D", "--minify" });
+    try std.testing.expectEqualStrings("content", combined.build.source.?);
+    try std.testing.expectEqualStrings("public", combined.build.destination.?);
+    try std.testing.expectEqual(true, combined.build.build_drafts);
+    try std.testing.expectEqual(true, combined.build.minify);
 }
 
-test "parse '--help' shows help" {
-    const parsed = try parse(&.{ "stabilis", "--help" });
-    try std.testing.expectEqual(Command.help, parsed);
+test "parse 'build' returns errors on bad input" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+
+    try std.testing.expectError(error.UnknownFlag, parse(&arena, &.{ "stabilis", "build", "--bogus" }));
+    try std.testing.expectError(error.MissingValue, parse(&arena, &.{ "stabilis", "build", "-d" }));
 }
 
-test "parse '-h' shows help" {
-    const parsed = try parse(&.{ "stabilis", "-h" });
-    try std.testing.expectEqual(Command.help, parsed);
-}
+test "parse 'new post' parses short, long, and list flags" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
 
-test "parse 'version' shows version" {
-    const parsed = try parse(&.{ "stabilis", "version" });
-    try std.testing.expectEqual(Command.version, parsed);
-}
+    const defaults = try parse(&arena, &.{ "stabilis", "new", "post", "Hello World" });
+    try std.testing.expect(defaults == .new);
+    try std.testing.expect(defaults.new == .post);
+    try std.testing.expectEqualStrings("Hello World", defaults.new.post.title);
+    try std.testing.expectEqual(@as(?[]const u8, null), defaults.new.post.description);
+    try std.testing.expectEqual(@as(usize, 0), defaults.new.post.tags.len);
+    try std.testing.expectEqual(false, defaults.new.post.draft);
+    try std.testing.expectEqual(false, defaults.new.post.help);
 
-test "parse '--version' shows version" {
-    const parsed = try parse(&.{ "stabilis", "--version" });
-    try std.testing.expectEqual(Command.version, parsed);
-}
+    const d = try parse(&arena, &.{ "stabilis", "new", "post", "Hello", "-d", "A description" });
+    try std.testing.expectEqualStrings("A description", d.new.post.description.?);
 
-test "parse '-v' shows version" {
-    const parsed = try parse(&.{ "stabilis", "-v" });
-    try std.testing.expectEqual(Command.version, parsed);
-}
+    const desc = try parse(&arena, &.{ "stabilis", "new", "post", "Hello", "--desc", "A description" });
+    try std.testing.expectEqualStrings("A description", desc.new.post.description.?);
 
-test "parse unknown command returns UnknownCommand" {
-    try std.testing.expectError(error.UnknownCommand, parse(&.{ "stabilis", "delbongo" }));
-}
+    const single = try parse(&arena, &.{ "stabilis", "new", "post", "Hello", "-t", "zig" });
+    try std.testing.expectEqual(@as(usize, 1), single.new.post.tags.len);
+    try std.testing.expectEqualStrings("zig", single.new.post.tags[0]);
 
-test "parse 'build' with no flags returns defaults" {
-    const parsed = try parse(&.{ "stabilis", "build" });
-    try std.testing.expect(parsed == .build);
-    try std.testing.expectEqual(@as(?[]const u8, null), parsed.build.source);
-    try std.testing.expectEqual(@as(?[]const u8, null), parsed.build.destination);
-    try std.testing.expectEqual(false, parsed.build.build_drafts);
-    try std.testing.expectEqual(false, parsed.build.minify);
-    try std.testing.expectEqual(false, parsed.build.clean_destination_dir);
-    try std.testing.expectEqual(false, parsed.build.help);
-}
+    const comma = try parse(&arena, &.{ "stabilis", "new", "post", "Hello", "-t", "zig,clojure" });
+    try std.testing.expectEqual(@as(usize, 2), comma.new.post.tags.len);
+    try std.testing.expectEqualStrings("zig", comma.new.post.tags[0]);
+    try std.testing.expectEqualStrings("clojure", comma.new.post.tags[1]);
 
-test "parse 'build' with positional source" {
-    const parsed = try parse(&.{ "stabilis", "build", "mycontent" });
-    try std.testing.expect(parsed == .build);
-    try std.testing.expectEqualStrings("mycontent", parsed.build.source.?);
-}
+    const repeated = try parse(&arena, &.{ "stabilis", "new", "post", "Hello", "-t", "zig", "-t", "clojure" });
+    try std.testing.expectEqual(@as(usize, 2), repeated.new.post.tags.len);
+    try std.testing.expectEqualStrings("zig", repeated.new.post.tags[0]);
+    try std.testing.expectEqualStrings("clojure", repeated.new.post.tags[1]);
 
-test "parse 'build' with -d destination" {
-    const parsed = try parse(&.{ "stabilis", "build", "-d", "out" });
-    try std.testing.expectEqualStrings("out", parsed.build.destination.?);
-}
+    const long_tags = try parse(&arena, &.{ "stabilis", "new", "post", "Hello", "--tags", "zig,clojure" });
+    try std.testing.expectEqual(@as(usize, 2), long_tags.new.post.tags.len);
+    try std.testing.expectEqualStrings("zig", long_tags.new.post.tags[0]);
+    try std.testing.expectEqualStrings("clojure", long_tags.new.post.tags[1]);
 
-test "parse 'build' with --dest destination" {
-    const parsed = try parse(&.{ "stabilis", "build", "--dest", "out" });
-    try std.testing.expectEqualStrings("out", parsed.build.destination.?);
-}
+    try std.testing.expectEqual(true, (try parse(&arena, &.{ "stabilis", "new", "post", "Hello", "--draft" })).new.post.draft);
+    try std.testing.expectEqual(true, (try parse(&arena, &.{ "stabilis", "new", "post", "Hello", "--help" })).new.post.help);
 
-test "parse 'build' with -D builds drafts" {
-    const parsed = try parse(&.{ "stabilis", "build", "-D" });
-    try std.testing.expectEqual(true, parsed.build.build_drafts);
-}
-
-test "parse 'build' with --drafts builds drafts" {
-    const parsed = try parse(&.{ "stabilis", "build", "--drafts" });
-    try std.testing.expectEqual(true, parsed.build.build_drafts);
-}
-
-test "parse 'build' with --minify" {
-    const parsed = try parse(&.{ "stabilis", "build", "--minify" });
-    try std.testing.expectEqual(true, parsed.build.minify);
-}
-
-test "parse 'build' with --clean-dest-dir" {
-    const parsed = try parse(&.{ "stabilis", "build", "--clean-dest-dir" });
-    try std.testing.expectEqual(true, parsed.build.clean_destination_dir);
-}
-
-test "parse 'build' with --help sets help flag" {
-    const parsed = try parse(&.{ "stabilis", "build", "--help" });
-    try std.testing.expectEqual(true, parsed.build.help);
-}
-
-test "parse 'build' with combined flags" {
-    const parsed = try parse(&.{ "stabilis", "build", "content", "-d", "public", "-D", "--minify" });
-    try std.testing.expectEqualStrings("content", parsed.build.source.?);
-    try std.testing.expectEqualStrings("public", parsed.build.destination.?);
-    try std.testing.expectEqual(true, parsed.build.build_drafts);
-    try std.testing.expectEqual(true, parsed.build.minify);
-}
-
-test "parse 'build' with unknown flag returns UnknownFlag" {
-    try std.testing.expectError(error.UnknownFlag, parse(&.{ "stabilis", "build", "--bogus" }));
-}
-
-test "parse 'build' with -d missing value returns MissingValue" {
-    try std.testing.expectError(error.MissingValue, parse(&.{ "stabilis", "build", "-d" }));
-}
-
-test "parse 'new post' with no title returns MissingTitle" {
-    try std.testing.expectError(error.MissingTitle, parse(&.{ "stabilis", "new", "post" }));
-}
-
-test "parse 'new post' with title returns post with defaults" {
-    const parsed = try parse(&.{ "stabilis", "new", "post", "Hello World" });
-    try std.testing.expect(parsed == .new);
-    try std.testing.expect(parsed.new == .post);
-    try std.testing.expectEqualStrings("Hello World", parsed.new.post.title);
-    try std.testing.expectEqual(@as(?[]const u8, null), parsed.new.post.description);
-    try std.testing.expectEqual(@as(usize, 0), parsed.new.post.tags.len);
-    try std.testing.expectEqual(false, parsed.new.post.draft);
-    try std.testing.expectEqual(false, parsed.new.post.help);
-}
-
-test "parse 'new post' with -d description" {
-    const parsed = try parse(&.{ "stabilis", "new", "post", "Hello", "-d", "A description" });
-    try std.testing.expectEqualStrings("A description", parsed.new.post.description.?);
-}
-
-test "parse 'new post' with --description description" {
-    const parsed = try parse(&.{ "stabilis", "new", "post", "Hello", "--description", "A description" });
-    try std.testing.expectEqualStrings("A description", parsed.new.post.description.?);
-}
-
-test "parse 'new post' with -t single tag" {
-    const parsed = try parse(&.{ "stabilis", "new", "post", "Hello", "-t", "zig" });
-    try std.testing.expectEqual(@as(usize, 1), parsed.new.post.tags.len);
-    try std.testing.expectEqualStrings("zig", parsed.new.post.tags[0]);
-}
-
-test "parse 'new post' with -t comma-separated tags" {
-    const parsed = try parse(&.{ "stabilis", "new", "post", "Hello", "-t", "zig,clojure" });
-    try std.testing.expectEqual(@as(usize, 2), parsed.new.post.tags.len);
-    try std.testing.expectEqualStrings("zig", parsed.new.post.tags[0]);
-    try std.testing.expectEqualStrings("clojure", parsed.new.post.tags[1]);
-}
-
-test "parse 'new post' with -t repeated tags" {
-    const parsed = try parse(&.{ "stabilis", "new", "post", "Hello", "-t", "zig", "-t", "clojure" });
-    try std.testing.expectEqual(@as(usize, 2), parsed.new.post.tags.len);
-    try std.testing.expectEqualStrings("zig", parsed.new.post.tags[0]);
-    try std.testing.expectEqualStrings("clojure", parsed.new.post.tags[1]);
-}
-
-test "parse 'new post' with --tags comma-separated tags" {
-    const parsed = try parse(&.{ "stabilis", "new", "post", "Hello", "--tags", "zig,clojure" });
-    try std.testing.expectEqual(@as(usize, 2), parsed.new.post.tags.len);
-    try std.testing.expectEqualStrings("zig", parsed.new.post.tags[0]);
-    try std.testing.expectEqualStrings("clojure", parsed.new.post.tags[1]);
-}
-
-test "parse 'new post' with --draft" {
-    const parsed = try parse(&.{ "stabilis", "new", "post", "Hello", "--draft" });
-    try std.testing.expectEqual(true, parsed.new.post.draft);
-}
-
-test "parse 'new post' with --help sets help flag" {
-    const parsed = try parse(&.{ "stabilis", "new", "post", "Hello", "--help" });
-    try std.testing.expectEqual(true, parsed.new.post.help);
-}
-
-test "parse 'new post' with all flags" {
-    const parsed = try parse(&.{
+    const all = try parse(&arena, &.{
         "stabilis", "new",  "post", "Hello World",
         "-d",       "desc", "-t",   "a,b",
         "--draft",
     });
-    try std.testing.expectEqualStrings("Hello World", parsed.new.post.title);
-    try std.testing.expectEqualStrings("desc", parsed.new.post.description.?);
-    try std.testing.expectEqual(@as(usize, 2), parsed.new.post.tags.len);
-    try std.testing.expectEqual(true, parsed.new.post.draft);
+    try std.testing.expectEqualStrings("Hello World", all.new.post.title);
+    try std.testing.expectEqualStrings("desc", all.new.post.description.?);
+    try std.testing.expectEqual(@as(usize, 2), all.new.post.tags.len);
+    try std.testing.expectEqual(true, all.new.post.draft);
 }
 
-test "parse 'new post' with -t missing value returns MissingValue" {
-    try std.testing.expectError(error.MissingValue, parse(&.{ "stabilis", "new", "post", "Hello", "-t" }));
+test "parse 'new post' returns errors on bad input" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+
+    try std.testing.expectError(error.MissingTitle, parse(&arena, &.{ "stabilis", "new", "post" }));
+    try std.testing.expectError(error.MissingValue, parse(&arena, &.{ "stabilis", "new", "post", "Hello", "-t" }));
+    try std.testing.expectError(error.UnknownFlag, parse(&arena, &.{ "stabilis", "new", "post", "Hello", "--bogus" }));
 }
 
-test "parse 'new post' with unknown flag returns UnknownFlag" {
-    try std.testing.expectError(error.UnknownFlag, parse(&.{ "stabilis", "new", "post", "Hello", "--bogus" }));
-}
+test "parse 'new page' parses short, long, and list flags" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
 
-test "parse 'new page' with no title returns MissingTitle" {
-    try std.testing.expectError(error.MissingTitle, parse(&.{ "stabilis", "new", "page" }));
-}
+    const defaults = try parse(&arena, &.{ "stabilis", "new", "page", "About Me" });
+    try std.testing.expect(defaults == .new);
+    try std.testing.expect(defaults.new == .page);
+    try std.testing.expectEqualStrings("About Me", defaults.new.page.title);
+    try std.testing.expectEqual(@as(?[]const u8, null), defaults.new.page.slug);
+    try std.testing.expectEqual(false, defaults.new.page.draft);
+    try std.testing.expectEqual(@as(usize, 0), defaults.new.page.menus.len);
+    try std.testing.expectEqual(false, defaults.new.page.help);
 
-test "parse 'new page' with title returns page with defaults" {
-    const parsed = try parse(&.{ "stabilis", "new", "page", "About Me" });
-    try std.testing.expect(parsed == .new);
-    try std.testing.expect(parsed.new == .page);
-    try std.testing.expectEqualStrings("About Me", parsed.new.page.title);
-    try std.testing.expectEqual(@as(?[]const u8, null), parsed.new.page.slug);
-    try std.testing.expectEqual(false, parsed.new.page.draft);
-    try std.testing.expectEqual(@as(?[]const u8, null), parsed.new.page.menus);
-    try std.testing.expectEqual(false, parsed.new.page.help);
-}
+    const s = try parse(&arena, &.{ "stabilis", "new", "page", "About", "-s", "about" });
+    try std.testing.expectEqualStrings("about", s.new.page.slug.?);
 
-test "parse 'new page' with -s slug" {
-    const parsed = try parse(&.{ "stabilis", "new", "page", "About", "-s", "about" });
-    try std.testing.expectEqualStrings("about", parsed.new.page.slug.?);
-}
+    const slug = try parse(&arena, &.{ "stabilis", "new", "page", "About", "--slug", "about" });
+    try std.testing.expectEqualStrings("about", slug.new.page.slug.?);
 
-test "parse 'new page' with --slug slug" {
-    const parsed = try parse(&.{ "stabilis", "new", "page", "About", "--slug", "about" });
-    try std.testing.expectEqualStrings("about", parsed.new.page.slug.?);
-}
+    const single = try parse(&arena, &.{ "stabilis", "new", "page", "About", "--menus", "main" });
+    try std.testing.expectEqual(@as(usize, 1), single.new.page.menus.len);
+    try std.testing.expectEqualStrings("main", single.new.page.menus[0]);
 
-test "parse 'new page' with --draft" {
-    const parsed = try parse(&.{ "stabilis", "new", "page", "About", "--draft" });
-    try std.testing.expectEqual(true, parsed.new.page.draft);
-}
+    const comma = try parse(&arena, &.{ "stabilis", "new", "page", "About", "--menus", "main,footer" });
+    try std.testing.expectEqual(@as(usize, 2), comma.new.page.menus.len);
+    try std.testing.expectEqualStrings("main", comma.new.page.menus[0]);
+    try std.testing.expectEqualStrings("footer", comma.new.page.menus[1]);
 
-test "parse 'new page' with --menus main" {
-    const parsed = try parse(&.{ "stabilis", "new", "page", "About", "--menus", "main" });
-    try std.testing.expectEqualStrings("main", parsed.new.page.menus.?);
-}
+    const repeated = try parse(&arena, &.{ "stabilis", "new", "page", "About", "-m", "main", "-m", "footer" });
+    try std.testing.expectEqual(@as(usize, 2), repeated.new.page.menus.len);
+    try std.testing.expectEqualStrings("main", repeated.new.page.menus[0]);
+    try std.testing.expectEqualStrings("footer", repeated.new.page.menus[1]);
 
-test "parse 'new page' with --help sets help flag" {
-    const parsed = try parse(&.{ "stabilis", "new", "page", "About", "--help" });
-    try std.testing.expectEqual(true, parsed.new.page.help);
-}
+    try std.testing.expectEqual(true, (try parse(&arena, &.{ "stabilis", "new", "page", "About", "--draft" })).new.page.draft);
+    try std.testing.expectEqual(true, (try parse(&arena, &.{ "stabilis", "new", "page", "About", "--help" })).new.page.help);
 
-test "parse 'new page' with all flags" {
-    const parsed = try parse(&.{
+    const all = try parse(&arena, &.{
         "stabilis", "new",   "page",    "About",
         "-s",       "about", "--draft", "--menus",
         "main",
     });
-    try std.testing.expectEqualStrings("About", parsed.new.page.title);
-    try std.testing.expectEqualStrings("about", parsed.new.page.slug.?);
-    try std.testing.expectEqual(true, parsed.new.page.draft);
-    try std.testing.expectEqualStrings("main", parsed.new.page.menus.?);
+    try std.testing.expectEqualStrings("About", all.new.page.title);
+    try std.testing.expectEqualStrings("about", all.new.page.slug.?);
+    try std.testing.expectEqual(true, all.new.page.draft);
+    try std.testing.expectEqual(@as(usize, 1), all.new.page.menus.len);
+    try std.testing.expectEqualStrings("main", all.new.page.menus[0]);
 }
 
-test "parse 'new page' with -s missing value returns MissingValue" {
-    try std.testing.expectError(error.MissingValue, parse(&.{ "stabilis", "new", "page", "About", "-s" }));
+test "parse 'new page' returns errors on bad input" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+
+    try std.testing.expectError(error.MissingTitle, parse(&arena, &.{ "stabilis", "new", "page" }));
+    try std.testing.expectError(error.MissingValue, parse(&arena, &.{ "stabilis", "new", "page", "About", "-s" }));
+    try std.testing.expectError(error.UnknownFlag, parse(&arena, &.{ "stabilis", "new", "page", "About", "--bogus" }));
 }
 
-test "parse 'new page' with unknown flag returns UnknownFlag" {
-    try std.testing.expectError(error.UnknownFlag, parse(&.{ "stabilis", "new", "page", "About", "--bogus" }));
+test "parse 'serve' parses short, long, and combined flags" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+
+    const defaults = try parse(&arena, &.{ "stabilis", "serve" });
+    try std.testing.expect(defaults == .serve);
+    try std.testing.expectEqual(@as(?u16, null), defaults.serve.port);
+    try std.testing.expectEqual(@as(?[]const u8, null), defaults.serve.bind);
+    try std.testing.expectEqual(false, defaults.serve.open);
+    try std.testing.expectEqual(true, defaults.serve.build_drafts);
+    try std.testing.expectEqual(false, defaults.serve.help);
+
+    const p = try parse(&arena, &.{ "stabilis", "serve", "-p", "8080" });
+    try std.testing.expectEqual(@as(u16, 8080), p.serve.port.?);
+
+    const port = try parse(&arena, &.{ "stabilis", "serve", "--port", "1313" });
+    try std.testing.expectEqual(@as(u16, 1313), port.serve.port.?);
+
+    const bind = try parse(&arena, &.{ "stabilis", "serve", "--bind", "0.0.0.0" });
+    try std.testing.expectEqualStrings("0.0.0.0", bind.serve.bind.?);
+
+    try std.testing.expectEqual(true, (try parse(&arena, &.{ "stabilis", "serve", "--open" })).serve.open);
+    try std.testing.expectEqual(true, (try parse(&arena, &.{ "stabilis", "serve", "-D" })).serve.build_drafts);
+    try std.testing.expectEqual(true, (try parse(&arena, &.{ "stabilis", "serve", "--help" })).serve.help);
+
+    const combined = try parse(&arena, &.{ "stabilis", "serve", "-p", "8080", "--bind", "0.0.0.0", "--open", "-D" });
+    try std.testing.expectEqual(@as(u16, 8080), combined.serve.port.?);
+    try std.testing.expectEqualStrings("0.0.0.0", combined.serve.bind.?);
+    try std.testing.expectEqual(true, combined.serve.open);
+    try std.testing.expectEqual(true, combined.serve.build_drafts);
 }
 
-test "parse 'new' with no subcommand returns new help" {
-    const parsed = try parse(&.{ "stabilis", "new" });
-    try std.testing.expect(parsed == .new);
-    try std.testing.expect(parsed.new == .help);
-}
+test "parse 'serve' returns errors on bad input" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
 
-test "parse 'new unknown' returns new help" {
-    const parsed = try parse(&.{ "stabilis", "new", "unknown" });
-    try std.testing.expect(parsed == .new);
-    try std.testing.expect(parsed.new == .help);
-}
-
-test "parse 'serve' with no flags returns defaults" {
-    const parsed = try parse(&.{ "stabilis", "serve" });
-    try std.testing.expect(parsed == .serve);
-    try std.testing.expectEqual(@as(?u16, null), parsed.serve.port);
-    try std.testing.expectEqual(@as(?[]const u8, null), parsed.serve.bind);
-    try std.testing.expectEqual(false, parsed.serve.open);
-    try std.testing.expectEqual(false, parsed.serve.build_drafts);
-    try std.testing.expectEqual(false, parsed.serve.help);
-}
-
-test "parse 'serve' with -p port" {
-    const parsed = try parse(&.{ "stabilis", "serve", "-p", "8080" });
-    try std.testing.expectEqual(@as(u16, 8080), parsed.serve.port.?);
-}
-
-test "parse 'serve' with --port port" {
-    const parsed = try parse(&.{ "stabilis", "serve", "--port", "1313" });
-    try std.testing.expectEqual(@as(u16, 1313), parsed.serve.port.?);
-}
-
-test "parse 'serve' with --bind addr" {
-    const parsed = try parse(&.{ "stabilis", "serve", "--bind", "0.0.0.0" });
-    try std.testing.expectEqualStrings("0.0.0.0", parsed.serve.bind.?);
-}
-
-test "parse 'serve' with --open" {
-    const parsed = try parse(&.{ "stabilis", "serve", "--open" });
-    try std.testing.expectEqual(true, parsed.serve.open);
-}
-
-test "parse 'serve' with -D builds drafts" {
-    const parsed = try parse(&.{ "stabilis", "serve", "-D" });
-    try std.testing.expectEqual(true, parsed.serve.build_drafts);
-}
-
-test "parse 'serve' with --help sets help flag" {
-    const parsed = try parse(&.{ "stabilis", "serve", "--help" });
-    try std.testing.expectEqual(true, parsed.serve.help);
-}
-
-test "parse 'serve' with combined flags" {
-    const parsed = try parse(&.{ "stabilis", "serve", "-p", "8080", "--bind", "0.0.0.0", "--open", "-D" });
-    try std.testing.expectEqual(@as(u16, 8080), parsed.serve.port.?);
-    try std.testing.expectEqualStrings("0.0.0.0", parsed.serve.bind.?);
-    try std.testing.expectEqual(true, parsed.serve.open);
-    try std.testing.expectEqual(true, parsed.serve.build_drafts);
-}
-
-test "parse 'serve' with -p missing value returns MissingValue" {
-    try std.testing.expectError(error.MissingValue, parse(&.{ "stabilis", "serve", "-p" }));
-}
-
-test "parse 'serve' with -p non-numeric returns InvalidValue" {
-    try std.testing.expectError(error.InvalidValue, parse(&.{ "stabilis", "serve", "-p", "abc" }));
-}
-
-test "parse 'serve' with unknown flag returns UnknownFlag" {
-    try std.testing.expectError(error.UnknownFlag, parse(&.{ "stabilis", "serve", "--bogus" }));
+    try std.testing.expectError(error.MissingValue, parse(&arena, &.{ "stabilis", "serve", "-p" }));
+    try std.testing.expectError(error.InvalidValue, parse(&arena, &.{ "stabilis", "serve", "-p", "abc" }));
+    try std.testing.expectError(error.UnknownFlag, parse(&arena, &.{ "stabilis", "serve", "--bogus" }));
 }

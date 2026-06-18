@@ -101,33 +101,33 @@ pub const NewSub = union(enum) {
 };
 
 pub const NewPostArgs = struct {
-    title: []const u8, // required positional
-    description: ?[]const u8 = null, // -d
-    tags: []const []const u8 = &.{}, // -t (repeated or comma-split in adapter)
-    draft: bool = false, // --draft
+    title: []const u8,
+    description: ?[]const u8 = null,
+    tags: []const []const u8 = &.{},
+    draft: bool = false,
     help: bool = false,
 };
 
 pub const NewPageArgs = struct {
-    title: []const u8, // required positional
-    slug: ?[]const u8 = null, // -s
-    draft: bool = false, // --draft
-    menus: ?[]const u8 = null, // --menus main
+    title: []const u8,
+    slug: ?[]const u8 = null,
+    draft: bool = false,
+    menus: []const []const u8 = &.{},
     help: bool = false,
 };
 
 pub const ServeArgs = struct {
-    port: ?u16 = null, // -p --port, default applied in orchestrator
-    bind: ?[]const u8 = null, // -b --bind
-    open: bool = false, // -o --open
-    build_drafts: bool = true, // --build-drafts -D
+    port: ?u16 = null,
+    bind: ?[]const u8 = null,
+    open: bool = false,
+    build_drafts: bool = true,
     help: bool = false,
 };
 
 pub const BuildArgs = struct {
-    source: ?[]const u8 = null, // default "example"/content applied in orchestrator
-    destination: ?[]const u8 = null, // --d --dest default "public"
-    build_drafts: bool = false, // --build-drafts -D
+    source: ?[]const u8 = null,
+    destination: ?[]const u8 = null,
+    build_drafts: bool = false,
     minify: bool = false,
     clean_destination_dir: bool = false,
     help: bool = false,
