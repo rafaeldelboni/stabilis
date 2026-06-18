@@ -1,5 +1,23 @@
 const std = @import("std");
 
+//  Here's the ladder I'm proposing to get from your hand-written parser to the declarative one:
+//
+//  ┌──────┬─────────────────────────────────────────┬───────────────────────────────────────────────────────────────────┐
+//  │ Step │                 Concept                 │                Why you need it for the arg parser                 │
+//  ├──────┼─────────────────────────────────────────┼───────────────────────────────────────────────────────────────────┤
+//  │ 1    │ Types are values at comptime            │ The spec/result struct gets passed around as a value              │
+//  ├──────┼─────────────────────────────────────────┼───────────────────────────────────────────────────────────────────┤
+//  │ 2    │ @typeInfo + inline for over fields      │ Loop over a struct's fields instead of writing each by hand       │
+//  ├──────┼─────────────────────────────────────────┼───────────────────────────────────────────────────────────────────┤
+//  │ 3    │ @field(x, name) read/write by name      │ Set result.destination when name is just a string                 │
+//  ├──────┼─────────────────────────────────────────┼───────────────────────────────────────────────────────────────────┤
+//  │ 4    │ A declarative spec table (anon structs) │ .{ .long="--dest", .short="-d", .field="destination", .help=... } │
+//  ├──────┼─────────────────────────────────────────┼───────────────────────────────────────────────────────────────────┤
+//  │ 5    │ Generate --help from the spec           │ The metadata payoff                                               │
+//  ├──────┼─────────────────────────────────────────┼───────────────────────────────────────────────────────────────────┤
+//  │ 6    │ Generic fill(result, spec, args)        │ Replace all four parseXArgs with one function                     │
+//  └──────┴─────────────────────────────────────────┴───────────────────────────────────────────────────────────────────┘
+
 // ============================================================================
 // Comptime playground — step toward a declarative CLI arg parser.
 //
