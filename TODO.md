@@ -16,10 +16,10 @@
 - [x] Slug from Title
 - [x] Menu resolution (from config + frontmatter opt-ins)
 - [x] CLI domain types in models.zig (Command union, NewSub, BuildArgs, NewPostArgs, NewPageArgs, ServeArgs)
-- [ ] CLI adapter (adapters/cli.zig) — parse(args) !Command, per-command parsers, errors, argv toSlice in main.zig
+- [x] CLI adapter (adapters/cli.zig) — parse(arena, args) !Command, per-command parsers, errors, argv toSlice in main.zig
 - [ ] CLI dispatch in main.zig — switch on Command, route to run* fns, catch errors → help + exit 2
-- [ ] `stabilis build [source] [-d dest] [-D] [--minify] [--cleanDestinationDir]` — refactor build loop; clean-vs-merge default TBD
-- [ ] `stabilis new post <title> [-d desc] [-t tags] [--draft]` — scaffold content/posts/<slug>.md
+- [ ] `stabilis build [source] [-d dest] [-D] [--minify] [--clean-dest-dir]` — refactor build loop; clean-vs-merge default TBD
+- [ ] `stabilis new post <title> [-d desc] [-t tags] [--draft]` — scaffold content/posts/<slug>.md; needs frontmatter emitter
 - [ ] `stabilis new page <title> [-s slug] [--draft] [--menus main]` — scaffold content/pages/<slug>.md; needs frontmatter emitter
 - [ ] `stabilis serve [-p port] [--bind addr] [--open] [-D]` — dev server + watcher + live reload
 - [ ] `stabilis version | --version | -v` — print version from build.zig.zon
