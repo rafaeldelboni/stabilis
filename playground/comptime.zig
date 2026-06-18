@@ -104,9 +104,9 @@ fn lesson3_readValues(args: BuildArgs) void {
     inline for (fields) |field| {
         const value = @field(args, field.name);
         if (field.type == ?[]const u8 or field.type == []const u8)
-            std.debug.print("      {s}: {?s}\n", .{ field.name, value })
+            std.debug.print("[3] {s}: {?s}\n", .{ field.name, value })
         else
-            std.debug.print("      {s}: {any}\n", .{ field.name, value });
+            std.debug.print("[3] {s}: {any}\n", .{ field.name, value });
     }
 }
 
@@ -134,7 +134,10 @@ fn lesson3_readValues(args: BuildArgs) void {
 // looping over? Try `for` first; try `inline for` and see it still works.
 // ----------------------------------------------------------------------------
 fn lesson4_help() void {
-    std.debug.print("[4] TODO: print a help line for each flag in build_flags\n", .{});
+    std.debug.print("[4] build flags:\n", .{});
+    inline for (build_flags) |flag| {
+        std.debug.print("    {s}, {s: <8} {s}\n", .{ flag.short, flag.long, flag.help });
+    }
 }
 
 pub fn main() void {
