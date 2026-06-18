@@ -1,5 +1,6 @@
 const std = @import("std");
 
+const debug = @import("../debug.zig");
 const models = @import("../models.zig");
 const Command = models.Command;
 const ServeArgs = models.ServeArgs;
@@ -7,17 +8,92 @@ const BuildArgs = models.BuildArgs;
 const NewPostArgs = models.NewPostArgs;
 const NewPageArgs = models.NewPageArgs;
 
+const FlagMatch = union(enum) {
+    none,
+    attached: []const u8,
+    separate,
+};
+
+fn isFlag(tok: []const u8, long: []const u8, short: []const u8) bool {
+    return std.mem.eql(u8, tok, long) or std.mem.eql(u8, tok, short);
+}
+
+fn matchFlag(tok: []const u8, long: []const u8, short: []const u8) FlagMatch {
+    if (isFlag(tok, long, short)) return .separate;
+
+    if (std.mem.indexOfScalar(u8, tok, '=')) |eq| {
+        const head = tok[0..eq];
+        if (std.mem.eql(u8, head, long) or std.mem.eql(u8, head, short))
+            return .{ .attached = tok[eq + 1 ..] };
+    }
+
+    return .none;
+}
+
+fn nextValue(args: []const []const u8, i: usize) error{MissingValue}![]const u8 {
+    if (i + 1 >= args.len) return error.MissingValue;
+
+    const next = args[i + 1];
+    if (next.len > 1 and next[0] == '-' and !std.mem.eql(u8, next, "--"))
+        return error.MissingValue;
+
+    return next;
+}
+
 fn parseBuildArgs(args: []const []const u8) !BuildArgs {
-    _ = args;
-    const result: BuildArgs = .{};
-    // TODO `stabilis build [source] [-d dest] [-D] [--minify] [--cleanDestinationDir]`
+    var result: BuildArgs = .{};
+    var i: usize = 0;
+    debug.printJson(args);
+    while (i < args.len) : (i += 1) {
+        const arg = args[i];
+        switch (matchFlag(arg, "--dest", "-d")) {
+            .none => {},
+            .attached => |v| {
+                result.destination = v;
+                continue;
+            },
+            .separate => {
+                result.destination = try nextValue(args, i);
+                i += 1;
+                continue;
+            },
+        }
+        std.debug.print("after dest {s}\n", .{arg});
+
+        if (isFlag(arg, "--drafts", "-D")) {
+            result.build_drafts = true;
+            continue;
+        }
+
+        if (isFlag(arg, "--minify", "-m")) {
+            result.minify = true;
+            continue;
+        }
+
+        if (isFlag(arg, "--clean-dest-dir", "-c")) {
+            result.clean_destination_dir = true;
+            continue;
+        }
+
+        if (isFlag(arg, "--help", "-h")) {
+            result.help = true;
+            continue;
+        }
+
+        if (arg.len > 0 and arg[0] != '-' and !std.mem.eql(u8, arg, "--")) {
+            result.source = arg;
+            continue;
+        }
+
+        return error.UnknownFlag;
+    }
     return result;
 }
 
 fn parseServeArgs(args: []const []const u8) !ServeArgs {
     _ = args;
     const result: ServeArgs = .{};
-    // TODO `stabilis serve [-p port] [--bind addr] [--open] [-D]`
+    // TODO `stabilis serve [--port|-p port] [-b|--bind addr] [-o|--open] [--build-drafts|-D]`
     return result;
 }
 
@@ -121,8 +197,8 @@ test "parse 'build' with -d destination" {
     try std.testing.expectEqualStrings("out", parsed.build.destination.?);
 }
 
-test "parse 'build' with --destination destination" {
-    const parsed = try parse(&.{ "stabilis", "build", "--destination", "out" });
+test "parse 'build' with --dest destination" {
+    const parsed = try parse(&.{ "stabilis", "build", "--dest", "out" });
     try std.testing.expectEqualStrings("out", parsed.build.destination.?);
 }
 
@@ -131,8 +207,8 @@ test "parse 'build' with -D builds drafts" {
     try std.testing.expectEqual(true, parsed.build.build_drafts);
 }
 
-test "parse 'build' with --buildDrafts builds drafts" {
-    const parsed = try parse(&.{ "stabilis", "build", "--buildDrafts" });
+test "parse 'build' with --drafts builds drafts" {
+    const parsed = try parse(&.{ "stabilis", "build", "--drafts" });
     try std.testing.expectEqual(true, parsed.build.build_drafts);
 }
 
@@ -141,8 +217,8 @@ test "parse 'build' with --minify" {
     try std.testing.expectEqual(true, parsed.build.minify);
 }
 
-test "parse 'build' with --cleanDestinationDir" {
-    const parsed = try parse(&.{ "stabilis", "build", "--cleanDestinationDir" });
+test "parse 'build' with --clean-dest-dir" {
+    const parsed = try parse(&.{ "stabilis", "build", "--clean-dest-dir" });
     try std.testing.expectEqual(true, parsed.build.clean_destination_dir);
 }
 

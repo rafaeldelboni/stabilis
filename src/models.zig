@@ -117,17 +117,17 @@ pub const NewPageArgs = struct {
 };
 
 pub const ServeArgs = struct {
-    port: ?u16 = null, // -p, default applied in orchestrator
-    bind: ?[]const u8 = null, // --bind
-    open: bool = false, // --open
-    build_drafts: bool = false, // -D
+    port: ?u16 = null, // -p --port, default applied in orchestrator
+    bind: ?[]const u8 = null, // -b --bind
+    open: bool = false, // -o --open
+    build_drafts: bool = true, // --build-drafts -D
     help: bool = false,
 };
 
 pub const BuildArgs = struct {
     source: ?[]const u8 = null, // default "example"/content applied in orchestrator
-    destination: ?[]const u8 = null, // default "public"
-    build_drafts: bool = false, // -D
+    destination: ?[]const u8 = null, // --d --dest default "public"
+    build_drafts: bool = false, // --build-drafts -D
     minify: bool = false,
     clean_destination_dir: bool = false,
     help: bool = false,
