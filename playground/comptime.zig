@@ -256,15 +256,14 @@ fn lesson5_describe() void {
 fn lesson6_parse(comptime T: type, comptime flags: []const Flag, args: []const []const u8) !T {
     var result: T = .{};
     var i: usize = 0;
-    while (i < args.len) : (i += 1) {
-        var flag_found = false;
+    next_arg: while (i < args.len) : (i += 1) {
+        // var flag_found = false;
         const arg = args[i];
         inline for (flags) |flag| {
             if (std.mem.eql(u8, arg, flag.long) or std.mem.eql(u8, arg, flag.short)) {
                 const FieldT = @FieldType(T, flag.field);
                 if (FieldT == bool) {
                     @field(result, flag.field) = true;
-                    flag_found = true;
                 } else {
                     if (i + 1 >= args.len) return error.MissingValue;
 
@@ -274,19 +273,14 @@ fn lesson6_parse(comptime T: type, comptime flags: []const Flag, args: []const [
 
                     i += 1;
                     switch (@typeInfo(FieldT)) {
-                        .int => {
-                            @field(result, flag.field) = try std.fmt.parseInt(FieldT, raw, 10);
-                            flag_found = true;
-                        },
-                        else => {
-                            @field(result, flag.field) = raw; // string-ish
-                            flag_found = true;
-                        },
+                        .int => @field(result, flag.field) = try std.fmt.parseInt(FieldT, raw, 10),
+                        else => @field(result, flag.field) = raw, // string-ish
                     }
                 }
+                continue :next_arg;
             }
         }
-        if (!flag_found) return error.UnknownFlag;
+        return error.UnknownFlag;
     }
     return result;
 }
