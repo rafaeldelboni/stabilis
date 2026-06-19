@@ -153,7 +153,7 @@ fn lesson3_readValues(args: BuildArgs) void {
 // ----------------------------------------------------------------------------
 fn lesson4_help() void {
     std.debug.print("[4] build flags:\n", .{});
-    inline for (build_flags) |flag| {
+    for (build_flags) |flag| {
         std.debug.print("    {s}, {s: <8} {s}\n", .{ flag.short, flag.long, flag.help });
     }
 }
@@ -183,6 +183,13 @@ fn lesson4_help() void {
 // ----------------------------------------------------------------------------
 fn lesson5_describe() void {
     std.debug.print("[5] TODO: derive switch vs takes-a-value from each field's type\n", .{});
+
+    inline for (build_flags) |flag| {
+        const FieldT = @FieldType(BuildArgs, flag.field);
+        const field_name = @typeName(FieldT);
+        const kind = if (FieldT == bool) "switch" else "takes a value";
+        std.debug.print("    {s}, {s: <9} {s: <14} ({s})\n", .{ flag.short, flag.long, kind, field_name });
+    }
 }
 
 // ----------------------------------------------------------------------------
@@ -248,11 +255,41 @@ fn lesson5_describe() void {
 // base passes.
 // ----------------------------------------------------------------------------
 fn lesson6_parse(comptime T: type, comptime flags: []const Flag, args: []const []const u8) !T {
-    _ = flags;
-    _ = args;
-    // TODO: implement the algorithm above. Returns all-defaults for now so the
-    //       file still compiles before you start.
-    return .{};
+    var result: T = .{};
+    var i: usize = 0;
+    while (i < args.len) : (i += 1) {
+        var flag_found = false;
+        const arg = args[i];
+        inline for (flags) |flag| {
+            if (std.mem.eql(u8, arg, flag.long) or std.mem.eql(u8, arg, flag.short)) {
+                const FieldT = @FieldType(T, flag.field);
+                if (FieldT == bool) {
+                    @field(result, flag.field) = true;
+                    flag_found = true;
+                } else {
+                    if (i + 1 >= args.len) return error.MissingValue;
+
+                    const raw = args[i + 1];
+                    if (raw.len > 1 and raw[0] == '-' and !std.mem.eql(u8, raw, "--"))
+                        return error.MissingValue;
+
+                    i += 1;
+                    switch (@typeInfo(FieldT)) {
+                        .int => {
+                            @field(result, flag.field) = try std.fmt.parseInt(FieldT, raw, 10);
+                            flag_found = true;
+                        },
+                        else => {
+                            @field(result, flag.field) = raw; // string-ish
+                            flag_found = true;
+                        },
+                    }
+                }
+            }
+        }
+        if (!flag_found) return error.UnknownFlag;
+    }
+    return result;
 }
 
 // Self-check harness (already written — you only implement lesson6_parse).
