@@ -182,13 +182,12 @@ fn lesson4_help() void {
 //   - Print the field's type name with @typeName(FieldT).
 // ----------------------------------------------------------------------------
 fn lesson5_describe() void {
-    std.debug.print("[5] TODO: derive switch vs takes-a-value from each field's type\n", .{});
-
+    std.debug.print("[5] build flags:\n", .{});
     inline for (build_flags) |flag| {
         const FieldT = @FieldType(BuildArgs, flag.field);
-        const field_name = @typeName(FieldT);
+        const field_type_name = @typeName(FieldT);
         const kind = if (FieldT == bool) "switch" else "takes a value";
-        std.debug.print("    {s}, {s: <9} {s: <14} ({s})\n", .{ flag.short, flag.long, kind, field_name });
+        std.debug.print("    {s}, {s: <9} {s: <14} ({s})\n", .{ flag.short, flag.long, kind, field_type_name });
     }
 }
 
