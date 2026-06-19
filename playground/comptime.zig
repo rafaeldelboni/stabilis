@@ -58,6 +58,72 @@ const build_flags = [_]Flag{
     .{ .long = "--port", .short = "-p", .field = "port", .help = "Port to serve on" },
 };
 
+// --- Step 6.1 scaffolding ---------------------------------------------------
+// A second model (mirrors your real models.NewPostArgs) that exercises the
+// three EXTRAS BuildArgs can't: a required positional, a list flag, and the
+// attached --flag=value form. Your same generic parser should handle both.
+const PostArgs = struct {
+    title: []const u8 = "", //          required positional ("" means "not given")
+    description: ?[]const u8 = null, //  optional value flag (string)
+    tags: []const []const u8 = &.{}, //  list flag: comma-split + repeatable (needs arena)
+    draft: bool = false, //              switch
+};
+const post_flags = [_]Flag{
+    .{ .long = "--desc", .short = "-d", .field = "description", .help = "Short description" },
+    .{ .long = "--tags", .short = "-t", .field = "tags", .help = "Comma-separated tags" },
+    .{ .long = "--draft", .short = "-D", .field = "draft", .help = "Mark as draft" },
+};
+// Positional fields, in command-line order. This is one answer to "how does the
+// parser know which field is positional?": pass the field name(s) as comptime
+// data, same idea as the flag spec.
+const post_positionals = [_][]const u8{"title"};
+
+// --- Step 7 + 8 scaffolding -------------------------------------------------
+// STEP 7: bind a result type to ALL its metadata in one descriptor, flags
+// inlined so everything for a command is visible in one place. `Result` is a
+// struct field whose VALUE is a type (lesson 1, leveled up).
+const CommandSpec = struct {
+    Result: type,
+    flags: []const Flag,
+    positionals: []const []const u8,
+};
+
+// (These inline the flag arrays. In a real port the spec is the single source
+// of truth and the standalone build_flags/post_flags above go away — they only
+// stay here so steps 4-6 keep working unchanged.)
+const build_spec = CommandSpec{
+    .Result = BuildArgs,
+    .flags = &.{
+        .{ .long = "--dest", .short = "-d", .field = "destination", .help = "Output directory" },
+        .{ .long = "--drafts", .short = "-D", .field = "build_drafts", .help = "Include draft content" },
+        .{ .long = "--minify", .short = "-m", .field = "minify", .help = "Minify the output" },
+        .{ .long = "--port", .short = "-p", .field = "port", .help = "Port to serve on" },
+    },
+    .positionals = &.{"source"},
+};
+const post_spec = CommandSpec{
+    .Result = PostArgs,
+    .flags = &.{
+        .{ .long = "--desc", .short = "-d", .field = "description", .help = "Short description" },
+        .{ .long = "--tags", .short = "-t", .field = "tags", .help = "Comma-separated tags" },
+        .{ .long = "--draft", .short = "-D", .field = "draft", .help = "Mark as draft" },
+    },
+    .positionals = &.{"title"},
+};
+
+// STEP 8: the orchestrator. Each command parses to a DIFFERENT type, so the
+// result is a tagged union — and (the linchpin) each tag NAME equals a command
+// name. This is the playground stand-in for your real models.Command.
+const Command = union(enum) {
+    build: BuildArgs,
+    post: PostArgs,
+};
+const NamedCommand = struct { name: []const u8, spec: CommandSpec };
+const commands = [_]NamedCommand{
+    .{ .name = "build", .spec = build_spec },
+    .{ .name = "post", .spec = post_spec },
+};
+
 // ----------------------------------------------------------------------------
 // Lesson 1 — A *type* is a value (at comptime).
 //
@@ -305,6 +371,245 @@ fn lesson6_demo() void {
     }
 }
 
+// ----------------------------------------------------------------------------
+// Lesson 6.1 — THE EXTRAS: positional args, list flags, attached --flag=value.
+//
+// Grow your step-6 parser into `lesson6_1_parse` (kept separate so step 6 stays
+// as a clean reference). Two new params appear in the signature:
+//   - comptime positionals: []const []const u8   (field names, in CLI order)
+//   - arena: *std.heap.ArenaAllocator            (list flags allocate)
+//
+// THE THREE EXTRAS:
+//
+// (a) ATTACHED FORM  --desc=hi  /  -d=hi
+//     Only the *match* changes. Before falling back to args[i+1], look for '='
+//     in the token: if std.mem.indexOfScalar(u8, arg, '=') |eq|, and arg[0..eq]
+//     equals flag.long/short, then the value is arg[eq+1..] (don't advance i).
+//     bool flags ignore any '=' . The assignment logic afterwards is unchanged.
+//
+// (b) POSITIONAL  (the `title`)
+//     A token that matched NO flag and does not start with '-' is a positional.
+//     Assign it to positionals[pos_index] (a comptime name -> @field), then
+//     pos_index += 1. After the loop, a positional whose field type is NOT
+//     optional and is still "" was required and missing -> error.MissingPositional.
+//     (Reuse the @typeInfo(...) == .optional check from before to tell required
+//     from optional.) A '-'-leading token that matched nothing is still UnknownFlag.
+//
+// (c) LIST FLAG  --tags a,b  (repeatable, comma-split)  type []const []const u8
+//     Detect with `FieldT == []const []const u8`. The field is a non-growable
+//     slice, so accumulate in the arena: split the value on ',' (trim spaces,
+//     drop empties) and CONCAT onto the existing slice, so repeats accumulate:
+//        @field(result, flag.field) =
+//            try concat(arena, @field(result, flag.field), try split(arena, raw));
+//     You'll write small `split` and `concat` helpers (your real appendSplit is
+//     the model; std.ArrayList(...).empty + append(allocator, x), then arena.alloc
+//     + @memcpy for concat).
+//
+// SELF-CHECK (VERIFIED — match this exactly once implemented):
+//
+//   [6.1] case 0: Hello World -t zig,clojure --draft
+//   [6.1] title: Hello World
+//   [6.1] description: null
+//   [6.1] tags: [zig, clojure]
+//   [6.1] draft: true
+//   [6.1] case 1: Hello --desc=A short note -t zig -t clojure
+//   [6.1] title: Hello
+//   [6.1] description: A short note
+//   [6.1] tags: [zig, clojure]
+//   [6.1] draft: false
+//   [6.1] case 2: Post -d=hi --tags=a,b,c
+//   [6.1] title: Post
+//   [6.1] description: hi
+//   [6.1] tags: [a, b, c]
+//   [6.1] draft: false
+//   [6.1] case 3: T -t a, b ,,c
+//   [6.1] title: T
+//   [6.1] description: null
+//   [6.1] tags: [a, b, c]
+//   [6.1] draft: false
+//   [6.1] case 4: -D
+//       -> error: MissingPositional
+//   [6.1] case 5: Title --bogus
+//       -> error: UnknownFlag
+//
+// What each case pins down: 0 = positional + comma list + switch; 1 = attached
+// long form + repeated -t accumulates; 2 = attached short form + attached list;
+// 3 = list trims spaces and drops empty items ("a, b ,,c" -> a,b,c); 4 = missing
+// required positional errors; 5 = unknown flag still errors.
+// ----------------------------------------------------------------------------
+fn lesson6_1_parse(
+    comptime T: type,
+    comptime flags: []const Flag,
+    comptime positionals: []const []const u8,
+    arena: *std.heap.ArenaAllocator,
+    args: []const []const u8,
+) !T {
+    _ = flags;
+    _ = positionals;
+    _ = arena;
+    _ = args;
+    // TODO: implement the three extras above. Returns all-defaults for now so
+    //       the file compiles before you start.
+    return .{};
+}
+
+// Self-check harness (already written — you only implement lesson6_1_parse).
+// `printPost` is just a readable printer for PostArgs (tags joined with ", ").
+fn printPost(a: PostArgs) void {
+    std.debug.print("[6.1] title: {s}\n", .{a.title});
+    std.debug.print("[6.1] description: {?s}\n", .{a.description});
+    std.debug.print("[6.1] tags: [", .{});
+    for (a.tags, 0..) |t, idx| {
+        if (idx != 0) std.debug.print(", ", .{});
+        std.debug.print("{s}", .{t});
+    }
+    std.debug.print("]\n", .{});
+    std.debug.print("[6.1] draft: {}\n", .{a.draft});
+}
+
+fn lesson6_1_demo() void {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const cases = [_][]const []const u8{
+        &.{ "Hello World", "-t", "zig,clojure", "--draft" },
+        &.{ "Hello", "--desc=A short note", "-t", "zig", "-t", "clojure" },
+        &.{ "Post", "-d=hi", "--tags=a,b,c" },
+        &.{ "T", "-t", "a, b ,,c" },
+        &.{"-D"},
+        &.{ "Title", "--bogus" },
+    };
+    for (cases, 0..) |input, n| {
+        std.debug.print("[6.1] case {d}:", .{n});
+        for (input) |a| std.debug.print(" {s}", .{a});
+        std.debug.print("\n", .{});
+        const result = lesson6_1_parse(PostArgs, &post_flags, &post_positionals, &arena, input) catch |err| {
+            std.debug.print("    -> error: {s}\n", .{@errorName(err)});
+            continue;
+        };
+        printPost(result);
+    }
+}
+
+// ----------------------------------------------------------------------------
+// Lesson 7 + 8 — bundle the spec, then orchestrate command selection.
+//
+// Prereq: finish 6.1 first — lesson7_parse IS your 6.1 parser, just repackaged.
+//
+// STEP 7 — lesson7_parse(comptime spec: CommandSpec, arena, args) !spec.Result
+//   Take your finished lesson6_1_parse body and substitute:
+//       T            -> spec.Result
+//       flags        -> spec.flags
+//       positionals  -> spec.positionals
+//   Note `spec.Result` is used BOTH as a type (`var result: spec.Result = .{}`)
+//   and as the return type (`!spec.Result`) — a return type read off the arg.
+//   Nothing else changes; the parsing logic is identical.
+//
+// STEP 8 — lesson8_dispatch(arena, args) !Command
+//   Pick the command from args[0], parse the rest, wrap in the union:
+//     1. if (args.len == 0) return error.NoCommand;
+//     2. const name = args[0];
+//     3. inline for (commands) |cmd| {            // inline: cmd.name/cmd.spec must be comptime
+//            if (std.mem.eql(u8, name, cmd.name))
+//                return @unionInit(Command, cmd.name, try lesson7_parse(cmd.spec, arena, args[1..]));
+//        }
+//     4. return error.UnknownCommand;
+//
+//   THE NEW BUILTIN: @unionInit(UnionType, comptime tag_name, value) builds the
+//   union variant whose tag NAME is `tag_name` — the union analog of @field for
+//   structs. It works here only because each command name string is also a tag
+//   name in `Command` ("build" -> .build). That string-equals-tag coupling is
+//   the whole trick, exactly like flag.field matching a struct field name.
+//
+// `printCommand` consumes the union with a switch + payload capture, handing each
+// variant to the printer you already wrote (so build rows show "[3]", post "[6.1]").
+//
+// SELF-CHECK (VERIFIED — match once 7 and 8 are implemented):
+//
+//   [7/8] case 0: build content -d out --minify
+//       -> .build
+//   [3] source: content
+//   [3] destination: out
+//   [3] build_drafts: false
+//   [3] minify: true
+//   [3] port: 1313
+//   [7/8] case 1: post Hello World -t zig,clojure --draft
+//       -> .post
+//   [6.1] title: Hello World
+//   [6.1] description: null
+//   [6.1] tags: [zig, clojure]
+//   [6.1] draft: true
+//   [7/8] case 2: post Hi --desc=quick -t a,b
+//       -> .post
+//   [6.1] title: Hi
+//   [6.1] description: quick
+//   [6.1] tags: [a, b]
+//   [6.1] draft: false
+//   [7/8] case 3: build --port 8080
+//       -> .build
+//   [3] source: null
+//   [3] destination: null
+//   [3] build_drafts: false
+//   [3] minify: false
+//   [3] port: 8080
+//   [7/8] case 4: deploy
+//       -> error: UnknownCommand
+//   [7/8] case 5: build --bogus
+//       -> error: UnknownFlag
+//
+// (In the demo, args[0] is the command itself. Your real cli.zig skips argv[0]
+// the program name, so it dispatches on args[1] and parses args[2..].)
+//
+// EXTENSIONS toward the real models.Command: tag-only commands (`help`,
+// `version`) that carry no spec, and a nested level (`new post` / `new page`)
+// where a command entry holds another command table instead of a spec.
+// ----------------------------------------------------------------------------
+fn lesson7_parse(comptime spec: CommandSpec, arena: *std.heap.ArenaAllocator, args: []const []const u8) !spec.Result {
+    _ = arena;
+    _ = args;
+    // TODO: port your lesson6_1_parse body (T->spec.Result, flags->spec.flags,
+    //       positionals->spec.positionals). Returns defaults for now.
+    return .{};
+}
+
+fn lesson8_dispatch(arena: *std.heap.ArenaAllocator, args: []const []const u8) !Command {
+    _ = arena;
+    _ = args;
+    // TODO: select a command from `commands` and wrap with @unionInit.
+    return error.UnknownCommand;
+}
+
+// Harness: consume the union and route each variant to its existing printer.
+fn printCommand(cmd: Command) void {
+    switch (cmd) {
+        .build => |b| lesson3_readValues(b),
+        .post => |p| printPost(p),
+    }
+}
+
+fn lesson78_demo() void {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const cases = [_][]const []const u8{
+        &.{ "build", "content", "-d", "out", "--minify" },
+        &.{ "post", "Hello World", "-t", "zig,clojure", "--draft" },
+        &.{ "post", "Hi", "--desc=quick", "-t", "a,b" },
+        &.{ "build", "--port", "8080" },
+        &.{"deploy"},
+        &.{ "build", "--bogus" },
+    };
+    for (cases, 0..) |input, n| {
+        std.debug.print("[7/8] case {d}:", .{n});
+        for (input) |a| std.debug.print(" {s}", .{a});
+        std.debug.print("\n", .{});
+        const cmd = lesson8_dispatch(&arena, input) catch |err| {
+            std.debug.print("    -> error: {s}\n", .{@errorName(err)});
+            continue;
+        };
+        std.debug.print("    -> .{s}\n", .{@tagName(cmd)});
+        printCommand(cmd);
+    }
+}
+
 pub fn main() void {
     lesson1_typesAreValues();
     std.debug.print("\n", .{});
@@ -323,4 +628,10 @@ pub fn main() void {
     std.debug.print("\n", .{});
 
     lesson6_demo();
+    std.debug.print("\n", .{});
+
+    lesson6_1_demo();
+    std.debug.print("\n", .{});
+
+    lesson78_demo();
 }
