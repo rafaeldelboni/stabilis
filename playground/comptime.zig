@@ -437,20 +437,154 @@ fn lesson6_demo() void {
 // 3 = list trims spaces and drops empty items ("a, b ,,c" -> a,b,c); 4 = missing
 // required positional errors; 5 = unknown flag still errors.
 // ----------------------------------------------------------------------------
+fn split_into_slice(arena: *std.heap.ArenaAllocator, comptime T: type, buffer: []const T, delimiter: T) ![]const []const T {
+    const allocator = arena.allocator();
+    var list: std.ArrayList([]const T) = .empty;
+    var it = std.mem.splitScalar(T, buffer, delimiter);
+    while (it.next()) |chunk| {
+        try list.append(allocator, std.mem.trim(T, chunk, " "));
+    }
+    return list.toOwnedSlice(allocator) catch unreachable;
+}
+
+fn parse_fields(
+    arena: *std.heap.ArenaAllocator,
+    comptime T: type,
+    comptime flag: Flag,
+    value: []const u8,
+    result: *T,
+) !void {
+    const FieldT = @FieldType(T, flag.field);
+    switch (@typeInfo(FieldT)) {
+        .bool => @field(result, flag.field) = std.mem.eql(u8, value, "true"),
+        .int => @field(result, flag.field) = try std.fmt.parseInt(FieldT, value, 10),
+        .pointer => |info| {
+            if (info.size == .slice and @typeInfo(info.child) == .pointer) {
+                const ElemT = @typeInfo(info.child).pointer.child;
+                @field(result, flag.field) = try split_into_slice(arena, ElemT, value, ',');
+            } else {
+                @field(result, flag.field) = value;
+            }
+        },
+        else => @field(result, flag.field) = value,
+    }
+}
+
+fn parseFields(
+    arena: *std.heap.ArenaAllocator,
+    comptime T: type,
+    comptime flag: Flag,
+    value: []const u8,
+) !@FieldType(T, flag.field) {
+    const FieldT = @FieldType(T, flag.field);
+    return switch (@typeInfo(FieldT)) {
+        .bool => std.mem.eql(u8, value, "true"),
+        .int => try std.fmt.parseInt(FieldT, value, 10),
+        .pointer => |info| if (info.size == .slice and @typeInfo(info.child) == .pointer)
+            try split_into_slice(arena, @typeInfo(info.child).pointer.child, value, ',')
+        else
+            value,
+        else => value,
+    };
+}
+
+// fn matchFlag(
+//     arena: *std.heap.ArenaAllocator,
+//     comptime T: type,
+//     comptime flags: []const Flag,
+//     args: []const []const u8,
+//     arg: []const u8,
+//     i: *usize,
+//     result: *T,
+// ) !bool {
+//     inline for (flags) |flag| {
+//         if (std.mem.eql(u8, arg, flag.long) or std.mem.eql(u8, arg, flag.short)) {
+//             const FieldT = @FieldType(T, flag.field);
+//             if (@typeInfo(FieldT) == .bool) {
+//                 @field(result, flag.field) = true;
+//                 return true;
+//             }
+//             if (i + 1 >= args.len) return error.MissingValue;
+//
+//             const raw = args[i + 1];
+//             if (raw.len > 1 and raw[0] == '-' and !std.mem.eql(u8, raw, "--"))
+//                 return error.MissingValue;
+//
+//             i += 1;
+//             @field(result, flag.field) = try parseFields(arena, T, flag, raw);
+//
+//             return true;
+//         } else if (std.mem.indexOfScalar(u8, arg, '=')) |eq| {
+//             const head = arg[0..eq];
+//             if (std.mem.eql(u8, head, flag.long) or std.mem.eql(u8, head, flag.short)) {
+//                 const raw = arg[eq + 1 ..];
+//                 @field(result, flag.field) = try parseFields(arena, T, flag, raw);
+//                 return true;
+//             }
+//         }
+//     }
+//     return false;
+// }
+
 fn lesson6_1_parse(
+    arena: *std.heap.ArenaAllocator,
     comptime T: type,
     comptime flags: []const Flag,
     comptime positionals: []const []const u8,
-    arena: *std.heap.ArenaAllocator,
     args: []const []const u8,
 ) !T {
-    _ = flags;
-    _ = positionals;
-    _ = arena;
-    _ = args;
-    // TODO: implement the three extras above. Returns all-defaults for now so
-    //       the file compiles before you start.
-    return .{};
+    var result: T = .{};
+    var i: usize = 0;
+    var pos_idx: usize = 0;
+    next_arg: while (i < args.len) : (i += 1) {
+        const arg = args[i];
+        inline for (flags) |flag| {
+            if (std.mem.eql(u8, arg, flag.long) or std.mem.eql(u8, arg, flag.short)) {
+                const FieldT = @FieldType(T, flag.field);
+                if (@typeInfo(FieldT) == .bool) {
+                    @field(result, flag.field) = true;
+                    continue :next_arg;
+                }
+                if (i + 1 >= args.len) return error.MissingValue;
+
+                const raw = args[i + 1];
+                if (raw.len > 1 and raw[0] == '-' and !std.mem.eql(u8, raw, "--"))
+                    return error.MissingValue;
+
+                i += 1;
+                @field(result, flag.field) = try parseFields(arena, T, flag, raw);
+
+                continue :next_arg;
+            } else if (std.mem.indexOfScalar(u8, arg, '=')) |eq| {
+                const head = arg[0..eq];
+                if (std.mem.eql(u8, head, flag.long) or std.mem.eql(u8, head, flag.short)) {
+                    const raw = arg[eq + 1 ..];
+                    @field(result, flag.field) = try parseFields(arena, T, flag, raw);
+                    continue :next_arg;
+                }
+            }
+        }
+
+        if (arg.len > 0 and arg[0] == '-') return error.UnknownFlag;
+
+        inline for (positionals, 0..) |pos, j| {
+            if (j == pos_idx) {
+                @field(result, pos) = arg;
+                pos_idx += 1;
+                continue :next_arg;
+            }
+        }
+
+        return error.TooManyPositionals;
+    }
+
+    inline for (positionals, 0..) |pos, j| {
+        if (j >= pos_idx) {
+            const FieldT = @FieldType(T, pos);
+            if (@typeInfo(FieldT) != .optional) return error.MissingPositional;
+        }
+    }
+    return result;
 }
 
 // Self-check harness (already written — you only implement lesson6_1_parse).
@@ -482,7 +616,7 @@ fn lesson6_1_demo() void {
         std.debug.print("[6.1] case {d}:", .{n});
         for (input) |a| std.debug.print(" {s}", .{a});
         std.debug.print("\n", .{});
-        const result = lesson6_1_parse(PostArgs, &post_flags, &post_positionals, &arena, input) catch |err| {
+        const result = lesson6_1_parse(&arena, PostArgs, &post_flags, &post_positionals, input) catch |err| {
             std.debug.print("    -> error: {s}\n", .{@errorName(err)});
             continue;
         };
@@ -611,27 +745,27 @@ fn lesson78_demo() void {
 }
 
 pub fn main() void {
-    lesson1_typesAreValues();
-    std.debug.print("\n", .{});
-    lesson2_reflect();
-    std.debug.print("\n", .{});
-
-    // A sample instance with a few non-default values, for lesson 3 to inspect.
-    const sample: BuildArgs = .{ .destination = "out", .build_drafts = true, .port = 8080 };
-    lesson3_readValues(sample);
-    std.debug.print("\n", .{});
-
-    lesson4_help();
-    std.debug.print("\n", .{});
-
-    lesson5_describe();
-    std.debug.print("\n", .{});
-
-    lesson6_demo();
-    std.debug.print("\n", .{});
+    // lesson1_typesAreValues();
+    // std.debug.print("\n", .{});
+    // lesson2_reflect();
+    // std.debug.print("\n", .{});
+    //
+    // // A sample instance with a few non-default values, for lesson 3 to inspect.
+    // const sample: BuildArgs = .{ .destination = "out", .build_drafts = true, .port = 8080 };
+    // lesson3_readValues(sample);
+    // std.debug.print("\n", .{});
+    //
+    // lesson4_help();
+    // std.debug.print("\n", .{});
+    //
+    // lesson5_describe();
+    // std.debug.print("\n", .{});
+    //
+    // lesson6_demo();
+    // std.debug.print("\n", .{});
 
     lesson6_1_demo();
     std.debug.print("\n", .{});
 
-    lesson78_demo();
+    // lesson78_demo();
 }
