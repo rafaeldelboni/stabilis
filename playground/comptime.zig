@@ -118,10 +118,10 @@ const Command = union(enum) {
     build: BuildArgs,
     post: PostArgs,
 };
-const NamedCommand = struct { name: []const u8, spec: CommandSpec };
+const NamedCommand = struct { name: []const u8, spec: CommandSpec, help: []const u8 };
 const commands = [_]NamedCommand{
-    .{ .name = "build", .spec = build_spec },
-    .{ .name = "post", .spec = post_spec },
+    .{ .name = "build", .spec = build_spec, .help = "Build the site" },
+    .{ .name = "post", .spec = post_spec, .help = "Scaffold new post"  },
 };
 
 // ----------------------------------------------------------------------------
@@ -437,7 +437,7 @@ fn lesson6_demo() void {
 // 3 = list trims spaces and drops empty items ("a, b ,,c" -> a,b,c); 4 = missing
 // required positional errors; 5 = unknown flag still errors.
 // ----------------------------------------------------------------------------
-fn split_into_slice(arena: *std.heap.ArenaAllocator, comptime T: type, buffer: []const T, delimiter: T) ![]const []const T {
+fn splitIntoSlice(arena: *std.heap.ArenaAllocator, comptime T: type, buffer: []const T, delimiter: T) ![]const []const T {
     const allocator = arena.allocator();
     var list: std.ArrayList([]const T) = .empty;
     var it = std.mem.splitScalar(T, buffer, delimiter);
@@ -445,29 +445,6 @@ fn split_into_slice(arena: *std.heap.ArenaAllocator, comptime T: type, buffer: [
         try list.append(allocator, std.mem.trim(T, chunk, " "));
     }
     return list.toOwnedSlice(allocator) catch unreachable;
-}
-
-fn parse_fields(
-    arena: *std.heap.ArenaAllocator,
-    comptime T: type,
-    comptime flag: Flag,
-    value: []const u8,
-    result: *T,
-) !void {
-    const FieldT = @FieldType(T, flag.field);
-    switch (@typeInfo(FieldT)) {
-        .bool => @field(result, flag.field) = std.mem.eql(u8, value, "true"),
-        .int => @field(result, flag.field) = try std.fmt.parseInt(FieldT, value, 10),
-        .pointer => |info| {
-            if (info.size == .slice and @typeInfo(info.child) == .pointer) {
-                const ElemT = @typeInfo(info.child).pointer.child;
-                @field(result, flag.field) = try split_into_slice(arena, ElemT, value, ',');
-            } else {
-                @field(result, flag.field) = value;
-            }
-        },
-        else => @field(result, flag.field) = value,
-    }
 }
 
 fn parseFields(
@@ -481,7 +458,7 @@ fn parseFields(
         .bool => std.mem.eql(u8, value, "true"),
         .int => try std.fmt.parseInt(FieldT, value, 10),
         .pointer => |info| if (info.size == .slice and @typeInfo(info.child) == .pointer)
-            try split_into_slice(arena, @typeInfo(info.child).pointer.child, value, ',')
+            try splitIntoSlice(arena, @typeInfo(info.child).pointer.child, value, ',')
         else
             value,
         else => value,
@@ -697,18 +674,75 @@ fn lesson6_1_demo() void {
 // `version`) that carry no spec, and a nested level (`new post` / `new page`)
 // where a command entry holds another command table instead of a spec.
 // ----------------------------------------------------------------------------
-fn lesson7_parse(comptime spec: CommandSpec, arena: *std.heap.ArenaAllocator, args: []const []const u8) !spec.Result {
-    _ = arena;
-    _ = args;
+fn lesson7_parse(
+    arena: *std.heap.ArenaAllocator,
+    comptime spec: CommandSpec,
+    args: []const []const u8,
+) !spec.Result {
+
     // TODO: port your lesson6_1_parse body (T->spec.Result, flags->spec.flags,
     //       positionals->spec.positionals). Returns defaults for now.
-    return .{};
+    var result: spec.Result = .{};
+    var i: usize = 0;
+    var pos_idx: usize = 0;
+    next_arg: while (i < args.len) : (i += 1) {
+        const arg = args[i];
+        inline for (spec.flags) |flag| {
+            if (std.mem.eql(u8, arg, flag.long) or std.mem.eql(u8, arg, flag.short)) {
+                const FieldT = @FieldType(spec.Result, flag.field);
+                if (@typeInfo(FieldT) == .bool) {
+                    @field(result, flag.field) = true;
+                    continue :next_arg;
+                }
+                if (i + 1 >= args.len) return error.MissingValue;
+
+                const raw = args[i + 1];
+                if (raw.len > 1 and raw[0] == '-' and !std.mem.eql(u8, raw, "--"))
+                    return error.MissingValue;
+
+                i += 1;
+                @field(result, flag.field) = try parseFields(arena, spec.Result, flag, raw);
+
+                continue :next_arg;
+            } else if (std.mem.indexOfScalar(u8, arg, '=')) |eq| {
+                const head = arg[0..eq];
+                if (std.mem.eql(u8, head, flag.long) or std.mem.eql(u8, head, flag.short)) {
+                    const raw = arg[eq + 1 ..];
+                    @field(result, flag.field) = try parseFields(arena, spec.Result, flag, raw);
+                    continue :next_arg;
+                }
+            }
+        }
+
+        if (arg.len > 0 and arg[0] == '-') return error.UnknownFlag;
+
+        inline for (spec.positionals, 0..) |pos, j| {
+            if (j == pos_idx) {
+                @field(result, pos) = arg;
+                pos_idx += 1;
+                continue :next_arg;
+            }
+        }
+
+        return error.TooManyPositionals;
+    }
+
+    inline for (spec.positionals, 0..) |pos, j| {
+        if (j >= pos_idx) {
+            const FieldT = @FieldType(spec.Result, pos);
+            if (@typeInfo(FieldT) != .optional) return error.MissingPositional;
+        }
+    }
+    return result;
 }
 
 fn lesson8_dispatch(arena: *std.heap.ArenaAllocator, args: []const []const u8) !Command {
-    _ = arena;
-    _ = args;
-    // TODO: select a command from `commands` and wrap with @unionInit.
+    if (args.len == 0) return error.NoCommand;
+    const name = args[0];
+    inline for (commands) |cmd| {
+        if (std.mem.eql(u8, name, cmd.name))
+            return @unionInit(Command, cmd.name, try lesson7_parse(arena, cmd.spec, args[1..]));
+    }
     return error.UnknownCommand;
 }
 
@@ -764,8 +798,8 @@ pub fn main() void {
     // lesson6_demo();
     // std.debug.print("\n", .{});
 
-    lesson6_1_demo();
-    std.debug.print("\n", .{});
+    // lesson6_1_demo();
+    // std.debug.print("\n", .{});
 
-    // lesson78_demo();
+    lesson78_demo();
 }
