@@ -159,8 +159,8 @@ const commands = [_]NamedCommand{
             .{ .name = "page", .spec = .{ .command = page_spec }, .help = "Scaffold new page" },
         },
     }, .help = "Scaffold new content" },
-    .{ .name = "version", .spec = .tag_only, .help = "Return current version" },
-    .{ .name = "help", .spec = .tag_only, .help = "This help menu" },
+    .{ .name = "version", .spec = .tag_only, .help = "Print version" },
+    .{ .name = "help", .spec = .tag_only, .help = "Show help" },
 };
 
 // ----------------------------------------------------------------------------
@@ -826,6 +826,14 @@ fn lesson8_dispatch(arena: *std.heap.ArenaAllocator, args: []const []const u8) !
     return error.UnknownCommand;
 }
 
+/// Matches a `.tag_only` command by name, plus its `--`/`-` aliases.
+/// `tag` is comptime so aliases fold at compile time.
+fn matchTagAlias(name: []const u8, comptime tag: []const u8) bool {
+    return std.mem.eql(u8, name, tag) or
+        std.mem.eql(u8, name, "--" ++ tag) or
+        std.mem.eql(u8, name, "-" ++ tag[0..1]);
+}
+
 fn lesson8_dispatch_recursive(
     arena: *std.heap.ArenaAllocator,
     args: []const []const u8,
@@ -835,7 +843,11 @@ fn lesson8_dispatch_recursive(
         if (args.len == 0) return error.NoCommand;
         const name = args[0];
         inline for (commands) |cmd| {
-            if (std.mem.eql(u8, name, cmd.name)) return lesson8_dispatch_recursive(arena, args[1..], cmd);
+            const matched = switch (cmd.spec) {
+                .tag_only => matchTagAlias(name, cmd.name),
+                else => std.mem.eql(u8, name, cmd.name),
+            };
+            if (matched) return lesson8_dispatch_recursive(arena, args[1..], cmd);
         }
         return error.UnknownCommand;
     }
@@ -934,10 +946,11 @@ fn printHelpRecursive(args: []const []const u8, comptime maybe_cmd: ?NamedComman
         }
         const name = args[0];
         inline for (commands) |cmd| {
-            if (std.mem.eql(u8, name, cmd.name)) {
-                printHelpRecursive(args[1..], cmd);
-                return;
-            }
+            const matched = switch (cmd.spec) {
+                .tag_only => matchTagAlias(name, cmd.name),
+                else => std.mem.eql(u8, name, cmd.name),
+            };
+            if (matched) printHelpRecursive(args[1..], cmd);
         }
 
         printHelpGeneral();
@@ -985,6 +998,8 @@ fn lesson78_demo() void {
         &.{ "build", "--bogus" },
         &.{"version"},
         &.{"help"},
+        &.{"--version"},
+        &.{"--help"},
     };
     for (cases, 0..) |input, n| {
         std.debug.print("[7/8] case {d}:", .{n});
