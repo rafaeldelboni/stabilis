@@ -69,7 +69,7 @@ const PostArgs = struct {
     draft: bool = false, //              switch
 };
 const post_flags = [_]Flag{
-    .{ .long = "--desc", .short = "-d", .field = "description", .help = "Short description" },
+    .{ .long = "--desc", .short = "-d", .field = "description", .help = "One-line description" },
     .{ .long = "--tags", .short = "-t", .field = "tags", .help = "Comma-separated tags" },
     .{ .long = "--draft", .short = "-D", .field = "draft", .help = "Mark as draft" },
 };
@@ -104,8 +104,25 @@ const build_spec = CommandSpec{
 const post_spec = CommandSpec{
     .Result = PostArgs,
     .flags = &.{
-        .{ .long = "--desc", .short = "-d", .field = "description", .help = "Short description" },
+        .{ .long = "--desc", .short = "-d", .field = "description", .help = "One-line description" },
         .{ .long = "--tags", .short = "-t", .field = "tags", .help = "Comma-separated tags" },
+        .{ .long = "--draft", .short = "-D", .field = "draft", .help = "Mark as draft" },
+    },
+    .positionals = &.{"title"},
+};
+
+pub const PageArgs = struct {
+    title: []const u8 = "", //          required positional ("" means "not given")
+    slug: ?[]const u8 = null,
+    draft: bool = false,
+    menus: []const []const u8 = &.{},
+};
+
+const page_spec = CommandSpec{
+    .Result = PageArgs,
+    .flags = &.{
+        .{ .long = "--slug", .short = "-s", .field = "slug", .help = "URL-friendly identifier (defaults to title)" },
+        .{ .long = "--menus", .short = "-m", .field = "menus", .help = "Comma-separated list of menus this page appears in" },
         .{ .long = "--draft", .short = "-D", .field = "draft", .help = "Mark as draft" },
     },
     .positionals = &.{"title"},
@@ -117,11 +134,33 @@ const post_spec = CommandSpec{
 const Command = union(enum) {
     build: BuildArgs,
     post: PostArgs,
+    page: PageArgs,
+    version,
+    help,
 };
-const NamedCommand = struct { name: []const u8, spec: CommandSpec, help: []const u8 };
+
+const Spec = union(enum) {
+    command: CommandSpec,
+    sub_commands: []const NamedCommand,
+    tag_only,
+};
+
+const NamedCommand = struct {
+    name: []const u8,
+    spec: Spec,
+    help: []const u8,
+};
+
 const commands = [_]NamedCommand{
-    .{ .name = "build", .spec = build_spec, .help = "Build the site" },
-    .{ .name = "post", .spec = post_spec, .help = "Scaffold new post"  },
+    .{ .name = "build", .spec = .{ .command = build_spec }, .help = "Build the site" },
+    .{ .name = "new", .spec = .{
+        .sub_commands = &.{
+            .{ .name = "post", .spec = .{ .command = post_spec }, .help = "Scaffold new post" },
+            .{ .name = "page", .spec = .{ .command = page_spec }, .help = "Scaffold new page" },
+        },
+    }, .help = "Scaffold new content" },
+    .{ .name = "version", .spec = .tag_only, .help = "Return current version" },
+    .{ .name = "help", .spec = .tag_only, .help = "This help menu" },
 };
 
 // ----------------------------------------------------------------------------
@@ -447,6 +486,25 @@ fn splitIntoSlice(arena: *std.heap.ArenaAllocator, comptime T: type, buffer: []c
     return list.toOwnedSlice(allocator) catch unreachable;
 }
 
+pub const FlagType = enum {
+    boolean,
+    number,
+    list_of_strings,
+    string,
+};
+
+fn parseFieldTypes(comptime T: type) FlagType {
+    return switch (@typeInfo(T)) {
+        .bool => .boolean,
+        .int => .number,
+        .pointer => |info| if (info.size == .slice and @typeInfo(info.child) == .pointer)
+            .list_of_strings
+        else
+            .string,
+        else => .string,
+    };
+}
+
 fn parseFields(
     arena: *std.heap.ArenaAllocator,
     comptime T: type,
@@ -454,13 +512,12 @@ fn parseFields(
     value: []const u8,
 ) !@FieldType(T, flag.field) {
     const FieldT = @FieldType(T, flag.field);
-    return switch (@typeInfo(FieldT)) {
-        .bool => std.mem.eql(u8, value, "true"),
-        .int => try std.fmt.parseInt(FieldT, value, 10),
-        .pointer => |info| if (info.size == .slice and @typeInfo(info.child) == .pointer)
-            try splitIntoSlice(arena, @typeInfo(info.child).pointer.child, value, ',')
-        else
-            value,
+    const flag_type = comptime parseFieldTypes(FieldT);
+
+    return switch (flag_type) {
+        .boolean => std.mem.eql(u8, value, "true"),
+        .number => try std.fmt.parseInt(FieldT, value, 10),
+        .list_of_strings => try splitIntoSlice(arena, u8, value, ','),
         else => value,
     };
 }
@@ -578,6 +635,18 @@ fn printPost(a: PostArgs) void {
     std.debug.print("[6.1] draft: {}\n", .{a.draft});
 }
 
+fn printPage(a: PageArgs) void {
+    std.debug.print("[9] title: {s}\n", .{a.title});
+    std.debug.print("[9] slug: {?s}\n", .{a.slug});
+    std.debug.print("[9] menus: [", .{});
+    for (a.menus, 0..) |m, idx| {
+        if (idx != 0) std.debug.print(", ", .{});
+        std.debug.print("{s}", .{m});
+    }
+    std.debug.print("]\n", .{});
+    std.debug.print("[9] draft: {}\n", .{a.draft});
+}
+
 fn lesson6_1_demo() void {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
@@ -679,9 +748,6 @@ fn lesson7_parse(
     comptime spec: CommandSpec,
     args: []const []const u8,
 ) !spec.Result {
-
-    // TODO: port your lesson6_1_parse body (T->spec.Result, flags->spec.flags,
-    //       positionals->spec.positionals). Returns defaults for now.
     var result: spec.Result = .{};
     var i: usize = 0;
     var pos_idx: usize = 0;
@@ -740,10 +806,52 @@ fn lesson8_dispatch(arena: *std.heap.ArenaAllocator, args: []const []const u8) !
     if (args.len == 0) return error.NoCommand;
     const name = args[0];
     inline for (commands) |cmd| {
-        if (std.mem.eql(u8, name, cmd.name))
-            return @unionInit(Command, cmd.name, try lesson7_parse(arena, cmd.spec, args[1..]));
+        if (std.mem.eql(u8, name, cmd.name)) {
+            return switch (cmd.spec) {
+                .tag_only => return @field(Command, cmd.name),
+                .command => |cmd_spec| @unionInit(Command, cmd.name, try lesson7_parse(arena, cmd_spec, args[1..])),
+                .sub_commands => |sub_cmds| {
+                    inline for (sub_cmds) |sub_cmd| {
+                        if (args.len == 1) return error.NoSubCommand;
+                        const sub_name = args[1];
+                        if (std.mem.eql(u8, sub_name, sub_cmd.name)) {
+                            return @unionInit(Command, sub_cmd.name, try lesson7_parse(arena, sub_cmd.spec.command, args[2..]));
+                        }
+                    }
+                    return error.UnknownSubCommand;
+                },
+            };
+        }
     }
     return error.UnknownCommand;
+}
+
+fn lesson8_dispatch_recursive(
+    arena: *std.heap.ArenaAllocator,
+    args: []const []const u8,
+    comptime maybe_cmd: ?NamedCommand,
+) !Command {
+    if (maybe_cmd == null) {
+        if (args.len == 0) return error.NoCommand;
+        const name = args[0];
+        inline for (commands) |cmd| {
+            if (std.mem.eql(u8, name, cmd.name)) return lesson8_dispatch_recursive(arena, args[1..], cmd);
+        }
+        return error.UnknownCommand;
+    }
+    const cmd = maybe_cmd.?;
+    return switch (cmd.spec) {
+        .tag_only => return @field(Command, cmd.name),
+        .command => |spec| @unionInit(Command, cmd.name, try lesson7_parse(arena, spec, args)),
+        .sub_commands => |sub_cmds| {
+            if (args.len == 0) return error.NoSubCommand;
+            const sub_name = args[0];
+            inline for (sub_cmds) |sub_cmd| {
+                if (std.mem.eql(u8, sub_name, sub_cmd.name)) return lesson8_dispatch_recursive(arena, args[1..], sub_cmd);
+            }
+            return error.UnknownSubCommand;
+        },
+    };
 }
 
 // Harness: consume the union and route each variant to its existing printer.
@@ -751,6 +859,116 @@ fn printCommand(cmd: Command) void {
     switch (cmd) {
         .build => |b| lesson3_readValues(b),
         .post => |p| printPost(p),
+        .page => |p| printPage(p),
+        .version => |p| std.debug.print("[9] version: {any}\n", .{p}),
+        .help => |p| std.debug.print("[9] help: {any}\n", .{p}),
+    }
+}
+
+fn printCommandHelp(cmd_spec: CommandSpec) void {
+    std.debug.print("Options:\n", .{});
+    inline for (cmd_spec.flags) |flag| {
+        const FieldT = @FieldType(cmd_spec.Result, flag.field);
+        const kind = switch (parseFieldTypes(FieldT)) {
+            .list_of_strings => "string array",
+            else => @tagName(parseFieldTypes(FieldT)),
+        };
+        std.debug.print("    {s}, {s: <9} {s: <14} [{s}]\n", .{
+            flag.short,
+            flag.long,
+            flag.help,
+            kind,
+        });
+    }
+}
+
+fn printHelp(args: []const []const u8) void {
+    const name = args[0];
+    inline for (commands) |cmd| {
+        if (std.mem.eql(u8, name, cmd.name)) {
+            switch (cmd.spec) {
+                .tag_only => {},
+                .command => |cmd_spec| {
+                    std.debug.print("stabilis {s}", .{name});
+                    for (cmd_spec.positionals) |a| std.debug.print(" [{s}] ", .{a});
+                    std.debug.print("\n\n{s}\n\n", .{cmd.help});
+                    printCommandHelp(cmd_spec);
+                },
+                .sub_commands => |sub_cmds| {
+                    inline for (sub_cmds) |sub_cmd| {
+                        const sub_name = args[1];
+                        if (std.mem.eql(u8, sub_name, sub_cmd.name)) {
+                            const cmd_spec = sub_cmd.spec.command;
+                            std.debug.print("stabilis {s} {s}", .{ name, sub_name });
+                            for (cmd_spec.positionals) |a| std.debug.print(" [{s}] ", .{a});
+                            std.debug.print("\n\n{s}\n\n", .{cmd.help});
+                            printCommandHelp(cmd_spec);
+                        }
+                    }
+                },
+            }
+        }
+    }
+}
+
+fn printHelpGeneral() void {
+    std.debug.print("stabilis <command>\n\nCommands:\n", .{});
+    inline for (commands) |cmd| {
+        std.debug.print("    {s: <10} {s}\n", .{ cmd.name, cmd.help });
+        switch (cmd.spec) {
+            .sub_commands => |sub_commands| {
+                inline for (sub_commands) |sub_cmd| {
+                    std.debug.print("      {s: <8} {s}\n", .{ sub_cmd.name, sub_cmd.help });
+                }
+            },
+            else => {},
+        }
+    }
+}
+
+fn printHelpRecursive(args: []const []const u8, comptime maybe_cmd: ?NamedCommand) void {
+    if (maybe_cmd == null) {
+        if (args.len == 0) {
+            printHelpGeneral();
+            return;
+        }
+        const name = args[0];
+        inline for (commands) |cmd| {
+            if (std.mem.eql(u8, name, cmd.name)) {
+                printHelpRecursive(args[1..], cmd);
+                return;
+            }
+        }
+
+        printHelpGeneral();
+        return;
+    }
+    const cmd = maybe_cmd.?;
+    switch (cmd.spec) {
+        .tag_only => {},
+        .command => |spec| {
+            std.debug.print("stabilis {s}", .{cmd.name});
+            for (spec.positionals) |a| std.debug.print(" [{s}]", .{a});
+            std.debug.print("\n\n{s}\n\n", .{cmd.help});
+            printCommandHelp(spec);
+        },
+        .sub_commands => |sub_cmds| {
+            if (args.len == 0) {
+                std.debug.print("stabilis {s} <subcommand>\n\n{s}\n\nSubcommands:\n", .{ cmd.name, cmd.help });
+                inline for (sub_cmds) |sub_cmd| {
+                    std.debug.print("    {s: <10} {s}\n", .{ sub_cmd.name, sub_cmd.help });
+                }
+                return;
+            }
+            const sub_name = args[0];
+            inline for (sub_cmds) |sub_cmd| {
+                if (std.mem.eql(u8, sub_name, sub_cmd.name)) {
+                    printHelpRecursive(args[1..], sub_cmd);
+                    return;
+                }
+            }
+            std.debug.print("unknown subcommand: {s}\n", .{sub_name});
+        },
     }
 }
 
@@ -759,26 +977,31 @@ fn lesson78_demo() void {
     defer arena.deinit();
     const cases = [_][]const []const u8{
         &.{ "build", "content", "-d", "out", "--minify" },
-        &.{ "post", "Hello World", "-t", "zig,clojure", "--draft" },
-        &.{ "post", "Hi", "--desc=quick", "-t", "a,b" },
+        &.{ "new", "post", "Hello World", "-t", "zig,clojure", "--draft" },
+        &.{ "new", "post", "Hi", "--desc=quick", "-t", "a,b" },
+        &.{ "new", "page", "About", "--slug=about-page", "-m", "main" },
         &.{ "build", "--port", "8080" },
         &.{"deploy"},
         &.{ "build", "--bogus" },
+        &.{"version"},
+        &.{"help"},
     };
     for (cases, 0..) |input, n| {
         std.debug.print("[7/8] case {d}:", .{n});
         for (input) |a| std.debug.print(" {s}", .{a});
         std.debug.print("\n", .{});
-        const cmd = lesson8_dispatch(&arena, input) catch |err| {
+        const cmd = lesson8_dispatch_recursive(&arena, input, null) catch |err| {
             std.debug.print("    -> error: {s}\n", .{@errorName(err)});
+            printHelpRecursive(input, null);
             continue;
         };
         std.debug.print("    -> .{s}\n", .{@tagName(cmd)});
+        printHelpRecursive(input, null);
         printCommand(cmd);
     }
 }
 
-pub fn main() void {
+pub fn main() !void {
     // lesson1_typesAreValues();
     // std.debug.print("\n", .{});
     // lesson2_reflect();
@@ -797,7 +1020,7 @@ pub fn main() void {
     //
     // lesson6_demo();
     // std.debug.print("\n", .{});
-
+    //
     // lesson6_1_demo();
     // std.debug.print("\n", .{});
 
