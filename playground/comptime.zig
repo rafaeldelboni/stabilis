@@ -481,9 +481,10 @@ fn splitIntoSlice(arena: *std.heap.ArenaAllocator, comptime T: type, buffer: []c
     var list: std.ArrayList([]const T) = .empty;
     var it = std.mem.splitScalar(T, buffer, delimiter);
     while (it.next()) |chunk| {
-        try list.append(allocator, std.mem.trim(T, chunk, " "));
+        const item = std.mem.trim(T, chunk, " ");
+        if (item.len > 0) try list.append(allocator, item);
     }
-    return list.toOwnedSlice(allocator) catch unreachable;
+    return try list.toOwnedSlice(allocator);
 }
 
 pub const FlagType = enum {
@@ -950,7 +951,10 @@ fn printHelpRecursive(args: []const []const u8, comptime maybe_cmd: ?NamedComman
                 .tag_only => matchTagAlias(name, cmd.name),
                 else => std.mem.eql(u8, name, cmd.name),
             };
-            if (matched) printHelpRecursive(args[1..], cmd);
+            if (matched) {
+                printHelpRecursive(args[1..], cmd);
+                return;
+            }
         }
 
         printHelpGeneral();
