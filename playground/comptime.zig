@@ -498,6 +498,7 @@ fn parseFieldTypes(comptime T: type) FlagType {
     return switch (@typeInfo(T)) {
         .bool => .boolean,
         .int => .number,
+        .optional => |info| parseFieldTypes(info.child),
         .pointer => |info| if (info.size == .slice and @typeInfo(info.child) == .pointer)
             .list_of_strings
         else
@@ -517,7 +518,7 @@ fn parseFields(
 
     return switch (flag_type) {
         .boolean => std.mem.eql(u8, value, "true"),
-        .number => try std.fmt.parseInt(FieldT, value, 10),
+        .number => try std.fmt.parseInt(if (@typeInfo(FieldT) == .optional) @typeInfo(FieldT).optional.child else FieldT, value, 10),
         .list_of_strings => try splitIntoSlice(arena, u8, value, ','),
         else => value,
     };
