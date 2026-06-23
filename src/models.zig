@@ -1,5 +1,7 @@
 const std = @import("std");
 
+const modelsCli = @import("./models/cli.zig");
+
 pub const SliceBetween = struct {
     content: []const u8,
     open_index: usize,
@@ -86,22 +88,8 @@ pub const CtxValue = union(enum) {
     bool: bool,
 };
 
-pub const Command = union(enum) {
-    build: BuildArgs,
-    new: NewSub,
-    serve: ServeArgs,
-    version,
-    help,
-};
-
-pub const NewSub = union(enum) {
-    post: NewPostArgs,
-    page: NewPageArgs,
-    help,
-};
-
 pub const NewPostArgs = struct {
-    title: []const u8,
+    title: []const u8 = "",
     description: ?[]const u8 = null,
     tags: []const []const u8 = &.{},
     draft: bool = false,
@@ -109,7 +97,7 @@ pub const NewPostArgs = struct {
 };
 
 pub const NewPageArgs = struct {
-    title: []const u8,
+    title: []const u8 = "",
     slug: ?[]const u8 = null,
     draft: bool = false,
     menus: []const []const u8 = &.{},
@@ -131,4 +119,87 @@ pub const BuildArgs = struct {
     minify: bool = false,
     clean_destination_dir: bool = false,
     help: bool = false,
+};
+
+pub const stabilis_commands = [_]modelsCli.NamedCommand{
+    .{
+        .name = "serve",
+        .help = "Build the site",
+        .spec = .{
+            .command = modelsCli.CommandSpec{
+                .Result = ServeArgs,
+                .flags = &.{
+                    .{ .long = "--port", .short = "-p", .field = "port", .help = "Port to serve on" },
+                    .{ .long = "--bind", .short = "-b", .field = "bind", .help = "IP Address bind" },
+                    .{ .long = "--open", .short = "-o", .field = "open", .help = "Open browser after serving" },
+                    .{ .long = "--drafts", .short = "-D", .field = "build_drafts", .help = "Include draft content" },
+                    .{ .long = "--help", .short = "-h", .field = "help", .help = "Show help" },
+                },
+                .positionals = &.{},
+            },
+        },
+    },
+    .{
+        .name = "build",
+        .help = "Build the site",
+        .spec = .{
+            .command = modelsCli.CommandSpec{
+                .Result = BuildArgs,
+                .flags = &.{
+                    .{ .long = "--dest", .short = "-d", .field = "destination", .help = "Output directory" },
+                    .{ .long = "--drafts", .short = "-D", .field = "build_drafts", .help = "Include draft content" },
+                    .{ .long = "--minify", .short = "-m", .field = "minify", .help = "Minify the output" },
+                    .{ .long = "--clean-dest-dir", .short = "-c", .field = "clean_destination_dir", .help = "Minify the output" },
+                    .{ .long = "--help", .short = "-h", .field = "help", .help = "Show help" },
+                },
+                .positionals = &.{"source"},
+            },
+        },
+    },
+    .{ .name = "new", .spec = .{
+        .sub_commands = &.{
+            .{
+                .name = "post",
+                .help = "Scaffold new post",
+                .spec = .{
+                    .command = modelsCli.CommandSpec{
+                        .Result = NewPostArgs,
+                        .flags = &.{
+                            .{ .long = "--desc", .short = "-d", .field = "description", .help = "One-line description" },
+                            .{ .long = "--tags", .short = "-t", .field = "tags", .help = "Comma-separated tags" },
+                            .{ .long = "--draft", .short = "-D", .field = "draft", .help = "Mark as draft" },
+                            .{ .long = "--help", .short = "-h", .field = "help", .help = "Show help" },
+                        },
+                        .positionals = &.{"title"},
+                    },
+                },
+            },
+            .{
+                .name = "page",
+                .help = "Scaffold new page",
+                .spec = .{
+                    .command = modelsCli.CommandSpec{
+                        .Result = NewPageArgs,
+                        .flags = &.{
+                            .{ .long = "--slug", .short = "-s", .field = "slug", .help = "URL-friendly identifier (defaults to title)" },
+                            .{ .long = "--menus", .short = "-m", .field = "menus", .help = "Comma-separated list of menus this page appears in" },
+                            .{ .long = "--draft", .short = "-D", .field = "draft", .help = "Mark as draft" },
+                            .{ .long = "--help", .short = "-h", .field = "help", .help = "Show help" },
+                        },
+                        .positionals = &.{"title"},
+                    },
+                },
+            },
+        },
+    }, .help = "Scaffold new content" },
+    .{ .name = "version", .help = "Print version", .spec = .tag_only },
+    .{ .name = "help", .help = "Show help", .spec = .tag_only },
+};
+
+pub const Command = union(enum) {
+    build: BuildArgs,
+    serve: ServeArgs,
+    new: union(enum) { post: NewPostArgs, page: NewPageArgs },
+    version,
+    help,
 };
