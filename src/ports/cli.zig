@@ -98,7 +98,7 @@ pub fn printHelp(
 ) !void {
     return printHelpImpl(args[1..], commands, null) catch |err| {
         if (err == error.UnknownSubcommand) {
-            try printHelpImpl(args[1..args.len - 1], commands, null);
+            try printHelpImpl(args[1 .. args.len - 1], commands, null);
         }
     };
 }
