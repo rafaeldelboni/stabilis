@@ -1,8 +1,7 @@
 const std = @import("std");
 
-const models = @import("../models.zig");
-const adapters = @import("../adaters/cli.zig");
-const Command = models.Command;
+const models = @import("../models/cli.zig");
+const adapters = @import("../adapters/cli.zig");
 const NamedCommand = models.NamedCommand;
 const CommandSpec = models.CommandSpec;
 
@@ -14,7 +13,7 @@ fn printCommandHelp(cmd_spec: CommandSpec) void {
             .list_of_strings => "string array",
             else => @tagName(adapters.parseFieldTypes(FieldT)),
         };
-        std.debug.print("    {s}, {s: <9} {s: <14} [{s}]\n", .{
+        std.debug.print("    {s}, {s: <14} {s: <14} [{s}]\n", .{
             flag.short,
             flag.long,
             flag.help,
@@ -38,14 +37,14 @@ fn printHelpGeneral(comptime commands: []const NamedCommand) void {
     }
 }
 
-pub fn printHelp(
+pub fn printHelpImpl(
     args: []const []const u8,
     comptime commands: []const NamedCommand,
     comptime maybe_cmd: ?NamedCommand,
-) void {
+) !void {
     if (maybe_cmd == null) {
         if (args.len == 0) {
-            printHelpGeneral();
+            printHelpGeneral(commands);
             return;
         }
         const name = args[0];
@@ -55,12 +54,12 @@ pub fn printHelp(
                 else => std.mem.eql(u8, name, cmd.name),
             };
             if (matched) {
-                printHelp(args[1..], cmd);
+                try printHelpImpl(args[1..], commands, cmd);
                 return;
             }
         }
 
-        printHelpGeneral();
+        printHelpGeneral(commands);
         return;
     }
     const cmd = maybe_cmd.?;
@@ -83,21 +82,23 @@ pub fn printHelp(
             const sub_name = args[0];
             inline for (sub_cmds) |sub_cmd| {
                 if (std.mem.eql(u8, sub_name, sub_cmd.name)) {
-                    printHelp(args[1..], sub_cmd);
+                    try printHelpImpl(args[1..], commands, sub_cmd);
                     return;
                 }
             }
-            std.debug.print("unknown subcommand: {s}\n", .{sub_name});
+            std.debug.print("unknown subcommand: {s}\n\n", .{sub_name});
+            return error.UnknownSubcommand;
         },
     }
 }
 
-// fn handleCommand(cmd: Command) void {
-//     switch (cmd) {
-//         .build => |b| buildFn(b),
-//         .post => |p| newPostFn(p),
-//         .page => |p| newPageFn(p),
-//         .version => |p| std.debug.print("[9] version: {any}\n", .{p}),
-//         .help => |p| std.debug.print("[9] help: {any}\n", .{p}),
-//     }
-// }
+pub fn printHelp(
+    args: []const []const u8,
+    comptime commands: []const NamedCommand,
+) !void {
+    return printHelpImpl(args[1..], commands, null) catch |err| {
+        if (err == error.UnknownSubcommand) {
+            try printHelpImpl(args[1..args.len - 1], commands, null);
+        }
+    };
+}

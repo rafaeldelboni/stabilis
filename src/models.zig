@@ -108,7 +108,7 @@ pub const ServeArgs = struct {
     port: ?u16 = null,
     bind: ?[]const u8 = null,
     open: bool = false,
-    build_drafts: bool = true,
+    no_drafts: bool = false,
     help: bool = false,
 };
 
@@ -117,14 +117,22 @@ pub const BuildArgs = struct {
     destination: ?[]const u8 = null,
     build_drafts: bool = false,
     minify: bool = false,
-    clean_destination_dir: bool = false,
+    clear_dir: bool = false,
     help: bool = false,
+};
+
+pub const CommandResult = union(enum) {
+    build: BuildArgs,
+    serve: ServeArgs,
+    new: union(enum) { post: NewPostArgs, page: NewPageArgs },
+    version,
+    help,
 };
 
 pub const stabilis_commands = [_]modelsCli.NamedCommand{
     .{
         .name = "serve",
-        .help = "Build the site",
+        .help = "Build and serve the site locally",
         .spec = .{
             .command = modelsCli.CommandSpec{
                 .Result = ServeArgs,
@@ -132,7 +140,7 @@ pub const stabilis_commands = [_]modelsCli.NamedCommand{
                     .{ .long = "--port", .short = "-p", .field = "port", .help = "Port to serve on" },
                     .{ .long = "--bind", .short = "-b", .field = "bind", .help = "IP Address bind" },
                     .{ .long = "--open", .short = "-o", .field = "open", .help = "Open browser after serving" },
-                    .{ .long = "--drafts", .short = "-D", .field = "build_drafts", .help = "Include draft content" },
+                    .{ .long = "--no-drafts", .short = "-n", .field = "no_drafts", .help = "Don't include draft content" },
                     .{ .long = "--help", .short = "-h", .field = "help", .help = "Show help" },
                 },
                 .positionals = &.{},
@@ -146,10 +154,10 @@ pub const stabilis_commands = [_]modelsCli.NamedCommand{
             .command = modelsCli.CommandSpec{
                 .Result = BuildArgs,
                 .flags = &.{
-                    .{ .long = "--dest", .short = "-d", .field = "destination", .help = "Output directory" },
-                    .{ .long = "--drafts", .short = "-D", .field = "build_drafts", .help = "Include draft content" },
+                    .{ .long = "--dest", .short = "-d", .field = "destination", .help = "Output directory destination" },
+                    .{ .long = "--build-drafts", .short = "-b", .field = "build_drafts", .help = "Include draft content" },
                     .{ .long = "--minify", .short = "-m", .field = "minify", .help = "Minify the output" },
-                    .{ .long = "--clean-dest-dir", .short = "-c", .field = "clean_destination_dir", .help = "Minify the output" },
+                    .{ .long = "--clear-dir", .short = "-c", .field = "clear_dir", .help = "Clear destination directory" },
                     .{ .long = "--help", .short = "-h", .field = "help", .help = "Show help" },
                 },
                 .positionals = &.{"source"},
@@ -194,12 +202,4 @@ pub const stabilis_commands = [_]modelsCli.NamedCommand{
     }, .help = "Scaffold new content" },
     .{ .name = "version", .help = "Print version", .spec = .tag_only },
     .{ .name = "help", .help = "Show help", .spec = .tag_only },
-};
-
-pub const Command = union(enum) {
-    build: BuildArgs,
-    serve: ServeArgs,
-    new: union(enum) { post: NewPostArgs, page: NewPageArgs },
-    version,
-    help,
 };

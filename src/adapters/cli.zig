@@ -1,7 +1,7 @@
 const std = @import("std");
 
 const models = @import("../models.zig");
-const Command = models.Command;
+const CommandResult = models.CommandResult;
 const modelsCli = @import("../models/cli.zig");
 const NamedCommand = modelsCli.NamedCommand;
 const CommandSpec = modelsCli.CommandSpec;
@@ -14,7 +14,7 @@ pub const FlagType = enum {
     string,
 };
 
-fn parseFieldTypes(comptime T: type) FlagType {
+pub fn parseFieldTypes(comptime T: type) FlagType {
     return switch (@typeInfo(T)) {
         .bool => .boolean,
         .int => .number,
@@ -89,7 +89,7 @@ fn parseFields(
 
 /// Matches a `.tag_only` command by name, plus its `--`/`-` aliases.
 /// `tag` is comptime so aliases fold at compile time.
-fn matchTagAlias(name: []const u8, comptime tag: []const u8) bool {
+pub fn matchTagAlias(name: []const u8, comptime tag: []const u8) bool {
     return std.mem.eql(u8, name, tag) or
         std.mem.eql(u8, name, "--" ++ tag) or
         std.mem.eql(u8, name, "-" ++ tag[0..1]);
@@ -223,17 +223,17 @@ test "parse dispatches top-level commands" {
 
     const commands = &models.stabilis_commands;
 
-    try std.testing.expectError(error.NoCommand, parse(Command, &arena, &.{"stabilis"}, commands));
-    try std.testing.expectEqual(Command.help, try parse(Command, &arena, &.{ "stabilis", "help" }, commands));
-    try std.testing.expectEqual(Command.help, try parse(Command, &arena, &.{ "stabilis", "--help" }, commands));
-    try std.testing.expectEqual(Command.help, try parse(Command, &arena, &.{ "stabilis", "-h" }, commands));
-    try std.testing.expectEqual(Command.version, try parse(Command, &arena, &.{ "stabilis", "version" }, commands));
-    try std.testing.expectEqual(Command.version, try parse(Command, &arena, &.{ "stabilis", "--version" }, commands));
-    try std.testing.expectEqual(Command.version, try parse(Command, &arena, &.{ "stabilis", "-v" }, commands));
-    try std.testing.expectError(error.UnknownCommand, parse(Command, &arena, &.{ "stabilis", "delbongo" }, commands));
+    try std.testing.expectError(error.NoCommand, parse(CommandResult, &arena, &.{"stabilis"}, commands));
+    try std.testing.expectEqual(CommandResult.help, try parse(CommandResult, &arena, &.{ "stabilis", "help" }, commands));
+    try std.testing.expectEqual(CommandResult.help, try parse(CommandResult, &arena, &.{ "stabilis", "--help" }, commands));
+    try std.testing.expectEqual(CommandResult.help, try parse(CommandResult, &arena, &.{ "stabilis", "-h" }, commands));
+    try std.testing.expectEqual(CommandResult.version, try parse(CommandResult, &arena, &.{ "stabilis", "version" }, commands));
+    try std.testing.expectEqual(CommandResult.version, try parse(CommandResult, &arena, &.{ "stabilis", "--version" }, commands));
+    try std.testing.expectEqual(CommandResult.version, try parse(CommandResult, &arena, &.{ "stabilis", "-v" }, commands));
+    try std.testing.expectError(error.UnknownCommand, parse(CommandResult, &arena, &.{ "stabilis", "delbongo" }, commands));
 
-    try std.testing.expectError(error.NoSubCommand, parse(Command, &arena, &.{ "stabilis", "new" }, commands));
-    try std.testing.expectError(error.UnknownSubCommand, parse(Command, &arena, &.{ "stabilis", "new", "unknown" }, commands));
+    try std.testing.expectError(error.NoSubCommand, parse(CommandResult, &arena, &.{ "stabilis", "new" }, commands));
+    try std.testing.expectError(error.UnknownSubCommand, parse(CommandResult, &arena, &.{ "stabilis", "new", "unknown" }, commands));
 }
 
 test "parse 'build' parses short, long, and combined flags" {
@@ -242,31 +242,31 @@ test "parse 'build' parses short, long, and combined flags" {
 
     const commands = &models.stabilis_commands;
 
-    const defaults = try parse(Command, &arena, &.{ "stabilis", "build" }, commands);
+    const defaults = try parse(CommandResult, &arena, &.{ "stabilis", "build" }, commands);
     try std.testing.expect(defaults == .build);
     try std.testing.expectEqual(@as(?[]const u8, null), defaults.build.source);
     try std.testing.expectEqual(@as(?[]const u8, null), defaults.build.destination);
     try std.testing.expectEqual(false, defaults.build.build_drafts);
     try std.testing.expectEqual(false, defaults.build.minify);
-    try std.testing.expectEqual(false, defaults.build.clean_destination_dir);
+    try std.testing.expectEqual(false, defaults.build.clear_dir);
     try std.testing.expectEqual(false, defaults.build.help);
 
-    const pos = try parse(Command, &arena, &.{ "stabilis", "build", "mycontent" }, commands);
+    const pos = try parse(CommandResult, &arena, &.{ "stabilis", "build", "mycontent" }, commands);
     try std.testing.expectEqualStrings("mycontent", pos.build.source.?);
 
-    const d = try parse(Command, &arena, &.{ "stabilis", "build", "-d", "out" }, commands);
+    const d = try parse(CommandResult, &arena, &.{ "stabilis", "build", "-d", "out" }, commands);
     try std.testing.expectEqualStrings("out", d.build.destination.?);
 
-    const dest = try parse(Command, &arena, &.{ "stabilis", "build", "--dest", "out" }, commands);
+    const dest = try parse(CommandResult, &arena, &.{ "stabilis", "build", "--dest", "out" }, commands);
     try std.testing.expectEqualStrings("out", dest.build.destination.?);
 
-    try std.testing.expectEqual(true, (try parse(Command, &arena, &.{ "stabilis", "build", "-D" }, commands)).build.build_drafts);
-    try std.testing.expectEqual(true, (try parse(Command, &arena, &.{ "stabilis", "build", "--drafts" }, commands)).build.build_drafts);
-    try std.testing.expectEqual(true, (try parse(Command, &arena, &.{ "stabilis", "build", "--minify" }, commands)).build.minify);
-    try std.testing.expectEqual(true, (try parse(Command, &arena, &.{ "stabilis", "build", "--clean-dest-dir" }, commands)).build.clean_destination_dir);
-    try std.testing.expectEqual(true, (try parse(Command, &arena, &.{ "stabilis", "build", "--help" }, commands)).build.help);
+    try std.testing.expectEqual(true, (try parse(CommandResult, &arena, &.{ "stabilis", "build", "-b" }, commands)).build.build_drafts);
+    try std.testing.expectEqual(true, (try parse(CommandResult, &arena, &.{ "stabilis", "build", "--build-drafts" }, commands)).build.build_drafts);
+    try std.testing.expectEqual(true, (try parse(CommandResult, &arena, &.{ "stabilis", "build", "--minify" }, commands)).build.minify);
+    try std.testing.expectEqual(true, (try parse(CommandResult, &arena, &.{ "stabilis", "build", "--clear-dir" }, commands)).build.clear_dir);
+    try std.testing.expectEqual(true, (try parse(CommandResult, &arena, &.{ "stabilis", "build", "--help" }, commands)).build.help);
 
-    const combined = try parse(Command, &arena, &.{ "stabilis", "build", "content", "-d", "public", "-D", "--minify" }, commands);
+    const combined = try parse(CommandResult, &arena, &.{ "stabilis", "build", "content", "-d", "public", "-b", "--minify" }, commands);
     try std.testing.expectEqualStrings("content", combined.build.source.?);
     try std.testing.expectEqualStrings("public", combined.build.destination.?);
     try std.testing.expectEqual(true, combined.build.build_drafts);
@@ -279,8 +279,8 @@ test "parse 'build' returns errors on bad input" {
 
     const commands = &models.stabilis_commands;
 
-    try std.testing.expectError(error.UnknownFlag, parse(Command, &arena, &.{ "stabilis", "build", "--bogus" }, commands));
-    try std.testing.expectError(error.MissingValue, parse(Command, &arena, &.{ "stabilis", "build", "-d" }, commands));
+    try std.testing.expectError(error.UnknownFlag, parse(CommandResult, &arena, &.{ "stabilis", "build", "--bogus" }, commands));
+    try std.testing.expectError(error.MissingValue, parse(CommandResult, &arena, &.{ "stabilis", "build", "-d" }, commands));
 }
 
 test "parse 'new post' parses short, long, and list flags" {
@@ -289,7 +289,7 @@ test "parse 'new post' parses short, long, and list flags" {
 
     const commands = &models.stabilis_commands;
 
-    const defaults = try parse(Command, &arena, &.{ "stabilis", "new", "post", "Hello World" }, commands);
+    const defaults = try parse(CommandResult, &arena, &.{ "stabilis", "new", "post", "Hello World" }, commands);
     try std.testing.expect(defaults == .new);
     try std.testing.expect(defaults.new == .post);
     try std.testing.expectEqualStrings("Hello World", defaults.new.post.title);
@@ -298,35 +298,35 @@ test "parse 'new post' parses short, long, and list flags" {
     try std.testing.expectEqual(false, defaults.new.post.draft);
     try std.testing.expectEqual(false, defaults.new.post.help);
 
-    const d = try parse(Command, &arena, &.{ "stabilis", "new", "post", "Hello", "-d", "A description" }, commands);
+    const d = try parse(CommandResult, &arena, &.{ "stabilis", "new", "post", "Hello", "-d", "A description" }, commands);
     try std.testing.expectEqualStrings("A description", d.new.post.description.?);
 
-    const desc = try parse(Command, &arena, &.{ "stabilis", "new", "post", "Hello", "--desc", "A description" }, commands);
+    const desc = try parse(CommandResult, &arena, &.{ "stabilis", "new", "post", "Hello", "--desc", "A description" }, commands);
     try std.testing.expectEqualStrings("A description", desc.new.post.description.?);
 
-    const single = try parse(Command, &arena, &.{ "stabilis", "new", "post", "Hello", "-t", "zig" }, commands);
+    const single = try parse(CommandResult, &arena, &.{ "stabilis", "new", "post", "Hello", "-t", "zig" }, commands);
     try std.testing.expectEqual(@as(usize, 1), single.new.post.tags.len);
     try std.testing.expectEqualStrings("zig", single.new.post.tags[0]);
 
-    const comma = try parse(Command, &arena, &.{ "stabilis", "new", "post", "Hello", "-t", "zig,clojure" }, commands);
+    const comma = try parse(CommandResult, &arena, &.{ "stabilis", "new", "post", "Hello", "-t", "zig,clojure" }, commands);
     try std.testing.expectEqual(@as(usize, 2), comma.new.post.tags.len);
     try std.testing.expectEqualStrings("zig", comma.new.post.tags[0]);
     try std.testing.expectEqualStrings("clojure", comma.new.post.tags[1]);
 
-    const repeated = try parse(Command, &arena, &.{ "stabilis", "new", "post", "Hello", "-t", "zig", "-t", "clojure" }, commands);
+    const repeated = try parse(CommandResult, &arena, &.{ "stabilis", "new", "post", "Hello", "-t", "zig", "-t", "clojure" }, commands);
     try std.testing.expectEqual(@as(usize, 2), repeated.new.post.tags.len);
     try std.testing.expectEqualStrings("zig", repeated.new.post.tags[0]);
     try std.testing.expectEqualStrings("clojure", repeated.new.post.tags[1]);
 
-    const long_tags = try parse(Command, &arena, &.{ "stabilis", "new", "post", "Hello", "--tags", "zig,clojure" }, commands);
+    const long_tags = try parse(CommandResult, &arena, &.{ "stabilis", "new", "post", "Hello", "--tags", "zig,clojure" }, commands);
     try std.testing.expectEqual(@as(usize, 2), long_tags.new.post.tags.len);
     try std.testing.expectEqualStrings("zig", long_tags.new.post.tags[0]);
     try std.testing.expectEqualStrings("clojure", long_tags.new.post.tags[1]);
 
-    try std.testing.expectEqual(true, (try parse(Command, &arena, &.{ "stabilis", "new", "post", "Hello", "--draft" }, commands)).new.post.draft);
-    try std.testing.expectEqual(true, (try parse(Command, &arena, &.{ "stabilis", "new", "post", "Hello", "--help" }, commands)).new.post.help);
+    try std.testing.expectEqual(true, (try parse(CommandResult, &arena, &.{ "stabilis", "new", "post", "Hello", "--draft" }, commands)).new.post.draft);
+    try std.testing.expectEqual(true, (try parse(CommandResult, &arena, &.{ "stabilis", "new", "post", "Hello", "--help" }, commands)).new.post.help);
 
-    const all = try parse(Command, &arena, &.{
+    const all = try parse(CommandResult, &arena, &.{
         "stabilis", "new",  "post", "Hello World",
         "-d",       "desc", "-t",   "a,b",
         "--draft",
@@ -343,9 +343,9 @@ test "parse 'new post' returns errors on bad input" {
 
     const commands = &models.stabilis_commands;
 
-    try std.testing.expectError(error.MissingPositional, parse(Command, &arena, &.{ "stabilis", "new", "post" }, commands));
-    try std.testing.expectError(error.MissingValue, parse(Command, &arena, &.{ "stabilis", "new", "post", "Hello", "-t" }, commands));
-    try std.testing.expectError(error.UnknownFlag, parse(Command, &arena, &.{ "stabilis", "new", "post", "Hello", "--bogus" }, commands));
+    try std.testing.expectError(error.MissingPositional, parse(CommandResult, &arena, &.{ "stabilis", "new", "post" }, commands));
+    try std.testing.expectError(error.MissingValue, parse(CommandResult, &arena, &.{ "stabilis", "new", "post", "Hello", "-t" }, commands));
+    try std.testing.expectError(error.UnknownFlag, parse(CommandResult, &arena, &.{ "stabilis", "new", "post", "Hello", "--bogus" }, commands));
 }
 
 test "parse 'new page' parses short, long, and list flags" {
@@ -353,7 +353,7 @@ test "parse 'new page' parses short, long, and list flags" {
     defer arena.deinit();
     const commands = &models.stabilis_commands;
 
-    const defaults = try parse(Command, &arena, &.{ "stabilis", "new", "page", "About Me" }, commands);
+    const defaults = try parse(CommandResult, &arena, &.{ "stabilis", "new", "page", "About Me" }, commands);
     try std.testing.expect(defaults == .new);
     try std.testing.expect(defaults.new == .page);
     try std.testing.expectEqualStrings("About Me", defaults.new.page.title);
@@ -362,30 +362,30 @@ test "parse 'new page' parses short, long, and list flags" {
     try std.testing.expectEqual(@as(usize, 0), defaults.new.page.menus.len);
     try std.testing.expectEqual(false, defaults.new.page.help);
 
-    const s = try parse(Command, &arena, &.{ "stabilis", "new", "page", "About", "-s", "about" }, commands);
+    const s = try parse(CommandResult, &arena, &.{ "stabilis", "new", "page", "About", "-s", "about" }, commands);
     try std.testing.expectEqualStrings("about", s.new.page.slug.?);
 
-    const slug = try parse(Command, &arena, &.{ "stabilis", "new", "page", "About", "--slug", "about" }, commands);
+    const slug = try parse(CommandResult, &arena, &.{ "stabilis", "new", "page", "About", "--slug", "about" }, commands);
     try std.testing.expectEqualStrings("about", slug.new.page.slug.?);
 
-    const single = try parse(Command, &arena, &.{ "stabilis", "new", "page", "About", "--menus", "main" }, commands);
+    const single = try parse(CommandResult, &arena, &.{ "stabilis", "new", "page", "About", "--menus", "main" }, commands);
     try std.testing.expectEqual(@as(usize, 1), single.new.page.menus.len);
     try std.testing.expectEqualStrings("main", single.new.page.menus[0]);
 
-    const comma = try parse(Command, &arena, &.{ "stabilis", "new", "page", "About", "--menus", "main,footer" }, commands);
+    const comma = try parse(CommandResult, &arena, &.{ "stabilis", "new", "page", "About", "--menus", "main,footer" }, commands);
     try std.testing.expectEqual(@as(usize, 2), comma.new.page.menus.len);
     try std.testing.expectEqualStrings("main", comma.new.page.menus[0]);
     try std.testing.expectEqualStrings("footer", comma.new.page.menus[1]);
 
-    const repeated = try parse(Command, &arena, &.{ "stabilis", "new", "page", "About", "-m", "main", "-m", "footer" }, commands);
+    const repeated = try parse(CommandResult, &arena, &.{ "stabilis", "new", "page", "About", "-m", "main", "-m", "footer" }, commands);
     try std.testing.expectEqual(@as(usize, 2), repeated.new.page.menus.len);
     try std.testing.expectEqualStrings("main", repeated.new.page.menus[0]);
     try std.testing.expectEqualStrings("footer", repeated.new.page.menus[1]);
 
-    try std.testing.expectEqual(true, (try parse(Command, &arena, &.{ "stabilis", "new", "page", "About", "--draft" }, commands)).new.page.draft);
-    try std.testing.expectEqual(true, (try parse(Command, &arena, &.{ "stabilis", "new", "page", "About", "--help" }, commands)).new.page.help);
+    try std.testing.expectEqual(true, (try parse(CommandResult, &arena, &.{ "stabilis", "new", "page", "About", "--draft" }, commands)).new.page.draft);
+    try std.testing.expectEqual(true, (try parse(CommandResult, &arena, &.{ "stabilis", "new", "page", "About", "--help" }, commands)).new.page.help);
 
-    const all = try parse(Command, &arena, &.{
+    const all = try parse(CommandResult, &arena, &.{
         "stabilis", "new",   "page",    "About",
         "-s",       "about", "--draft", "--menus",
         "main",
@@ -403,9 +403,9 @@ test "parse 'new page' returns errors on bad input" {
 
     const commands = &models.stabilis_commands;
 
-    try std.testing.expectError(error.MissingPositional, parse(Command, &arena, &.{ "stabilis", "new", "page" }, commands));
-    try std.testing.expectError(error.MissingValue, parse(Command, &arena, &.{ "stabilis", "new", "page", "About", "-s" }, commands));
-    try std.testing.expectError(error.UnknownFlag, parse(Command, &arena, &.{ "stabilis", "new", "page", "About", "--bogus" }, commands));
+    try std.testing.expectError(error.MissingPositional, parse(CommandResult, &arena, &.{ "stabilis", "new", "page" }, commands));
+    try std.testing.expectError(error.MissingValue, parse(CommandResult, &arena, &.{ "stabilis", "new", "page", "About", "-s" }, commands));
+    try std.testing.expectError(error.UnknownFlag, parse(CommandResult, &arena, &.{ "stabilis", "new", "page", "About", "--bogus" }, commands));
 }
 
 test "parse 'serve' parses short, long, and combined flags" {
@@ -413,32 +413,32 @@ test "parse 'serve' parses short, long, and combined flags" {
     defer arena.deinit();
     const commands = &models.stabilis_commands;
 
-    const defaults = try parse(Command, &arena, &.{ "stabilis", "serve" }, commands);
+    const defaults = try parse(CommandResult, &arena, &.{ "stabilis", "serve" }, commands);
     try std.testing.expect(defaults == .serve);
     try std.testing.expectEqual(@as(?u16, null), defaults.serve.port);
     try std.testing.expectEqual(@as(?[]const u8, null), defaults.serve.bind);
     try std.testing.expectEqual(false, defaults.serve.open);
-    try std.testing.expectEqual(true, defaults.serve.build_drafts);
+    try std.testing.expectEqual(false, defaults.serve.no_drafts);
     try std.testing.expectEqual(false, defaults.serve.help);
 
-    const p = try parse(Command, &arena, &.{ "stabilis", "serve", "-p", "8080" }, commands);
+    const p = try parse(CommandResult, &arena, &.{ "stabilis", "serve", "-p", "8080" }, commands);
     try std.testing.expectEqual(@as(u16, 8080), p.serve.port.?);
 
-    const port = try parse(Command, &arena, &.{ "stabilis", "serve", "--port", "1313" }, commands);
+    const port = try parse(CommandResult, &arena, &.{ "stabilis", "serve", "--port", "1313" }, commands);
     try std.testing.expectEqual(@as(u16, 1313), port.serve.port.?);
 
-    const bind = try parse(Command, &arena, &.{ "stabilis", "serve", "--bind", "0.0.0.0" }, commands);
+    const bind = try parse(CommandResult, &arena, &.{ "stabilis", "serve", "--bind", "0.0.0.0" }, commands);
     try std.testing.expectEqualStrings("0.0.0.0", bind.serve.bind.?);
 
-    try std.testing.expectEqual(true, (try parse(Command, &arena, &.{ "stabilis", "serve", "--open" }, commands)).serve.open);
-    try std.testing.expectEqual(true, (try parse(Command, &arena, &.{ "stabilis", "serve", "-D" }, commands)).serve.build_drafts);
-    try std.testing.expectEqual(true, (try parse(Command, &arena, &.{ "stabilis", "serve", "--help" }, commands)).serve.help);
+    try std.testing.expectEqual(true, (try parse(CommandResult, &arena, &.{ "stabilis", "serve", "--open" }, commands)).serve.open);
+    try std.testing.expectEqual(true, (try parse(CommandResult, &arena, &.{ "stabilis", "serve", "-n" }, commands)).serve.no_drafts);
+    try std.testing.expectEqual(true, (try parse(CommandResult, &arena, &.{ "stabilis", "serve", "--help" }, commands)).serve.help);
 
-    const combined = try parse(Command, &arena, &.{ "stabilis", "serve", "-p", "8080", "--bind", "0.0.0.0", "--open", "-D" }, commands);
+    const combined = try parse(CommandResult, &arena, &.{ "stabilis", "serve", "-p", "8080", "--bind", "0.0.0.0", "--open", "-n" }, commands);
     try std.testing.expectEqual(@as(u16, 8080), combined.serve.port.?);
     try std.testing.expectEqualStrings("0.0.0.0", combined.serve.bind.?);
     try std.testing.expectEqual(true, combined.serve.open);
-    try std.testing.expectEqual(true, combined.serve.build_drafts);
+    try std.testing.expectEqual(true, combined.serve.no_drafts);
 }
 
 test "parse 'serve' returns errors on bad input" {
@@ -446,7 +446,7 @@ test "parse 'serve' returns errors on bad input" {
     defer arena.deinit();
     const commands = &models.stabilis_commands;
 
-    try std.testing.expectError(error.MissingValue, parse(Command, &arena, &.{ "stabilis", "serve", "-p" }, commands));
-    try std.testing.expectError(error.InvalidValue, parse(Command, &arena, &.{ "stabilis", "serve", "-p", "abc" }, commands));
-    try std.testing.expectError(error.UnknownFlag, parse(Command, &arena, &.{ "stabilis", "serve", "--bogus" }, commands));
+    try std.testing.expectError(error.MissingValue, parse(CommandResult, &arena, &.{ "stabilis", "serve", "-p" }, commands));
+    try std.testing.expectError(error.InvalidValue, parse(CommandResult, &arena, &.{ "stabilis", "serve", "-p", "abc" }, commands));
+    try std.testing.expectError(error.UnknownFlag, parse(CommandResult, &arena, &.{ "stabilis", "serve", "--bogus" }, commands));
 }

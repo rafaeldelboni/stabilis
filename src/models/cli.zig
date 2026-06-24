@@ -22,4 +22,3 @@ pub const NamedCommand = struct {
     spec: Spec,
     help: []const u8,
 };
-
