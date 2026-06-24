@@ -13,7 +13,7 @@ fn printCommandHelp(cmd_spec: CommandSpec) void {
             .list_of_strings => "string array",
             else => @tagName(adapters.parseFieldTypes(FieldT)),
         };
-        std.debug.print("    {s}, {s: <14} {s: <14} [{s}]\n", .{
+        std.debug.print("    {s}, {s: <14} {s: <2} [{s}]\n", .{
             flag.short,
             flag.long,
             flag.help,

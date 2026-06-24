@@ -23,8 +23,11 @@
 - [x] `stabilis serve [-p port] [--bind addr] [--open] [-D]` — dev server + watcher + live reload
 - [x] `stabilis version | --version | -v` — print version from build.zig.zon
 - [x] `stabilis help | --help | -h` — top-level + per-command help via `*Args.help`
-- [ ] CLI dispatch in main.zig — switch on Command, route to run* fns, catch errors → help + exit 2
-- [ ] Shortcode system
+- [x] CLI dispatch in main.zig — switch on Command, route to run* fns, catch errors → help + exit 2
+- [ ] New Post Hander based on CLI input create basic md file + frontmatter
+- [ ] New Page Hander based on CLI input create basic md file + frontmatter
 - [ ] File watcher for dev mode (used by serve)
 - [ ] Dev server + SSE live reload (used by serve)
 - [ ] RSS/Atom feed generation
+- [ ] Shortcode system
+- [ ] Minification outputs
