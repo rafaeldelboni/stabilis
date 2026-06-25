@@ -4,6 +4,7 @@ const models = @import("../models/cli.zig");
 const adapters = @import("../adapters/cli.zig");
 const NamedCommand = models.NamedCommand;
 const CommandSpec = models.CommandSpec;
+const Diagnostics = models.Diagnostics;
 
 fn printCommandHelp(cmd_spec: CommandSpec) void {
     std.debug.print("Options:\n", .{});
@@ -86,7 +87,6 @@ pub fn printHelpImpl(
                     return;
                 }
             }
-            std.debug.print("unknown subcommand: {s}\n\n", .{sub_name});
             return error.UnknownSubcommand;
         },
     }
@@ -101,4 +101,20 @@ pub fn printHelp(
             try printHelpImpl(args[1 .. args.len - 1], commands, null);
         }
     };
+}
+
+pub fn printDiagError(diag: *Diagnostics, err: anyerror) void {
+    const msg = switch (err) {
+        error.NoCommand => "no command given",
+        error.UnknownCommand => "unknown command",
+        error.NoSubCommand => "expected a subcommand",
+        error.UnknownSubCommand => "unknown subcommand",
+        error.UnknownFlag => "unknown flag",
+        error.MissingValue => "missing value for flag",
+        error.InvalidValue => "invalid value for flag",
+        error.MissingPositional => "missing positional argument",
+        error.TooManyPositionals => "too many positional arguments",
+        else => @errorName(err),
+    };
+    std.debug.print("error: {s}: '{s}'\n\n", .{ msg, diag.arg });
 }

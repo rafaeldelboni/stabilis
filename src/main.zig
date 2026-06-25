@@ -4,12 +4,12 @@ const cli = @import("adapters/cli.zig");
 const page = @import("adapters/page.zig");
 const site = @import("adapters/site.zig");
 const models = @import("models.zig");
+const modelsCli = @import("models/cli.zig");
 const CommandResult = models.CommandResult;
 const Context = models.Context;
 const Page = models.Page;
 const Site = models.Site;
 const BuildArgs = models.BuildArgs;
-const commands = models.stabilis_commands;
 const cli_help = @import("ports/cli.zig");
 const fs_reader = @import("ports/fs_reader.zig");
 const fs_writer = @import("ports/fs_writer.zig");
@@ -55,26 +55,30 @@ pub fn main(init: std.process.Init) !void {
     var arena: std.heap.ArenaAllocator = std.heap.ArenaAllocator.init(init.gpa);
     defer arena.deinit();
 
+    var diag = modelsCli.Diagnostics{};
+    const commands = modelsCli.Command{ .commands = &models.stabilis_commands, .ReturnT = CommandResult };
     const args = try init.minimal.args.toSlice(arena.allocator());
-    const cmd = cli.parse(CommandResult, &arena, args, &commands) catch {
-        try cli_help.printHelp(args, &commands);
+    const cmd = cli.parse(&arena, args, commands, &diag) catch |err| {
+        // TODO not print error when -h/--help is set
+        cli_help.printDiagError(&diag, err);
+        try cli_help.printHelp(args, &models.stabilis_commands);
         return;
     };
     try switch (cmd) {
         .build => |build_args| if (build_args.help)
-            cli_help.printHelp(args, &commands)
+            cli_help.printHelp(args, &models.stabilis_commands)
         else
             buildHandler(&arena, io, build_args),
         .serve => |serve_args| if (serve_args.help)
-            cli_help.printHelp(args, &commands)
+            cli_help.printHelp(args, &models.stabilis_commands)
         else
             std.debug.print("serve not implemented: {any}\n", .{serve_args}),
-        .new => |new_args| if (new_args.post.help or new_args.page.help)
-            cli_help.printHelp(args, &commands)
-        else
-            std.debug.print("new not implemented: {any}\n", .{new_args}),
+        .new => |new_args| switch (new_args) {
+            .post => cli_help.printHelp(args, &models.stabilis_commands),
+            .page => cli_help.printHelp(args, &models.stabilis_commands),
+        },
         .version => |v| std.debug.print("version not implemented: {any}\n", .{v}),
-        .help => cli_help.printHelp(args, &commands),
+        .help => cli_help.printHelp(args, &models.stabilis_commands),
     };
 }
 
