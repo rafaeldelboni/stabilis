@@ -20,16 +20,26 @@ curl -fsSL https://raw.githubusercontent.com/rafaeldelboni/stabilis/main/install
 ## Usage
 
 ```bash
-zig build run -- [output_dir] [input_dir]   # run with args
-zig build run -- public example             # explicit dirs
-zig build run                               # defaults to public/ and example/
-./zig-out/bin/stabilis public example       # run compiled binary
+zig build run -- [command] [options]            # run with args
+zig build run -- build -h                       # command with help option
+zig build run -- build example -d public        # command with explicit options
+zig build run                                   # general commands help
+./zig-out/bin/stabilis build example -d public  # run compiled binary
 ```
 
-| Argument     | Default   | Description              |
-|--------------|-----------|--------------------------|
-| `output_dir` | `public`  | Directory for built site |
-| `input_dir`  | `example` | Source content directory |
+### Current supported command
+```bash
+stabilis build [source]
+
+Build the site
+
+Options:
+    -d, --dest         Output directory destination [string]
+    -b, --build-drafts Include draft content [boolean]
+    -c, --clear-dir    Clear destination directory [boolean]
+    -h, --help         Show help [boolean]
+```
+
 
 ## Contributing
 
@@ -37,6 +47,7 @@ zig build run                               # defaults to public/ and example/
 zig fmt src/ build.zig # format code
 zig build              # build the project
 zig build test         # run tests
+zig build test -Dtest-filter="<pattern>" --summary all  # run filtered tests
 zig build check        # check compilation (useful for editor on-save)
 zig build run          # run main.zig
 ```

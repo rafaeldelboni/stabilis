@@ -15,8 +15,19 @@
 - [x] Routing (filepath → PageKind → URL)
 - [x] Slug from Title
 - [x] Menu resolution (from config + frontmatter opt-ins)
-- [ ] CLI commands (new, build, serve, migrate)
-- [ ] Shortcode system
-- [ ] File watcher for dev mode
-- [ ] Dev server + SSE live reload
+- [x] CLI domain types in models.zig (Command union, NewSub, BuildArgs, NewPostArgs, NewPageArgs, ServeArgs)
+- [x] CLI adapter (adapters/cli.zig) — parse(arena, args) !Command, per-command parsers, errors, argv toSlice in main.zig
+- [x] `stabilis build [source] [-d dest] [-D] [--minify] [--clean-dest-dir]` — refactor build loop; clean-vs-merge default TBD
+- [x] `stabilis new post <title> [-d desc] [-t tags] [--draft]` — scaffold content/posts/<slug>.md; needs frontmatter emitter
+- [x] `stabilis new page <title> [-s slug] [--draft] [--menus main]` — scaffold content/pages/<slug>.md; needs frontmatter emitter
+- [x] `stabilis serve [-p port] [--bind addr] [--open] [-D]` — dev server + watcher + live reload
+- [x] `stabilis version | --version | -v` — print version from build.zig.zon
+- [x] `stabilis help | --help | -h` — top-level + per-command help via `*Args.help`
+- [x] CLI dispatch in main.zig — switch on Command, route to run* fns, catch errors → help + exit 2
+- [ ] New Post Hander based on CLI input create basic md file + frontmatter
+- [ ] New Page Hander based on CLI input create basic md file + frontmatter
+- [ ] File watcher for dev mode (used by serve)
+- [ ] Dev server + SSE live reload (used by serve)
 - [ ] RSS/Atom feed generation
+- [ ] Shortcode system
+- [ ] Minification outputs

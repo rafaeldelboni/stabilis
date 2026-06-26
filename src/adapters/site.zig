@@ -67,6 +67,7 @@ fn parseMenuEntryContext(allocator: std.mem.Allocator, name: []const u8, url: []
 pub fn parse(
     arena: *std.heap.ArenaAllocator,
     files: []const File,
+    keep_drafts: bool,
 ) !Site {
     const allocator = arena.allocator();
     var config: MapEntries = .{};
@@ -83,6 +84,10 @@ pub fn parse(
             const html = try markdown.toHtml(arena, page.source);
             var context: Context = .{};
             try context.map.put(allocator, "body", .{ .string = html });
+            if (page.frontmatter.draft) {
+                if (!keep_drafts) continue;
+                try context.map.put(allocator, "draft", .{ .bool = true });
+            }
             if (page.frontmatter.title) |title| try context.map.put(allocator, "title", .{ .string = title });
             const slug = try parseSlug(arena, file, page);
             try context.map.put(allocator, "slug", .{ .string = slug });
@@ -101,7 +106,6 @@ pub fn parse(
                     if (page.frontmatter.author) |author| try context.map.put(allocator, "author", .{ .string = author });
                     if (page.frontmatter.date) |date| try context.map.put(allocator, "date", .{ .string = date });
                     if (page.frontmatter.description) |description| try context.map.put(allocator, "description", .{ .string = description });
-                    if (page.frontmatter.draft) try context.map.put(allocator, "draft", .{ .bool = true });
                     if (page.frontmatter.cover) |cover| try context.map.put(allocator, "cover", .{ .string = cover });
                     if (page.frontmatter.tags.len > 0)
                         try context.map.put(allocator, "tags", .{ .list = try parseStringList(allocator, page.frontmatter.tags) });
@@ -187,7 +191,7 @@ test "parse with only config populates site metadata" {
         ),
     };
 
-    const site = try parse(&arena, &files);
+    const site = try parse(&arena, &files, false);
     try std.testing.expectEqualStrings("My Site", site.title);
     try std.testing.expectEqualStrings("https://example.com", site.base_url);
     try std.testing.expectEqual(@as(usize, 1), site.menu_main.len);
@@ -203,7 +207,7 @@ test "parse empty files returns defaults" {
     defer arena.deinit();
 
     const files = [_]File{};
-    const site = try parse(&arena, &files);
+    const site = try parse(&arena, &files, false);
     try std.testing.expectEqualStrings("", site.title);
     try std.testing.expectEqualStrings("", site.base_url);
     try std.testing.expectEqual(@as(usize, 0), site.menu_main.len);
@@ -228,7 +232,7 @@ test "parse post populates posts list with frontmatter in context" {
         ),
     };
 
-    const site = try parse(&arena, &files);
+    const site = try parse(&arena, &files, true);
     try std.testing.expectEqual(@as(usize, 1), site.posts.len);
     try std.testing.expectEqual(@as(usize, 0), site.pages.len);
 
@@ -259,7 +263,7 @@ test "parse page (non-post) goes to pages list" {
         ),
     };
 
-    const site = try parse(&arena, &files);
+    const site = try parse(&arena, &files, false);
     try std.testing.expectEqual(@as(usize, 0), site.posts.len);
     try std.testing.expectEqual(@as(usize, 1), site.pages.len);
     try std.testing.expectEqual(PageKind.page, site.pages[0].kind);
@@ -279,7 +283,7 @@ test "parse loads templates into templates map" {
         testFile("templates/partials/nav.html", "<nav>{{ items }}</nav>"),
     };
 
-    const site = try parse(&arena, &files);
+    const site = try parse(&arena, &files, false);
     try std.testing.expectEqual(@as(usize, 2), site.templates.map.count());
     try std.testing.expectEqualStrings("<html>{{ body }}</html>", site.templates.map.get("base.html").?);
     try std.testing.expectEqualStrings("<nav>{{ items }}</nav>", site.templates.map.get("partials/nav.html").?);
@@ -301,7 +305,7 @@ test "parse post with images builds image context list" {
         ),
     };
 
-    const site = try parse(&arena, &files);
+    const site = try parse(&arena, &files, false);
     const images = site.posts[0].context.map.get("images").?.list;
     try std.testing.expectEqual(@as(usize, 2), images.len);
     try std.testing.expectEqualStrings("a.jpg", images[0].map.get("file").?.string);
@@ -347,6 +351,16 @@ test "smoke: full site with config, pages, posts, templates" {
             \\## Getting started
             \\This is the **first post**.
         ),
+        testFile("content/posts/draft-hello.md",
+            \\---
+            \\title: Draft Hello World
+            \\date: 2026-06-01
+            \\tags: [zig, ssg]
+            \\draft: true
+            \\---
+            \\## Intro
+            \\Body text.
+        ),
         testFile("content/about.md",
             \\---
             \\title: About Us
@@ -362,7 +376,7 @@ test "smoke: full site with config, pages, posts, templates" {
         testFile("templates/post-list.html", "{{> partials/header.html }}\n<h1>{{ title }}</h1>\n{{{ body }}}\n<ul>{{# posts }}<li><a href=\"{{ url }}\">{{ title }}</a></li>{{/ posts }}</ul>\n</body></html>\n"),
     };
 
-    const site = try parse(&arena, &files);
+    const site = try parse(&arena, &files, false);
 
     // site metadata
     try std.testing.expectEqualStrings("Example Blog", site.title);
