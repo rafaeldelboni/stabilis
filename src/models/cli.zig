@@ -34,10 +34,10 @@ pub const Diagnostics = struct {
     name: []const u8 = "",
 };
 
-/// The full CLI definition: result types, global flags, and command tree.
+/// The full CLI definition: result types, shared flags, and command tree.
 pub const Cli = struct {
-    ResultT: type,
-    GlobalResultT: type,
-    global_flags: []const Flag,
+    CommandResultT: type,
+    SharedResultT: type,
+    shared_flags: []const Flag,
     commands: []const Command,
 };

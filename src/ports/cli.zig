@@ -43,9 +43,9 @@ fn printHelpGeneral(
             else => {},
         }
     }
-    if (cli.global_flags.len > 0) {
+    if (cli.shared_flags.len > 0) {
         try w.print("\nGlobal options:\n", .{});
-        try printFlags(w, cli.GlobalResultT, cli.global_flags);
+        try printFlags(w, cli.SharedResultT, cli.shared_flags);
     }
 }
 
@@ -78,7 +78,7 @@ fn printHelpImpl(
             for (spec.positionals) |a| try w.print(" [{s}]", .{a});
             try w.print("\n\n{s}\n\nOptions:\n", .{cmd.help});
             try printFlags(w, spec.Result, spec.flags);
-            try printFlags(w, cli.GlobalResultT, cli.global_flags);
+            try printFlags(w, cli.SharedResultT, cli.shared_flags);
         },
         .sub_commands => |sub_cmds| {
             if (args.len == 0) {

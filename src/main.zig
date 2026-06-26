@@ -64,7 +64,7 @@ pub fn main(init: std.process.Init) !u8 {
         try cli_help.printHelp(io, args, cli);
         return 2;
     };
-    if (out.global.help or out.global.version) {
+    if (out.shared.help or out.shared.version) {
         try cli_help.printHelp(io, args, cli);
         return 0;
     }

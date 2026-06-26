@@ -143,13 +143,13 @@ fn parseArgs(
     args: []const []const u8,
     diag: *Diagnostics,
 ) !void {
-    const C = @FieldType(cli.ResultT, cmd_name);
+    const C = @FieldType(cli.CommandResultT, cmd_name);
     var i: usize = 0;
     var pos_idx: usize = 0;
     next_arg: while (i < args.len) : (i += 1) {
         const arg = args[i];
         if (try applyFlag(arena, arg, C, cmd_flags, &@field(out.result.?, cmd_name), args, &i, diag) == .matched) continue :next_arg;
-        if (try applyFlag(arena, arg, cli.GlobalResultT, cli.global_flags, &out.global, args, &i, diag) == .matched) continue :next_arg;
+        if (try applyFlag(arena, arg, cli.SharedResultT, cli.shared_flags, &out.shared, args, &i, diag) == .matched) continue :next_arg;
 
         if (arg.len > 0 and arg[0] == '-') return diagError(arg, cmd_name, diag, error.UnknownFlag);
 
@@ -164,9 +164,9 @@ fn parseArgs(
         return diagError(arg, cmd_name, diag, error.TooManyPositionals);
     }
 
-    inline for (cli.global_flags) |flag| {
+    inline for (cli.shared_flags) |flag| {
         if (flag.terminal) {
-            if (@typeInfo(@FieldType(cli.GlobalResultT, flag.field)) == .bool and @field(out.global, flag.field)) return;
+            if (@typeInfo(@FieldType(cli.SharedResultT, flag.field)) == .bool and @field(out.shared, flag.field)) return;
         }
     }
 
@@ -190,15 +190,15 @@ fn assertAligned(comptime T: type, comptime cmds: []const Command) void {
     }
 }
 
-/// The parse result: global args plus an optional command result.
+/// The parse result: shared args plus an optional command result.
 fn Output(comptime cli: Cli) type {
     return struct {
-        global: cli.GlobalResultT,
-        result: ?cli.ResultT = null,
+        shared: cli.SharedResultT,
+        result: ?cli.CommandResultT = null,
     };
 }
 
-fn parseGlobalsOnly(
+fn parseSharedOnly(
     arena: *std.heap.ArenaAllocator,
     comptime cli: Cli,
     out: *Output(cli),
@@ -209,7 +209,7 @@ fn parseGlobalsOnly(
     if (args.len == 0 or args[0].len == 0 or args[0][0] != '-') return false;
     var i: usize = 0;
     while (i < args.len) : (i += 1) {
-        if (try applyFlag(arena, args[i], cli.GlobalResultT, cli.global_flags, &out.global, args, &i, diag) == .matched) continue;
+        if (try applyFlag(arena, args[i], cli.SharedResultT, cli.shared_flags, &out.shared, args, &i, diag) == .matched) continue;
         return diagError(args[i], diag_name, diag, error.UnknownFlag);
     }
     return true;
@@ -222,7 +222,7 @@ fn parseImpl(
     diag: *Diagnostics,
     comptime maybe_cmd: ?Command,
 ) !Output(cli) {
-    var out: Output(cli) = .{ .global = cli.GlobalResultT{}, .result = null };
+    var out: Output(cli) = .{ .shared = cli.SharedResultT{}, .result = null };
 
     if (maybe_cmd == null) {
         if (args.len == 0) return diagError("", "", diag, error.NoCommand);
@@ -233,7 +233,7 @@ fn parseImpl(
                 return parseImpl(arena, args[1..], cli, diag, cmd);
         }
 
-        if (try parseGlobalsOnly(arena, cli, &out, args, "", diag)) return out;
+        if (try parseSharedOnly(arena, cli, &out, args, "", diag)) return out;
 
         return diagError(arg, "", diag, error.UnknownCommand);
     }
@@ -241,22 +241,22 @@ fn parseImpl(
     const cmd = maybe_cmd.?;
     switch (cmd.body) {
         .command => |spec| {
-            out.result = @unionInit(cli.ResultT, cmd.name, spec.Result{});
+            out.result = @unionInit(cli.CommandResultT, cmd.name, spec.Result{});
             try parseArgs(arena, cli, cmd.name, spec.flags, spec.positionals, &out, args, diag);
         },
         .sub_commands => |sub_cmds| {
-            const Sub = @FieldType(cli.ResultT, cmd.name);
+            const Sub = @FieldType(cli.CommandResultT, cmd.name);
             if (args.len == 0) return diagError("", cmd.name, diag, error.NoSubCommand);
             const sub_arg = args[0];
 
-            if (try parseGlobalsOnly(arena, cli, &out, args, cmd.name, diag)) return out;
+            if (try parseSharedOnly(arena, cli, &out, args, cmd.name, diag)) return out;
 
             inline for (sub_cmds) |sub_cmd| {
                 if (std.mem.eql(u8, sub_arg, sub_cmd.name)) {
-                    const sub_cli = Cli{ .commands = sub_cmds, .ResultT = Sub, .GlobalResultT = cli.GlobalResultT, .global_flags = cli.global_flags };
+                    const sub_cli = Cli{ .commands = sub_cmds, .CommandResultT = Sub, .SharedResultT = cli.SharedResultT, .shared_flags = cli.shared_flags };
                     const sub_out = try parseImpl(arena, args[1..], sub_cli, diag, sub_cmd);
-                    out.global = sub_out.global;
-                    if (sub_out.result) |sub| out.result = @unionInit(cli.ResultT, cmd.name, sub);
+                    out.shared = sub_out.shared;
+                    if (sub_out.result) |sub| out.result = @unionInit(cli.CommandResultT, cmd.name, sub);
                     return out;
                 }
             }
@@ -274,7 +274,7 @@ pub fn parse(
     comptime cli: Cli,
     diag: *Diagnostics,
 ) !Output(cli) {
-    comptime assertAligned(cli.ResultT, cli.commands);
+    comptime assertAligned(cli.CommandResultT, cli.commands);
     if (args.len <= 1) return error.NoCommand;
     return parseImpl(arena, args[1..], cli, diag, null);
 }
@@ -291,17 +291,17 @@ test "parse dispatches top-level commands" {
     try std.testing.expectEqual("", diag.name);
 
     const help_long = try parse(&arena, &.{ "stabilis", "--help" }, cli, &diag);
-    try std.testing.expectEqual(true, help_long.global.help);
+    try std.testing.expectEqual(true, help_long.shared.help);
     try std.testing.expectEqual(@as(?models.CommandResult, null), help_long.result);
 
     const help_short = try parse(&arena, &.{ "stabilis", "-h" }, cli, &diag);
-    try std.testing.expectEqual(true, help_short.global.help);
+    try std.testing.expectEqual(true, help_short.shared.help);
 
     const ver_long = try parse(&arena, &.{ "stabilis", "--version" }, cli, &diag);
-    try std.testing.expectEqual(true, ver_long.global.version);
+    try std.testing.expectEqual(true, ver_long.shared.version);
 
     const ver_short = try parse(&arena, &.{ "stabilis", "-v" }, cli, &diag);
-    try std.testing.expectEqual(true, ver_short.global.version);
+    try std.testing.expectEqual(true, ver_short.shared.version);
 
     try std.testing.expectError(error.UnknownCommand, parse(&arena, &.{ "stabilis", "delbongo" }, cli, &diag));
     try std.testing.expectEqual("delbongo", diag.arg);
@@ -344,9 +344,9 @@ test "parse 'build' parses short, long, and combined flags" {
     try std.testing.expectEqual(true, (try parse(&arena, &.{ "stabilis", "build", "--clear-dir" }, cli, &diag)).result.?.build.clear_dir);
 
     const build_help = try parse(&arena, &.{ "stabilis", "build", "--help" }, cli, &diag);
-    try std.testing.expectEqual(true, build_help.global.help);
+    try std.testing.expectEqual(true, build_help.shared.help);
     const build_h = try parse(&arena, &.{ "stabilis", "build", "-h" }, cli, &diag);
-    try std.testing.expectEqual(true, build_h.global.help);
+    try std.testing.expectEqual(true, build_h.shared.help);
 
     const combined = try parse(&arena, &.{ "stabilis", "build", "content", "-d", "public", "-b", "--minify" }, cli, &diag);
     try std.testing.expectEqualStrings("content", combined.result.?.build.source.?);
@@ -409,9 +409,9 @@ test "parse 'new post' parses short, long, and list flags" {
     try std.testing.expectEqual(true, (try parse(&arena, &.{ "stabilis", "new", "post", "Hello", "--draft" }, cli, &diag)).result.?.new.post.draft);
 
     const post_help = try parse(&arena, &.{ "stabilis", "new", "post", "Hello", "--help" }, cli, &diag);
-    try std.testing.expectEqual(true, post_help.global.help);
+    try std.testing.expectEqual(true, post_help.shared.help);
     const post_h = try parse(&arena, &.{ "stabilis", "new", "post", "Hello", "-h" }, cli, &diag);
-    try std.testing.expectEqual(true, post_h.global.help);
+    try std.testing.expectEqual(true, post_h.shared.help);
 
     const all = try parse(&arena, &.{
         "stabilis", "new",  "post", "Hello World",
@@ -474,9 +474,9 @@ test "parse 'new page' parses short, long, and list flags" {
     try std.testing.expectEqual(true, (try parse(&arena, &.{ "stabilis", "new", "page", "About", "--draft" }, cli, &diag)).result.?.new.page.draft);
 
     const page_help = try parse(&arena, &.{ "stabilis", "new", "page", "About", "--help" }, cli, &diag);
-    try std.testing.expectEqual(true, page_help.global.help);
+    try std.testing.expectEqual(true, page_help.shared.help);
     const page_h = try parse(&arena, &.{ "stabilis", "new", "page", "About", "-h" }, cli, &diag);
-    try std.testing.expectEqual(true, page_h.global.help);
+    try std.testing.expectEqual(true, page_h.shared.help);
 
     const all = try parse(&arena, &.{
         "stabilis", "new",   "page",    "About",
@@ -529,9 +529,9 @@ test "parse 'serve' parses short, long, and combined flags" {
     try std.testing.expectEqual(true, (try parse(&arena, &.{ "stabilis", "serve", "-n" }, cli, &diag)).result.?.serve.no_drafts);
 
     const serve_help = try parse(&arena, &.{ "stabilis", "serve", "--help" }, cli, &diag);
-    try std.testing.expectEqual(true, serve_help.global.help);
+    try std.testing.expectEqual(true, serve_help.shared.help);
     const serve_h = try parse(&arena, &.{ "stabilis", "serve", "-h" }, cli, &diag);
-    try std.testing.expectEqual(true, serve_h.global.help);
+    try std.testing.expectEqual(true, serve_h.shared.help);
 
     const combined = try parse(&arena, &.{ "stabilis", "serve", "-p", "8080", "--bind", "0.0.0.0", "--open", "-n" }, cli, &diag);
     try std.testing.expectEqual(@as(u16, 8080), combined.result.?.serve.port.?);
