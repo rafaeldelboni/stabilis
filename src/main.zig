@@ -5,11 +5,11 @@ const page = @import("adapters/page.zig");
 const site = @import("adapters/site.zig");
 const models = @import("models.zig");
 const modelsCli = @import("models/cli.zig");
-const CommandResult = models.CommandResult;
+const CommandsResult = models.CommandsResult;
 const Context = models.Context;
 const Page = models.Page;
 const Site = models.Site;
-const BuildArgs = models.BuildArgs;
+const BuildResult = models.BuildResult;
 const cli_help = @import("ports/cli.zig");
 const fs_reader = @import("ports/fs_reader.zig");
 const fs_writer = @import("ports/fs_writer.zig");
@@ -27,7 +27,7 @@ fn writePage(
     try fs_writer.writeFileDeep(io, html, file_path);
 }
 
-fn buildHandler(arena: *std.heap.ArenaAllocator, io: std.Io, args: BuildArgs) !void {
+fn buildHandler(arena: *std.heap.ArenaAllocator, io: std.Io, args: BuildResult) !void {
     const allocator = arena.allocator();
 
     const output_dir = args.destination orelse "public";
@@ -64,11 +64,11 @@ pub fn main(init: std.process.Init) !u8 {
         try cli_help.printHelp(io, args, cli);
         return 2;
     };
-    if (out.shared.help or out.shared.version) {
+    if (out.flags.help or out.flags.version) {
         try cli_help.printHelp(io, args, cli);
         return 0;
     }
-    try switch (out.result orelse return 0) {
+    try switch (out.commands orelse return 0) {
         .build => |build_args| buildHandler(&arena, io, build_args),
         .serve => |serve_args| std.debug.print("serve not implemented: {any}\n", .{serve_args}),
         .new => |new_args| switch (new_args) {
