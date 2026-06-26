@@ -143,7 +143,7 @@ fn parseArgs(
     args: []const []const u8,
     diag: *Diagnostics,
 ) !void {
-    const C = @FieldType(cli.CommandResultT, cmd_name);
+    const C = @FieldType(cli.CommandResultT.?, cmd_name);
     var i: usize = 0;
     var pos_idx: usize = 0;
     next_arg: while (i < args.len) : (i += 1) {
@@ -192,10 +192,17 @@ fn assertAligned(comptime T: type, comptime cmds: []const Command) void {
 
 /// The parse result: shared args plus an optional command result.
 fn Output(comptime cli: Cli) type {
-    return struct {
-        shared: cli.SharedResultT,
-        result: ?cli.CommandResultT = null,
-    };
+    if (cli.CommandResultT) |CmdT| {
+        return struct {
+            shared: cli.SharedResultT,
+            result: ?CmdT,
+        };
+    } else {
+        return struct {
+            shared: cli.SharedResultT,
+            result: ?bool = null,
+        };
+    }
 }
 
 fn parseSharedOnly(
@@ -228,9 +235,11 @@ fn parseImpl(
         if (args.len == 0) return diagError("", "", diag, error.NoCommand);
         const arg = args[0];
 
-        inline for (cli.commands) |cmd| {
-            if (std.mem.eql(u8, arg, cmd.name))
-                return parseImpl(arena, args[1..], cli, diag, cmd);
+        if (cli.commands) |cli_cmd| {
+            inline for (cli_cmd) |cmd| {
+                if (std.mem.eql(u8, arg, cmd.name))
+                    return parseImpl(arena, args[1..], cli, diag, cmd);
+            }
         }
 
         if (try parseSharedOnly(arena, cli, &out, args, "", diag)) return out;
@@ -241,11 +250,15 @@ fn parseImpl(
     const cmd = maybe_cmd.?;
     switch (cmd.body) {
         .command => |spec| {
-            out.result = @unionInit(cli.CommandResultT, cmd.name, spec.Result{});
+            if (cli.CommandResultT) |CmdT| {
+                out.result = @unionInit(CmdT, cmd.name, spec.Result{});
+            }
             try parseArgs(arena, cli, cmd.name, spec.flags, spec.positionals, &out, args, diag);
         },
         .sub_commands => |sub_cmds| {
-            const Sub = @FieldType(cli.CommandResultT, cmd.name);
+            if (cli.CommandResultT == null) return;
+            const Sub = @FieldType(cli.CommandResultT.?, cmd.name);
+
             if (args.len == 0) return diagError("", cmd.name, diag, error.NoSubCommand);
             const sub_arg = args[0];
 
@@ -256,7 +269,7 @@ fn parseImpl(
                     const sub_cli = Cli{ .commands = sub_cmds, .CommandResultT = Sub, .SharedResultT = cli.SharedResultT, .shared_flags = cli.shared_flags };
                     const sub_out = try parseImpl(arena, args[1..], sub_cli, diag, sub_cmd);
                     out.shared = sub_out.shared;
-                    if (sub_out.result) |sub| out.result = @unionInit(cli.CommandResultT, cmd.name, sub);
+                    if (sub_out.result) |sub| out.result = @unionInit(cli.CommandResultT.?, cmd.name, sub);
                     return out;
                 }
             }
@@ -274,9 +287,66 @@ pub fn parse(
     comptime cli: Cli,
     diag: *Diagnostics,
 ) !Output(cli) {
-    comptime assertAligned(cli.CommandResultT, cli.commands);
+    if (cli.CommandResultT != null and cli.commands != null)
+        comptime assertAligned(cli.CommandResultT.?, cli.commands.?);
     if (args.len <= 1) return error.NoCommand;
     return parseImpl(arena, args[1..], cli, diag, null);
+}
+
+test "parse dispatches top-level without commands" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+
+    var diag = Diagnostics{};
+
+    const GlobalArgs = struct {
+        version: bool = false,
+        help: bool = false,
+        banana: []const u8 = "",
+    };
+
+    const cli = modelsCli.Cli{
+        .SharedResultT = GlobalArgs,
+        .shared_flags = &.{
+            .{ .long = "--help", .short = "-h", .field = "help", .terminal = true, .help = "Show help" },
+            .{ .long = "--version", .short = "-v", .field = "version", .terminal = true, .help = "Print version" },
+            .{ .long = "--banana", .short = "-b", .field = "banana", .terminal = true, .help = "Print version" },
+        },
+    };
+
+    try std.testing.expectError(error.NoCommand, parse(&arena, &.{"stabilis"}, cli, &diag));
+    try std.testing.expectEqual("", diag.arg);
+    try std.testing.expectEqual("", diag.name);
+
+    const help_long = try parse(&arena, &.{ "stabilis", "--help" }, cli, &diag);
+    try std.testing.expectEqual(true, help_long.shared.help);
+
+    const help_short = try parse(&arena, &.{ "stabilis", "-h" }, cli, &diag);
+    try std.testing.expectEqual(true, help_short.shared.help);
+
+    const ver_long = try parse(&arena, &.{ "stabilis", "--version" }, cli, &diag);
+    try std.testing.expectEqual(true, ver_long.shared.version);
+
+    const ver_short = try parse(&arena, &.{ "stabilis", "-v" }, cli, &diag);
+    try std.testing.expectEqual(true, ver_short.shared.version);
+
+    const banana_long = try parse(&arena, &.{ "stabilis", "--banana", "happy" }, cli, &diag);
+    try std.testing.expectEqual("happy", banana_long.shared.banana);
+
+    const banana_short = try parse(&arena, &.{ "stabilis", "-b", "sad" }, cli, &diag);
+    try std.testing.expectEqual("sad", banana_short.shared.banana);
+
+    try std.testing.expectError(error.UnknownCommand, parse(&arena, &.{ "stabilis", "delbongo" }, cli, &diag));
+    try std.testing.expectEqual("delbongo", diag.arg);
+    try std.testing.expectEqual("", diag.name);
+
+    try std.testing.expectError(error.UnknownCommand, parse(&arena, &.{ "stabilis", "new" }, cli, &diag));
+    try std.testing.expectEqual("new", diag.arg);
+    try std.testing.expectEqual("", diag.name);
+
+    try std.testing.expectError(error.UnknownCommand, parse(&arena, &.{ "stabilis", "new", "unknown" }, cli, &diag));
+    try std.testing.expectEqual("new", diag.arg);
+    try std.testing.expectEqual("", diag.name);
 }
 
 test "parse dispatches top-level commands" {

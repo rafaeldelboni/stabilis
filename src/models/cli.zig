@@ -38,6 +38,6 @@ pub const Diagnostics = struct {
 pub const Cli = struct {
     SharedResultT: type,
     shared_flags: []const Flag,
-    CommandResultT: type,
-    commands: []const Command,
+    CommandResultT: ?type = null,
+    commands: ?[]const Command = null,
 };

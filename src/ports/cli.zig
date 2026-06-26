@@ -32,15 +32,17 @@ fn printHelpGeneral(
     comptime cli: Cli,
 ) !void {
     try w.print("stabilis <command>\n\nCommands:\n", .{});
-    inline for (cli.commands) |cmd| {
-        try w.print("    {s: <10} {s}\n", .{ cmd.name, cmd.help });
-        switch (cmd.body) {
-            .sub_commands => |sub_commands| {
-                inline for (sub_commands) |sub_cmd| {
-                    try w.print("      {s: <8} {s}\n", .{ sub_cmd.name, sub_cmd.help });
-                }
-            },
-            else => {},
+    if (cli.commands) |cli_cmd| {
+        inline for (cli_cmd) |cmd| {
+            try w.print("    {s: <10} {s}\n", .{ cmd.name, cmd.help });
+            switch (cmd.body) {
+                .sub_commands => |sub_commands| {
+                    inline for (sub_commands) |sub_cmd| {
+                        try w.print("      {s: <8} {s}\n", .{ sub_cmd.name, sub_cmd.help });
+                    }
+                },
+                else => {},
+            }
         }
     }
     if (cli.shared_flags.len > 0) {
@@ -61,10 +63,12 @@ fn printHelpImpl(
             return;
         }
         const name = args[0];
-        inline for (cli.commands) |cmd| {
-            if (std.mem.eql(u8, name, cmd.name)) {
-                try printHelpImpl(w, args[1..], cli, cmd);
-                return;
+        if (cli.commands) |cli_cmd| {
+            inline for (cli_cmd) |cmd| {
+                if (std.mem.eql(u8, name, cmd.name)) {
+                    try printHelpImpl(w, args[1..], cli, cmd);
+                    return;
+                }
             }
         }
 
