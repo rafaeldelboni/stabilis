@@ -1,6 +1,6 @@
 const std = @import("std");
 
-const cli = @import("adapters/cli.zig");
+const cli_adapter = @import("adapters/cli.zig");
 const page = @import("adapters/page.zig");
 const site = @import("adapters/site.zig");
 const models = @import("models.zig");
@@ -50,36 +50,33 @@ fn buildHandler(arena: *std.heap.ArenaAllocator, io: std.Io, args: BuildArgs) !v
     std.debug.print("Site from: {s}/ created on: {s}/\n", .{ input_dir, output_dir });
 }
 
-pub fn main(init: std.process.Init) !void {
+pub fn main(init: std.process.Init) !u8 {
     const io = init.io;
     var arena: std.heap.ArenaAllocator = std.heap.ArenaAllocator.init(init.gpa);
     defer arena.deinit();
 
     var diag = modelsCli.Diagnostics{};
-    const commands = modelsCli.Command{ .commands = &models.stabilis_commands, .ReturnT = CommandResult };
+    const cli = models.stabilis_cli;
     const args = try init.minimal.args.toSlice(arena.allocator());
-    const cmd = cli.parse(&arena, args, commands, &diag) catch |err| {
-        // TODO not print error when -h/--help is set
-        cli_help.printDiagError(&diag, err);
-        try cli_help.printHelp(args, &models.stabilis_commands);
-        return;
+
+    const out = cli_adapter.parse(&arena, args, cli, &diag) catch |err| {
+        try cli_help.printDiagError(io, &diag, err);
+        try cli_help.printHelp(io, args, cli);
+        return 2;
     };
-    try switch (cmd) {
-        .build => |build_args| if (build_args.help)
-            cli_help.printHelp(args, &models.stabilis_commands)
-        else
-            buildHandler(&arena, io, build_args),
-        .serve => |serve_args| if (serve_args.help)
-            cli_help.printHelp(args, &models.stabilis_commands)
-        else
-            std.debug.print("serve not implemented: {any}\n", .{serve_args}),
+    if (out.global.help or out.global.version) {
+        try cli_help.printHelp(io, args, cli);
+        return 0;
+    }
+    try switch (out.result orelse return 0) {
+        .build => |build_args| buildHandler(&arena, io, build_args),
+        .serve => |serve_args| std.debug.print("serve not implemented: {any}\n", .{serve_args}),
         .new => |new_args| switch (new_args) {
-            .post => cli_help.printHelp(args, &models.stabilis_commands),
-            .page => cli_help.printHelp(args, &models.stabilis_commands),
+            .post => std.debug.print("new post not implemented: {any}\n", .{new_args.post}),
+            .page => std.debug.print("new page not implemented: {any}\n", .{new_args.page}),
         },
-        .version => |v| std.debug.print("version not implemented: {any}\n", .{v}),
-        .help => cli_help.printHelp(args, &models.stabilis_commands),
     };
+    return 0;
 }
 
 test {
@@ -93,6 +90,7 @@ test {
     _ = @import("logic/site.zig");
     _ = @import("logic/template.zig");
     _ = @import("logic/yaml_lexer.zig");
+    _ = @import("ports/cli.zig");
     _ = @import("ports/fs_reader.zig");
     _ = @import("ports/fs_writer.zig");
     _ = @import("models.zig");
