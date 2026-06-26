@@ -36,8 +36,8 @@ pub const Diagnostics = struct {
 
 /// The full CLI definition: result types, shared flags, and command tree.
 pub const Cli = struct {
-    CommandResultT: type,
     SharedResultT: type,
     shared_flags: []const Flag,
+    CommandResultT: type,
     commands: []const Command,
 };

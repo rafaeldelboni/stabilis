@@ -129,12 +129,12 @@ pub const CommandResult = union(enum) {
 };
 
 pub const stabilis_cli = modelsCli.Cli{
-    .CommandResultT = CommandResult,
     .SharedResultT = GlobalArgs,
     .shared_flags = &.{
         .{ .long = "--help", .short = "-h", .field = "help", .terminal = true, .help = "Show help" },
         .{ .long = "--version", .short = "-v", .field = "version", .terminal = true, .help = "Print version" },
     },
+    .CommandResultT = CommandResult,
     .commands = &.{
         .{
             .name = "serve",
