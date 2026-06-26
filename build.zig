@@ -34,6 +34,14 @@ pub fn build(b: *std.Build) void {
     exe.root_module.linkLibrary(md4c_lib);
     exe.root_module.addIncludePath(md4c_dep.path("src"));
 
+    // Version: prefer an explicit -Dversion (set by CI from the tag),
+    // otherwise fall back to `git describe` for local builds.
+    const version = b.option([]const u8, "version", "Override the build version string") orelse
+        gitDescribe(b);
+    const options = b.addOptions();
+    options.addOption([]const u8, "version", version);
+    exe.root_module.addOptions("build_options", options);
+
     b.installArtifact(exe);
 
     // https://zigtools.org/zls/guides/build-on-save/
@@ -69,4 +77,14 @@ pub fn build(b: *std.Build) void {
 
     const test_step = b.step("test", "Run tests");
     test_step.dependOn(&b.addRunArtifact(exe_tests).step);
+}
+
+fn gitDescribe(b: *std.Build) []const u8 {
+    var code: u8 = undefined;
+    const stdout = b.runAllowFail(
+        &.{ "git", "describe", "--tags", "--always", "--dirty" },
+        &code,
+        .ignore,
+    ) catch return "dev";
+    return std.mem.trim(u8, stdout, " \r\n");
 }

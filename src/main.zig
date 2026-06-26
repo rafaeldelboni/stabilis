@@ -1,4 +1,5 @@
 const std = @import("std");
+const build_options = @import("build_options");
 
 const cli_adapter = @import("adapters/cli.zig");
 const page = @import("adapters/page.zig");
@@ -64,7 +65,11 @@ pub fn main(init: std.process.Init) !u8 {
         try cli_help.printHelp(io, args, cli);
         return 2;
     };
-    if (out.flags.help or out.flags.version) {
+    if (out.flags.version) {
+        std.debug.print("stabilis {s}\n", .{build_options.version});
+        return 0;
+    }
+    if (out.flags.help) {
         try cli_help.printHelp(io, args, cli);
         return 0;
     }
