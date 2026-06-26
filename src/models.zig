@@ -129,77 +129,81 @@ pub const CommandResult = union(enum) {
 };
 
 pub const stabilis_cli = modelsCli.Cli{
-    .SharedResultT = GlobalArgs,
-    .shared_flags = &.{
-        .{ .long = "--help", .short = "-h", .field = "help", .terminal = true, .help = "Show help" },
-        .{ .long = "--version", .short = "-v", .field = "version", .terminal = true, .help = "Print version" },
+    .flags = .{
+        .Result = GlobalArgs,
+        .items = &.{
+            .{ .long = "--help", .short = "-h", .field = "help", .terminal = true, .help = "Show help" },
+            .{ .long = "--version", .short = "-v", .field = "version", .terminal = true, .help = "Print version" },
+        },
     },
-    .CommandResultT = CommandResult,
-    .commands = &.{
-        .{
-            .name = "serve",
-            .help = "Build and serve the site locally",
-            .body = .{
-                .command = modelsCli.CommandOptions{
-                    .Result = ServeArgs,
-                    .flags = &.{
-                        .{ .long = "--port", .short = "-p", .field = "port", .help = "Port to serve on" },
-                        .{ .long = "--bind", .short = "-b", .field = "bind", .help = "IP Address bind" },
-                        .{ .long = "--open", .short = "-o", .field = "open", .help = "Open browser after serving" },
-                        .{ .long = "--no-drafts", .short = "-n", .field = "no_drafts", .help = "Don't include draft content" },
+    .commands = .{
+        .Result = CommandResult,
+        .items = &.{
+            .{
+                .name = "serve",
+                .help = "Build and serve the site locally",
+                .body = .{
+                    .command = modelsCli.CommandOptions{
+                        .Result = ServeArgs,
+                        .flags = &.{
+                            .{ .long = "--port", .short = "-p", .field = "port", .help = "Port to serve on" },
+                            .{ .long = "--bind", .short = "-b", .field = "bind", .help = "IP Address bind" },
+                            .{ .long = "--open", .short = "-o", .field = "open", .help = "Open browser after serving" },
+                            .{ .long = "--no-drafts", .short = "-n", .field = "no_drafts", .help = "Don't include draft content" },
+                        },
+                        .positionals = &.{},
                     },
-                    .positionals = &.{},
                 },
             },
-        },
-        .{
-            .name = "build",
-            .help = "Build the site",
-            .body = .{
-                .command = modelsCli.CommandOptions{
-                    .Result = BuildArgs,
-                    .flags = &.{
-                        .{ .long = "--dest", .short = "-d", .field = "destination", .help = "Output directory destination" },
-                        .{ .long = "--build-drafts", .short = "-b", .field = "build_drafts", .help = "Include draft content" },
-                        .{ .long = "--minify", .short = "-m", .field = "minify", .help = "Minify the output" },
-                        .{ .long = "--clear-dir", .short = "-c", .field = "clear_dir", .help = "Clear destination directory" },
+            .{
+                .name = "build",
+                .help = "Build the site",
+                .body = .{
+                    .command = modelsCli.CommandOptions{
+                        .Result = BuildArgs,
+                        .flags = &.{
+                            .{ .long = "--dest", .short = "-d", .field = "destination", .help = "Output directory destination" },
+                            .{ .long = "--build-drafts", .short = "-b", .field = "build_drafts", .help = "Include draft content" },
+                            .{ .long = "--minify", .short = "-m", .field = "minify", .help = "Minify the output" },
+                            .{ .long = "--clear-dir", .short = "-c", .field = "clear_dir", .help = "Clear destination directory" },
+                        },
+                        .positionals = &.{"source"},
                     },
-                    .positionals = &.{"source"},
                 },
             },
-        },
-        .{
-            .name = "new",
-            .help = "Scaffold new content",
-            .body = .{
-                .sub_commands = &.{
-                    .{
-                        .name = "post",
-                        .help = "Scaffold new post",
-                        .body = .{
-                            .command = modelsCli.CommandOptions{
-                                .Result = NewPostArgs,
-                                .flags = &.{
-                                    .{ .long = "--desc", .short = "-d", .field = "description", .help = "One-line description" },
-                                    .{ .long = "--tags", .short = "-t", .field = "tags", .help = "Comma-separated tags" },
-                                    .{ .long = "--draft", .short = "-D", .field = "draft", .help = "Mark as draft" },
+            .{
+                .name = "new",
+                .help = "Scaffold new content",
+                .body = .{
+                    .sub_commands = &.{
+                        .{
+                            .name = "post",
+                            .help = "Scaffold new post",
+                            .body = .{
+                                .command = modelsCli.CommandOptions{
+                                    .Result = NewPostArgs,
+                                    .flags = &.{
+                                        .{ .long = "--desc", .short = "-d", .field = "description", .help = "One-line description" },
+                                        .{ .long = "--tags", .short = "-t", .field = "tags", .help = "Comma-separated tags" },
+                                        .{ .long = "--draft", .short = "-D", .field = "draft", .help = "Mark as draft" },
+                                    },
+                                    .positionals = &.{"title"},
                                 },
-                                .positionals = &.{"title"},
                             },
                         },
-                    },
-                    .{
-                        .name = "page",
-                        .help = "Scaffold new page",
-                        .body = .{
-                            .command = modelsCli.CommandOptions{
-                                .Result = NewPageArgs,
-                                .flags = &.{
-                                    .{ .long = "--slug", .short = "-s", .field = "slug", .help = "URL-friendly identifier (defaults to title)" },
-                                    .{ .long = "--menus", .short = "-m", .field = "menus", .help = "Comma-separated list of menus this page appears in" },
-                                    .{ .long = "--draft", .short = "-D", .field = "draft", .help = "Mark as draft" },
+                        .{
+                            .name = "page",
+                            .help = "Scaffold new page",
+                            .body = .{
+                                .command = modelsCli.CommandOptions{
+                                    .Result = NewPageArgs,
+                                    .flags = &.{
+                                        .{ .long = "--slug", .short = "-s", .field = "slug", .help = "URL-friendly identifier (defaults to title)" },
+                                        .{ .long = "--menus", .short = "-m", .field = "menus", .help = "Comma-separated list of menus this page appears in" },
+                                        .{ .long = "--draft", .short = "-D", .field = "draft", .help = "Mark as draft" },
+                                    },
+                                    .positionals = &.{"title"},
                                 },
-                                .positionals = &.{"title"},
                             },
                         },
                     },

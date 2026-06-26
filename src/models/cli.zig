@@ -34,10 +34,20 @@ pub const Diagnostics = struct {
     name: []const u8 = "",
 };
 
-/// The full CLI definition: result types, shared flags, and command tree.
+/// A collection of flags bound to a result struct.
+pub const FlagsSpec = struct {
+    Result: type,
+    items: []const Flag,
+};
+
+/// A collection of commands bound to a result union.
+pub const CommandsSpec = struct {
+    Result: type,
+    items: []const Command,
+};
+
+/// The full CLI definition: shared flags and an optional command tree.
 pub const Cli = struct {
-    SharedResultT: type,
-    shared_flags: []const Flag,
-    CommandResultT: ?type = null,
-    commands: ?[]const Command = null,
+    flags: FlagsSpec,
+    commands: ?CommandsSpec = null,
 };

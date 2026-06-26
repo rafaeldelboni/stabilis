@@ -33,7 +33,7 @@ fn printHelpGeneral(
 ) !void {
     try w.print("stabilis <command>\n\nCommands:\n", .{});
     if (cli.commands) |cli_cmd| {
-        inline for (cli_cmd) |cmd| {
+        inline for (cli_cmd.items) |cmd| {
             try w.print("    {s: <10} {s}\n", .{ cmd.name, cmd.help });
             switch (cmd.body) {
                 .sub_commands => |sub_commands| {
@@ -45,9 +45,9 @@ fn printHelpGeneral(
             }
         }
     }
-    if (cli.shared_flags.len > 0) {
+    if (cli.flags.items.len > 0) {
         try w.print("\nGlobal options:\n", .{});
-        try printFlags(w, cli.SharedResultT, cli.shared_flags);
+        try printFlags(w, cli.flags.Result, cli.flags.items);
     }
 }
 
@@ -64,7 +64,7 @@ fn printHelpImpl(
         }
         const name = args[0];
         if (cli.commands) |cli_cmd| {
-            inline for (cli_cmd) |cmd| {
+            inline for (cli_cmd.items) |cmd| {
                 if (std.mem.eql(u8, name, cmd.name)) {
                     try printHelpImpl(w, args[1..], cli, cmd);
                     return;
@@ -82,7 +82,7 @@ fn printHelpImpl(
             for (spec.positionals) |a| try w.print(" [{s}]", .{a});
             try w.print("\n\n{s}\n\nOptions:\n", .{cmd.help});
             try printFlags(w, spec.Result, spec.flags);
-            try printFlags(w, cli.SharedResultT, cli.shared_flags);
+            try printFlags(w, cli.flags.Result, cli.flags.items);
         },
         .sub_commands => |sub_cmds| {
             if (args.len == 0) {

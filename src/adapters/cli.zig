@@ -143,13 +143,13 @@ fn parseArgs(
     args: []const []const u8,
     diag: *Diagnostics,
 ) !void {
-    const C = @FieldType(cli.CommandResultT.?, cmd_name);
+    const C = @FieldType(cli.commands.?.Result, cmd_name);
     var i: usize = 0;
     var pos_idx: usize = 0;
     next_arg: while (i < args.len) : (i += 1) {
         const arg = args[i];
         if (try applyFlag(arena, arg, C, cmd_flags, &@field(out.result.?, cmd_name), args, &i, diag) == .matched) continue :next_arg;
-        if (try applyFlag(arena, arg, cli.SharedResultT, cli.shared_flags, &out.shared, args, &i, diag) == .matched) continue :next_arg;
+        if (try applyFlag(arena, arg, cli.flags.Result, cli.flags.items, &out.shared, args, &i, diag) == .matched) continue :next_arg;
 
         if (arg.len > 0 and arg[0] == '-') return diagError(arg, cmd_name, diag, error.UnknownFlag);
 
@@ -164,9 +164,9 @@ fn parseArgs(
         return diagError(arg, cmd_name, diag, error.TooManyPositionals);
     }
 
-    inline for (cli.shared_flags) |flag| {
+    inline for (cli.flags.items) |flag| {
         if (flag.terminal) {
-            if (@typeInfo(@FieldType(cli.SharedResultT, flag.field)) == .bool and @field(out.shared, flag.field)) return;
+            if (@typeInfo(@FieldType(cli.flags.Result, flag.field)) == .bool and @field(out.shared, flag.field)) return;
         }
     }
 
@@ -192,14 +192,14 @@ fn assertAligned(comptime T: type, comptime cmds: []const Command) void {
 
 /// The parse result: shared args plus an optional command result.
 fn Output(comptime cli: Cli) type {
-    if (cli.CommandResultT) |CmdT| {
+    if (cli.commands) |cmds| {
         return struct {
-            shared: cli.SharedResultT,
-            result: ?CmdT,
+            shared: cli.flags.Result,
+            result: ?cmds.Result,
         };
     } else {
         return struct {
-            shared: cli.SharedResultT,
+            shared: cli.flags.Result,
             result: ?bool = null,
         };
     }
@@ -216,7 +216,7 @@ fn parseSharedOnly(
     if (args.len == 0 or args[0].len == 0 or args[0][0] != '-') return false;
     var i: usize = 0;
     while (i < args.len) : (i += 1) {
-        if (try applyFlag(arena, args[i], cli.SharedResultT, cli.shared_flags, &out.shared, args, &i, diag) == .matched) continue;
+        if (try applyFlag(arena, args[i], cli.flags.Result, cli.flags.items, &out.shared, args, &i, diag) == .matched) continue;
         return diagError(args[i], diag_name, diag, error.UnknownFlag);
     }
     return true;
@@ -229,14 +229,14 @@ fn parseImpl(
     diag: *Diagnostics,
     comptime maybe_cmd: ?Command,
 ) !Output(cli) {
-    var out: Output(cli) = .{ .shared = cli.SharedResultT{}, .result = null };
+    var out: Output(cli) = .{ .shared = cli.flags.Result{}, .result = null };
 
     if (maybe_cmd == null) {
         if (args.len == 0) return diagError("", "", diag, error.NoCommand);
         const arg = args[0];
 
         if (cli.commands) |cli_cmd| {
-            inline for (cli_cmd) |cmd| {
+            inline for (cli_cmd.items) |cmd| {
                 if (std.mem.eql(u8, arg, cmd.name))
                     return parseImpl(arena, args[1..], cli, diag, cmd);
             }
@@ -250,14 +250,14 @@ fn parseImpl(
     const cmd = maybe_cmd.?;
     switch (cmd.body) {
         .command => |spec| {
-            if (cli.CommandResultT) |CmdT| {
-                out.result = @unionInit(CmdT, cmd.name, spec.Result{});
+            if (cli.commands) |cmds| {
+                out.result = @unionInit(cmds.Result, cmd.name, spec.Result{});
             }
             try parseArgs(arena, cli, cmd.name, spec.flags, spec.positionals, &out, args, diag);
         },
         .sub_commands => |sub_cmds| {
-            if (cli.CommandResultT == null) return;
-            const Sub = @FieldType(cli.CommandResultT.?, cmd.name);
+            if (cli.commands == null) return;
+            const Sub = @FieldType(cli.commands.?.Result, cmd.name);
 
             if (args.len == 0) return diagError("", cmd.name, diag, error.NoSubCommand);
             const sub_arg = args[0];
@@ -266,10 +266,10 @@ fn parseImpl(
 
             inline for (sub_cmds) |sub_cmd| {
                 if (std.mem.eql(u8, sub_arg, sub_cmd.name)) {
-                    const sub_cli = Cli{ .commands = sub_cmds, .CommandResultT = Sub, .SharedResultT = cli.SharedResultT, .shared_flags = cli.shared_flags };
+                    const sub_cli = Cli{ .flags = .{ .Result = cli.flags.Result, .items = cli.flags.items }, .commands = .{ .Result = Sub, .items = sub_cmds } };
                     const sub_out = try parseImpl(arena, args[1..], sub_cli, diag, sub_cmd);
                     out.shared = sub_out.shared;
-                    if (sub_out.result) |sub| out.result = @unionInit(cli.CommandResultT.?, cmd.name, sub);
+                    if (sub_out.result) |sub| out.result = @unionInit(cli.commands.?.Result, cmd.name, sub);
                     return out;
                 }
             }
@@ -287,8 +287,8 @@ pub fn parse(
     comptime cli: Cli,
     diag: *Diagnostics,
 ) !Output(cli) {
-    if (cli.CommandResultT != null and cli.commands != null)
-        comptime assertAligned(cli.CommandResultT.?, cli.commands.?);
+    if (cli.commands) |cmds|
+        comptime assertAligned(cmds.Result, cmds.items);
     if (args.len <= 1) return error.NoCommand;
     return parseImpl(arena, args[1..], cli, diag, null);
 }
@@ -306,11 +306,13 @@ test "parse dispatches top-level without commands" {
     };
 
     const cli = modelsCli.Cli{
-        .SharedResultT = GlobalArgs,
-        .shared_flags = &.{
-            .{ .long = "--help", .short = "-h", .field = "help", .terminal = true, .help = "Show help" },
-            .{ .long = "--version", .short = "-v", .field = "version", .terminal = true, .help = "Print version" },
-            .{ .long = "--banana", .short = "-b", .field = "banana", .terminal = true, .help = "Print version" },
+        .flags = .{
+            .Result = GlobalArgs,
+            .items = &.{
+                .{ .long = "--help", .short = "-h", .field = "help", .terminal = true, .help = "Show help" },
+                .{ .long = "--version", .short = "-v", .field = "version", .terminal = true, .help = "Print version" },
+                .{ .long = "--banana", .short = "-b", .field = "banana", .terminal = true, .help = "Print version" },
+            },
         },
     };
 
