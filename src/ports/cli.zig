@@ -28,7 +28,7 @@ fn printFlags(
 }
 
 fn printCommands(w: *std.Io.Writer, comptime cmds: []const Command, comptime depth: usize) !void {
-    const pad = [_]u8{' '} ** (depth * 4);
+    const pad = [_]u8{' '} ** (depth * 2);
     inline for (cmds) |cmd| {
         try w.print("{s}{s: <10} {s}\n", .{ pad, cmd.name, cmd.help });
         switch (cmd.body) {
