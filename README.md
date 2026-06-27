@@ -29,17 +29,21 @@ zig build run                                   # general commands help
 
 ### Current supported command
 ```bash
-stabilis build [source]
+stabilis - A static site generator
 
-Build the site
+stabilis <command>
 
-Options:
-    -d, --dest         Output directory destination [string]
-    -b, --build-drafts Include draft content [boolean]
-    -c, --clear-dir    Clear destination directory [boolean]
+Commands:
+  build      Build the site
+  new        Scaffold new content
+    post       Scaffold new post
+    page       Scaffold new page
+
+Global options:
+    -S, --source-dir   Source directory [string]
     -h, --help         Show help [boolean]
+    -v, --version      Print version [boolean]
 ```
-
 
 ## Contributing
 
