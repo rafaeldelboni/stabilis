@@ -126,7 +126,7 @@ pub fn main(init: std.process.Init) !u8 {
             .page => newPageHandler(&arena, io, new_args.page, source_dir),
         },
     } catch |err| {
-        if (err == error.NoFilesFound)
+        if (err == error.NoFilesFound or err == error.FileNotFound)
             std.debug.print("No {s} files found on: {s}\n", .{ cli.name, source_dir })
         else
             std.debug.print("error: {}\n", .{err});
