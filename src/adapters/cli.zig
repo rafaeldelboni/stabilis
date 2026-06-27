@@ -494,3 +494,46 @@ test "parse terminal global --help passes through inside command" {
     try std.testing.expectEqual(true, (try parse(&arena, &.{ "app", "leaf", "--help" }, cli, &diag)).flags.help);
     try std.testing.expectEqual(true, (try parse(&arena, &.{ "app", "leaf", "-h" }, cli, &diag)).flags.help);
 }
+
+test "parse nested subcommands two levels deep" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    var diag = Diagnostics{};
+
+    const inner_result = struct {
+        name: []const u8 = "",
+    };
+    const inner_items = [_]modelsCli.Flag{};
+    const cli = modelsCli.Cli{
+        .flags = .{ .Result = t_top_flags, .items = &t_top_items },
+        .commands = .{
+            .Result = union(enum) { outer: union(enum) { middle: union(enum) { inner: inner_result } } },
+            .items = &.{.{
+                .name = "outer",
+                .help = "",
+                .body = .{ .sub_commands = &.{.{
+                    .name = "middle",
+                    .help = "",
+                    .body = .{ .sub_commands = &.{.{
+                        .name = "inner",
+                        .help = "",
+                        .body = .{ .command = .{
+                            .Result = inner_result,
+                            .flags = &inner_items,
+                            .positionals = &.{"name"},
+                        } },
+                    }} },
+                }} },
+            }},
+        },
+    };
+
+    const out = try parse(&arena, &.{ "app", "outer", "middle", "inner", "deep" }, cli, &diag);
+    try std.testing.expect(out.commands.? == .outer);
+    try std.testing.expect(out.commands.?.outer == .middle);
+    try std.testing.expect(out.commands.?.outer.middle == .inner);
+    try std.testing.expectEqualStrings("deep", out.commands.?.outer.middle.inner.name);
+
+    try std.testing.expectError(error.NoSubCommand, parse(&arena, &.{ "app", "outer", "middle" }, cli, &diag));
+    try std.testing.expectError(error.UnknownSubCommand, parse(&arena, &.{ "app", "outer", "middle", "bogus" }, cli, &diag));
+}

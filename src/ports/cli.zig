@@ -27,25 +27,24 @@ fn printFlags(
     }
 }
 
+fn printCommands(w: *std.Io.Writer, comptime cmds: []const Command, comptime depth: usize) !void {
+    const pad = [_]u8{' '} ** (depth * 4);
+    inline for (cmds) |cmd| {
+        try w.print("{s}{s: <10} {s}\n", .{ pad, cmd.name, cmd.help });
+        switch (cmd.body) {
+            .sub_commands => |subs| try printCommands(w, subs, depth + 1),
+            else => {},
+        }
+    }
+}
+
 fn printHelpGeneral(
     w: *std.Io.Writer,
     comptime cli: Cli,
 ) !void {
     if (cli.description.len > 0) try w.print("{s} - {s}\n\n", .{ cli.name, cli.description });
     try w.print("{s} <command>\n\nCommands:\n", .{cli.name});
-    if (cli.commands) |cli_cmd| {
-        inline for (cli_cmd.items) |cmd| {
-            try w.print("    {s: <10} {s}\n", .{ cmd.name, cmd.help });
-            switch (cmd.body) {
-                .sub_commands => |sub_commands| {
-                    inline for (sub_commands) |sub_cmd| {
-                        try w.print("      {s: <8} {s}\n", .{ sub_cmd.name, sub_cmd.help });
-                    }
-                },
-                else => {},
-            }
-        }
-    }
+    if (cli.commands) |cli_cmd| try printCommands(w, cli_cmd.items, 1);
     if (cli.flags.items.len > 0) {
         try w.print("\nGlobal options:\n", .{});
         try printFlags(w, cli.flags.Result, cli.flags.items);
@@ -271,6 +270,60 @@ test "printHelp nested leaf shows header and options" {
     try std.testing.expect(std.mem.indexOf(u8, out, "Sub help") != null);
     try std.testing.expect(std.mem.indexOf(u8, out, "Options:") != null);
     try std.testing.expect(std.mem.indexOf(u8, out, "--help") != null);
+}
+
+test "printHelp nested subcommands two levels deep indents deeper" {
+    const inner_result = struct {
+        name: []const u8 = "",
+    };
+    const inner_items = [_]modelsCli.Flag{};
+    const cli = modelsCli.Cli{
+        .name = "app",
+        .flags = .{ .Result = t_top_flags, .items = &t_top_items },
+        .commands = .{
+            .Result = union(enum) { outer: union(enum) { middle: union(enum) { inner: inner_result } } },
+            .items = &.{.{
+                .name = "outer",
+                .help = "Outer help",
+                .body = .{ .sub_commands = &.{.{
+                    .name = "middle",
+                    .help = "Middle help",
+                    .body = .{ .sub_commands = &.{.{
+                        .name = "inner",
+                        .help = "Inner help",
+                        .body = .{ .command = .{
+                            .Result = inner_result,
+                            .flags = &inner_items,
+                            .positionals = &.{"name"},
+                        } },
+                    }} },
+                }} },
+            }},
+        },
+    };
+
+    const out = try captureHelp(std.testing.allocator, cli, &.{ "app", "--help" });
+    defer std.testing.allocator.free(out);
+
+    try std.testing.expect(std.mem.indexOf(u8, out, "outer") != null);
+    try std.testing.expect(std.mem.indexOf(u8, out, "middle") != null);
+    try std.testing.expect(std.mem.indexOf(u8, out, "inner") != null);
+
+    const leadingSpaces = struct {
+        fn of(buf: []const u8, needle: []const u8) usize {
+            const idx = std.mem.indexOf(u8, buf, needle) orelse return 0;
+            const line_start = if (std.mem.lastIndexOfScalar(u8, buf[0..idx], '\n')) |nl| nl + 1 else 0;
+            var n: usize = 0;
+            while (line_start + n < buf.len and buf[line_start + n] == ' ') n += 1;
+            return n;
+        }
+    }.of;
+
+    const outer_n = leadingSpaces(out, "outer");
+    const middle_n = leadingSpaces(out, "middle");
+    const inner_n = leadingSpaces(out, "inner");
+    try std.testing.expect(middle_n > outer_n);
+    try std.testing.expect(inner_n > middle_n);
 }
 
 test "printDiagError formats UnknownCommand" {
