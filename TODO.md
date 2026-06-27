@@ -19,7 +19,7 @@
 - [x] CLI adapter (adapters/cli.zig) — parse(arena, args) !Command, per-command parsers, errors, argv toSlice in main.zig
 - [x] `stabilis build [source] [-d dest] [-D] [--minify] [--clean-dest-dir]` — refactor build loop; clean-vs-merge default TBD
 - [x] `stabilis new post <title> [-d desc] [-t tags] [--draft]` — scaffold content/posts/<slug>.md; needs frontmatter emitter
-- [x] `stabilis new page <title> [-s slug] [--draft] [--menus main]` — scaffold content/pages/<slug>.md; needs frontmatter emitter
+- [x] `stabilis new page <title> [-s slug] [--draft] [--menus main]` — scaffold content/<slug>.md; needs frontmatter emitter
 - [x] `stabilis serve [-p port] [--bind addr] [--open] [-D]` — dev server + watcher + live reload
 - [x] `stabilis version | --version | -v` — print version from build.zig.zon
 - [x] `stabilis help | --help | -h` — top-level + per-command help via `*Args.help`

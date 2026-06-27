@@ -7,7 +7,6 @@ const page = @import("adapters/page.zig");
 const site = @import("adapters/site.zig");
 const config = @import("logic/config.zig");
 const models = @import("models.zig");
-const debug = @import("debug.zig");
 const CommandsResult = models.CommandsResult;
 const Context = models.Context;
 const Frontmatter = models.Frontmatter;
