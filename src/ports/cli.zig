@@ -155,8 +155,6 @@ pub fn printDiagError(io: std.Io, diag: *Diagnostics, err: anyerror) !void {
 
 const modelsCli = @import("../models/cli.zig");
 
-// ----- Test fixtures -----
-
 const t_top_flags = struct {
     version: bool = false,
     help: bool = false,
@@ -231,8 +229,6 @@ fn captureHelp(allocator: std.mem.Allocator, cli: modelsCli.Cli, args: []const [
     try printHelpTo(&aw.writer, args, cli);
     return try aw.toOwnedSlice();
 }
-
-// ----- Printer tests -----
 
 test "printHelp general lists commands, subcommands and global options" {
     const out = try captureHelp(std.testing.allocator, t_leaf_cli(), &.{ "app", "--help" });

@@ -292,8 +292,6 @@ pub fn parse(
     return parseImpl(arena, args[1..], cli, diag, null);
 }
 
-// ----- Test fixtures -----
-
 const t_top_flags = struct {
     version: bool = false,
     help: bool = false,
@@ -359,8 +357,6 @@ fn t_group_cli() modelsCli.Cli {
         },
     };
 }
-
-// ----- Parser tests -----
 
 test "parse returns NoCommand when args <= 1" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
