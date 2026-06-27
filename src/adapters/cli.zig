@@ -292,335 +292,248 @@ pub fn parse(
     return parseImpl(arena, args[1..], cli, diag, null);
 }
 
-const test_models = @import("../models.zig");
+const t_top_flags = struct {
+    version: bool = false,
+    help: bool = false,
+    name: []const u8 = "",
+};
+const t_top_items = [_]modelsCli.Flag{
+    .{ .long = "--help", .short = "-h", .field = "help", .terminal = true, .help = "" },
+    .{ .long = "--version", .short = "-v", .field = "version", .terminal = true, .help = "" },
+    .{ .long = "--name", .short = "-n", .field = "name", .help = "" },
+};
 
-test "parse dispatches top-level without commands" {
+const t_leaf_result = struct {
+    bool_flag: bool = false,
+    str_flag: []const u8 = "",
+    num_flag: ?u16 = null,
+    list_flag: []const []const u8 = &.{},
+};
+const t_leaf_items = [_]modelsCli.Flag{
+    .{ .long = "--bool", .short = "-b", .field = "bool_flag", .help = "" },
+    .{ .long = "--str", .short = "-s", .field = "str_flag", .help = "" },
+    .{ .long = "--num", .short = "-N", .field = "num_flag", .help = "" },
+    .{ .long = "--list", .short = "-l", .field = "list_flag", .help = "" },
+};
+const t_sub_result = struct {
+    title: []const u8 = "",
+};
+const t_sub_items = [_]modelsCli.Flag{};
+fn t_leaf_cli() modelsCli.Cli {
+    return .{
+        .flags = .{ .Result = t_top_flags, .items = &t_top_items },
+        .commands = .{
+            .Result = union(enum) { leaf: t_leaf_result },
+            .items = &.{.{
+                .name = "leaf",
+                .help = "",
+                .body = .{ .command = .{
+                    .Result = t_leaf_result,
+                    .flags = &t_leaf_items,
+                    .positionals = &.{},
+                } },
+            }},
+        },
+    };
+}
+fn t_group_cli() modelsCli.Cli {
+    return .{
+        .flags = .{ .Result = t_top_flags, .items = &t_top_items },
+        .commands = .{
+            .Result = union(enum) { grp: union(enum) { sub: t_sub_result } },
+            .items = &.{.{
+                .name = "grp",
+                .help = "",
+                .body = .{ .sub_commands = &.{.{
+                    .name = "sub",
+                    .help = "",
+                    .body = .{ .command = .{
+                        .Result = t_sub_result,
+                        .flags = &t_sub_items,
+                        .positionals = &.{"title"},
+                    } },
+                }} },
+            }},
+        },
+    };
+}
+
+test "parse returns NoCommand when args <= 1" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
+    var diag = Diagnostics{};
+    const cli = t_leaf_cli();
+    try std.testing.expectError(error.NoCommand, parse(&arena, &.{"app"}, cli, &diag));
+}
 
+test "parse shared-only flags short/long/=/bool/terminal and UnknownFlag" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    var diag = Diagnostics{};
+    const cli = t_leaf_cli();
+    try std.testing.expectEqual(true, (try parse(&arena, &.{ "app", "--help" }, cli, &diag)).flags.help);
+    try std.testing.expectEqual(true, (try parse(&arena, &.{ "app", "-h" }, cli, &diag)).flags.help);
+    try std.testing.expectEqual(true, (try parse(&arena, &.{ "app", "--version" }, cli, &diag)).flags.version);
+    try std.testing.expectEqualStrings("z", (try parse(&arena, &.{ "app", "--name", "z" }, cli, &diag)).flags.name);
+    try std.testing.expectEqualStrings("y", (try parse(&arena, &.{ "app", "-n", "y" }, cli, &diag)).flags.name);
+    try std.testing.expectEqualStrings("x", (try parse(&arena, &.{ "app", "--name=x" }, cli, &diag)).flags.name);
+    try std.testing.expectError(error.UnknownFlag, parse(&arena, &.{ "app", "--bogus" }, cli, &diag));
+}
+
+test "parse returns UnknownCommand for unknown top-level" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    var diag = Diagnostics{};
+    const cli = t_leaf_cli();
+    try std.testing.expectError(error.UnknownCommand, parse(&arena, &.{ "app", "bogus" }, cli, &diag));
+    try std.testing.expectEqual("bogus", diag.arg);
+}
+
+test "parse returns NoSubCommand when group gets no sub" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    var diag = Diagnostics{};
+    const cli = t_group_cli();
+    try std.testing.expectError(error.NoSubCommand, parse(&arena, &.{ "app", "grp" }, cli, &diag));
+    try std.testing.expectEqual("grp", diag.name);
+}
+
+test "parse returns UnknownSubCommand for unknown sub" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    var diag = Diagnostics{};
+    const cli = t_group_cli();
+    try std.testing.expectError(error.UnknownSubCommand, parse(&arena, &.{ "app", "grp", "bogus" }, cli, &diag));
+}
+
+test "parse leaf command yields default-valued result" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    var diag = Diagnostics{};
+    const cli = t_leaf_cli();
+    const out = try parse(&arena, &.{ "app", "leaf" }, cli, &diag);
+    try std.testing.expect(out.commands.? == .leaf);
+    try std.testing.expectEqual(false, out.commands.?.leaf.bool_flag);
+    try std.testing.expectEqual("", out.commands.?.leaf.str_flag);
+    try std.testing.expectEqual(@as(?u16, null), out.commands.?.leaf.num_flag);
+    try std.testing.expectEqual(@as(usize, 0), out.commands.?.leaf.list_flag.len);
+}
+
+test "parse leaf flags short/long/=/bool/string/number valid" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    var diag = Diagnostics{};
+    const cli = t_leaf_cli();
+    try std.testing.expectEqual(true, (try parse(&arena, &.{ "app", "leaf", "-b" }, cli, &diag)).commands.?.leaf.bool_flag);
+    try std.testing.expectEqual(true, (try parse(&arena, &.{ "app", "leaf", "--bool" }, cli, &diag)).commands.?.leaf.bool_flag);
+    try std.testing.expectEqualStrings("v", (try parse(&arena, &.{ "app", "leaf", "-s", "v" }, cli, &diag)).commands.?.leaf.str_flag);
+    try std.testing.expectEqualStrings("w", (try parse(&arena, &.{ "app", "leaf", "--str", "w" }, cli, &diag)).commands.?.leaf.str_flag);
+    try std.testing.expectEqualStrings("eq", (try parse(&arena, &.{ "app", "leaf", "--str=eq" }, cli, &diag)).commands.?.leaf.str_flag);
+    try std.testing.expectEqual(@as(u16, 9), (try parse(&arena, &.{ "app", "leaf", "-N", "9" }, cli, &diag)).commands.?.leaf.num_flag.?);
+    try std.testing.expectEqual(@as(u16, 10), (try parse(&arena, &.{ "app", "leaf", "--num", "10" }, cli, &diag)).commands.?.leaf.num_flag.?);
+}
+
+test "parse number flag returns InvalidValue on non-numeric" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    var diag = Diagnostics{};
+    const cli = t_leaf_cli();
+    try std.testing.expectError(error.InvalidValue, parse(&arena, &.{ "app", "leaf", "-N", "abc" }, cli, &diag));
+}
+
+test "parse list flag single/comma/repeated" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    var diag = Diagnostics{};
+    const cli = t_leaf_cli();
+    const one = try parse(&arena, &.{ "app", "leaf", "-l", "a" }, cli, &diag);
+    try std.testing.expectEqual(@as(usize, 1), one.commands.?.leaf.list_flag.len);
+    try std.testing.expectEqualStrings("a", one.commands.?.leaf.list_flag[0]);
+    const comma = try parse(&arena, &.{ "app", "leaf", "-l", "a,b" }, cli, &diag);
+    try std.testing.expectEqual(@as(usize, 2), comma.commands.?.leaf.list_flag.len);
+    try std.testing.expectEqualStrings("a", comma.commands.?.leaf.list_flag[0]);
+    try std.testing.expectEqualStrings("b", comma.commands.?.leaf.list_flag[1]);
+    const rep = try parse(&arena, &.{ "app", "leaf", "-l", "a", "-l", "b" }, cli, &diag);
+    try std.testing.expectEqual(@as(usize, 2), rep.commands.?.leaf.list_flag.len);
+    try std.testing.expectEqualStrings("a", rep.commands.?.leaf.list_flag[0]);
+    try std.testing.expectEqualStrings("b", rep.commands.?.leaf.list_flag[1]);
+}
+
+test "parse positional + MissingPositional + TooManyPositionals" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    var diag = Diagnostics{};
+    const cli = t_group_cli();
+    const ok = try parse(&arena, &.{ "app", "grp", "sub", "hello" }, cli, &diag);
+    try std.testing.expectEqualStrings("hello", ok.commands.?.grp.sub.title);
+    try std.testing.expectError(error.MissingPositional, parse(&arena, &.{ "app", "grp", "sub" }, cli, &diag));
+    try std.testing.expectError(error.TooManyPositionals, parse(&arena, &.{ "app", "grp", "sub", "a", "b" }, cli, &diag));
+}
+
+test "parse returns MissingValue when value flag lacks value" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    var diag = Diagnostics{};
+    const cli = t_leaf_cli();
+    try std.testing.expectError(error.MissingValue, parse(&arena, &.{ "app", "leaf", "-s" }, cli, &diag));
+}
+
+test "parse returns UnknownFlag inside leaf command" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    var diag = Diagnostics{};
+    const cli = t_leaf_cli();
+    try std.testing.expectError(error.UnknownFlag, parse(&arena, &.{ "app", "leaf", "--bogus" }, cli, &diag));
+}
+
+test "parse terminal global --help passes through inside command" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    var diag = Diagnostics{};
+    const cli = t_leaf_cli();
+    try std.testing.expectEqual(true, (try parse(&arena, &.{ "app", "leaf", "--help" }, cli, &diag)).flags.help);
+    try std.testing.expectEqual(true, (try parse(&arena, &.{ "app", "leaf", "-h" }, cli, &diag)).flags.help);
+}
+
+test "parse nested subcommands two levels deep" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
     var diag = Diagnostics{};
 
-    const FlagsReturn = struct {
-        version: bool = false,
-        help: bool = false,
-        banana: []const u8 = "",
+    const inner_result = struct {
+        name: []const u8 = "",
     };
-
+    const inner_items = [_]modelsCli.Flag{};
     const cli = modelsCli.Cli{
-        .flags = .{
-            .Result = FlagsReturn,
-            .items = &.{
-                .{ .long = "--help", .short = "-h", .field = "help", .terminal = true, .help = "Show help" },
-                .{ .long = "--version", .short = "-v", .field = "version", .terminal = true, .help = "Print version" },
-                .{ .long = "--banana", .short = "-b", .field = "banana", .terminal = true, .help = "Print version" },
-            },
+        .flags = .{ .Result = t_top_flags, .items = &t_top_items },
+        .commands = .{
+            .Result = union(enum) { outer: union(enum) { middle: union(enum) { inner: inner_result } } },
+            .items = &.{.{
+                .name = "outer",
+                .help = "",
+                .body = .{ .sub_commands = &.{.{
+                    .name = "middle",
+                    .help = "",
+                    .body = .{ .sub_commands = &.{.{
+                        .name = "inner",
+                        .help = "",
+                        .body = .{ .command = .{
+                            .Result = inner_result,
+                            .flags = &inner_items,
+                            .positionals = &.{"name"},
+                        } },
+                    }} },
+                }} },
+            }},
         },
     };
 
-    try std.testing.expectError(error.NoCommand, parse(&arena, &.{"stabilis"}, cli, &diag));
-    try std.testing.expectEqual("", diag.arg);
-    try std.testing.expectEqual("", diag.name);
-
-    const help_long = try parse(&arena, &.{ "stabilis", "--help" }, cli, &diag);
-    try std.testing.expectEqual(true, help_long.flags.help);
-
-    const help_short = try parse(&arena, &.{ "stabilis", "-h" }, cli, &diag);
-    try std.testing.expectEqual(true, help_short.flags.help);
-
-    const ver_long = try parse(&arena, &.{ "stabilis", "--version" }, cli, &diag);
-    try std.testing.expectEqual(true, ver_long.flags.version);
-
-    const ver_short = try parse(&arena, &.{ "stabilis", "-v" }, cli, &diag);
-    try std.testing.expectEqual(true, ver_short.flags.version);
-
-    const banana_long = try parse(&arena, &.{ "stabilis", "--banana", "happy" }, cli, &diag);
-    try std.testing.expectEqual("happy", banana_long.flags.banana);
-
-    const banana_short = try parse(&arena, &.{ "stabilis", "-b", "sad" }, cli, &diag);
-    try std.testing.expectEqual("sad", banana_short.flags.banana);
-
-    try std.testing.expectError(error.UnknownCommand, parse(&arena, &.{ "stabilis", "delbongo" }, cli, &diag));
-    try std.testing.expectEqual("delbongo", diag.arg);
-    try std.testing.expectEqual("", diag.name);
-
-    try std.testing.expectError(error.UnknownCommand, parse(&arena, &.{ "stabilis", "new" }, cli, &diag));
-    try std.testing.expectEqual("new", diag.arg);
-    try std.testing.expectEqual("", diag.name);
-
-    try std.testing.expectError(error.UnknownCommand, parse(&arena, &.{ "stabilis", "new", "unknown" }, cli, &diag));
-    try std.testing.expectEqual("new", diag.arg);
-    try std.testing.expectEqual("", diag.name);
-}
-
-test "parse dispatches top-level commands" {
-    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer arena.deinit();
-
-    var diag = Diagnostics{};
-    const cli = test_models.stabilis_cli;
-
-    try std.testing.expectError(error.NoCommand, parse(&arena, &.{"stabilis"}, cli, &diag));
-    try std.testing.expectEqual("", diag.arg);
-    try std.testing.expectEqual("", diag.name);
-
-    const help_long = try parse(&arena, &.{ "stabilis", "--help" }, cli, &diag);
-    try std.testing.expectEqual(true, help_long.flags.help);
-    try std.testing.expectEqual(@as(?test_models.CommandsResult, null), help_long.commands);
-
-    const help_short = try parse(&arena, &.{ "stabilis", "-h" }, cli, &diag);
-    try std.testing.expectEqual(true, help_short.flags.help);
-
-    const ver_long = try parse(&arena, &.{ "stabilis", "--version" }, cli, &diag);
-    try std.testing.expectEqual(true, ver_long.flags.version);
-
-    const ver_short = try parse(&arena, &.{ "stabilis", "-v" }, cli, &diag);
-    try std.testing.expectEqual(true, ver_short.flags.version);
-
-    try std.testing.expectError(error.UnknownCommand, parse(&arena, &.{ "stabilis", "delbongo" }, cli, &diag));
-    try std.testing.expectEqual("delbongo", diag.arg);
-    try std.testing.expectEqual("", diag.name);
-
-    try std.testing.expectError(error.NoSubCommand, parse(&arena, &.{ "stabilis", "new" }, cli, &diag));
-    try std.testing.expectEqual("", diag.arg);
-    try std.testing.expectEqual("new", diag.name);
-
-    try std.testing.expectError(error.UnknownSubCommand, parse(&arena, &.{ "stabilis", "new", "unknown" }, cli, &diag));
-}
-
-test "parse 'build' parses short, long, and combined flags" {
-    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer arena.deinit();
-
-    var diag = Diagnostics{};
-    const cli = test_models.stabilis_cli;
-
-    const defaults = try parse(&arena, &.{ "stabilis", "build" }, cli, &diag);
-    try std.testing.expect(defaults.commands.? == .build);
-    try std.testing.expectEqual(@as(?[]const u8, null), defaults.commands.?.build.source);
-    try std.testing.expectEqual(@as(?[]const u8, null), defaults.commands.?.build.destination);
-    try std.testing.expectEqual(false, defaults.commands.?.build.build_drafts);
-    try std.testing.expectEqual(false, defaults.commands.?.build.minify);
-    try std.testing.expectEqual(false, defaults.commands.?.build.clear_dir);
-
-    const pos = try parse(&arena, &.{ "stabilis", "build", "mycontent" }, cli, &diag);
-    try std.testing.expectEqualStrings("mycontent", pos.commands.?.build.source.?);
-
-    const d = try parse(&arena, &.{ "stabilis", "build", "-d", "out" }, cli, &diag);
-    try std.testing.expectEqualStrings("out", d.commands.?.build.destination.?);
-
-    const dest = try parse(&arena, &.{ "stabilis", "build", "--dest", "out" }, cli, &diag);
-    try std.testing.expectEqualStrings("out", dest.commands.?.build.destination.?);
-
-    try std.testing.expectEqual(true, (try parse(&arena, &.{ "stabilis", "build", "-b" }, cli, &diag)).commands.?.build.build_drafts);
-    try std.testing.expectEqual(true, (try parse(&arena, &.{ "stabilis", "build", "--build-drafts" }, cli, &diag)).commands.?.build.build_drafts);
-    try std.testing.expectEqual(true, (try parse(&arena, &.{ "stabilis", "build", "--minify" }, cli, &diag)).commands.?.build.minify);
-    try std.testing.expectEqual(true, (try parse(&arena, &.{ "stabilis", "build", "--clear-dir" }, cli, &diag)).commands.?.build.clear_dir);
-
-    const build_help = try parse(&arena, &.{ "stabilis", "build", "--help" }, cli, &diag);
-    try std.testing.expectEqual(true, build_help.flags.help);
-    const build_h = try parse(&arena, &.{ "stabilis", "build", "-h" }, cli, &diag);
-    try std.testing.expectEqual(true, build_h.flags.help);
-
-    const combined = try parse(&arena, &.{ "stabilis", "build", "content", "-d", "public", "-b", "--minify" }, cli, &diag);
-    try std.testing.expectEqualStrings("content", combined.commands.?.build.source.?);
-    try std.testing.expectEqualStrings("public", combined.commands.?.build.destination.?);
-    try std.testing.expectEqual(true, combined.commands.?.build.build_drafts);
-    try std.testing.expectEqual(true, combined.commands.?.build.minify);
-}
-
-test "parse 'build' returns errors on bad input" {
-    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer arena.deinit();
-
-    var diag = Diagnostics{};
-    const cli = test_models.stabilis_cli;
-
-    try std.testing.expectError(error.UnknownFlag, parse(&arena, &.{ "stabilis", "build", "--bogus" }, cli, &diag));
-    try std.testing.expectError(error.MissingValue, parse(&arena, &.{ "stabilis", "build", "-d" }, cli, &diag));
-}
-
-test "parse 'new post' parses short, long, and list flags" {
-    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer arena.deinit();
-
-    var diag = Diagnostics{};
-    const cli = test_models.stabilis_cli;
-
-    const defaults = try parse(&arena, &.{ "stabilis", "new", "post", "Hello World" }, cli, &diag);
-    try std.testing.expect(defaults.commands.? == .new);
-    try std.testing.expect(defaults.commands.?.new == .post);
-    try std.testing.expectEqualStrings("Hello World", defaults.commands.?.new.post.title);
-    try std.testing.expectEqual(@as(?[]const u8, null), defaults.commands.?.new.post.description);
-    try std.testing.expectEqual(@as(usize, 0), defaults.commands.?.new.post.tags.len);
-    try std.testing.expectEqual(false, defaults.commands.?.new.post.draft);
-
-    const d = try parse(&arena, &.{ "stabilis", "new", "post", "Hello", "-d", "A description" }, cli, &diag);
-    try std.testing.expectEqualStrings("A description", d.commands.?.new.post.description.?);
-
-    const desc = try parse(&arena, &.{ "stabilis", "new", "post", "Hello", "--desc", "A description" }, cli, &diag);
-    try std.testing.expectEqualStrings("A description", desc.commands.?.new.post.description.?);
-
-    const single = try parse(&arena, &.{ "stabilis", "new", "post", "Hello", "-t", "zig" }, cli, &diag);
-    try std.testing.expectEqual(@as(usize, 1), single.commands.?.new.post.tags.len);
-    try std.testing.expectEqualStrings("zig", single.commands.?.new.post.tags[0]);
-
-    const comma = try parse(&arena, &.{ "stabilis", "new", "post", "Hello", "-t", "zig,clojure" }, cli, &diag);
-    try std.testing.expectEqual(@as(usize, 2), comma.commands.?.new.post.tags.len);
-    try std.testing.expectEqualStrings("zig", comma.commands.?.new.post.tags[0]);
-    try std.testing.expectEqualStrings("clojure", comma.commands.?.new.post.tags[1]);
-
-    const repeated = try parse(&arena, &.{ "stabilis", "new", "post", "Hello", "-t", "zig", "-t", "clojure" }, cli, &diag);
-    try std.testing.expectEqual(@as(usize, 2), repeated.commands.?.new.post.tags.len);
-    try std.testing.expectEqualStrings("zig", repeated.commands.?.new.post.tags[0]);
-    try std.testing.expectEqualStrings("clojure", repeated.commands.?.new.post.tags[1]);
-
-    const long_tags = try parse(&arena, &.{ "stabilis", "new", "post", "Hello", "--tags", "zig,clojure" }, cli, &diag);
-    try std.testing.expectEqual(@as(usize, 2), long_tags.commands.?.new.post.tags.len);
-    try std.testing.expectEqualStrings("zig", long_tags.commands.?.new.post.tags[0]);
-    try std.testing.expectEqualStrings("clojure", long_tags.commands.?.new.post.tags[1]);
-
-    try std.testing.expectEqual(true, (try parse(&arena, &.{ "stabilis", "new", "post", "Hello", "--draft" }, cli, &diag)).commands.?.new.post.draft);
-
-    const post_help = try parse(&arena, &.{ "stabilis", "new", "post", "Hello", "--help" }, cli, &diag);
-    try std.testing.expectEqual(true, post_help.flags.help);
-    const post_h = try parse(&arena, &.{ "stabilis", "new", "post", "Hello", "-h" }, cli, &diag);
-    try std.testing.expectEqual(true, post_h.flags.help);
-
-    const all = try parse(&arena, &.{
-        "stabilis", "new",  "post", "Hello World",
-        "-d",       "desc", "-t",   "a,b",
-        "--draft",
-    }, cli, &diag);
-    try std.testing.expectEqualStrings("Hello World", all.commands.?.new.post.title);
-    try std.testing.expectEqualStrings("desc", all.commands.?.new.post.description.?);
-    try std.testing.expectEqual(@as(usize, 2), all.commands.?.new.post.tags.len);
-    try std.testing.expectEqual(true, all.commands.?.new.post.draft);
-}
-
-test "parse 'new post' returns errors on bad input" {
-    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer arena.deinit();
-
-    var diag = Diagnostics{};
-    const cli = test_models.stabilis_cli;
-
-    try std.testing.expectError(error.MissingPositional, parse(&arena, &.{ "stabilis", "new", "post" }, cli, &diag));
-    try std.testing.expectError(error.MissingValue, parse(&arena, &.{ "stabilis", "new", "post", "Hello", "-t" }, cli, &diag));
-    try std.testing.expectError(error.UnknownFlag, parse(&arena, &.{ "stabilis", "new", "post", "Hello", "--bogus" }, cli, &diag));
-}
-
-test "parse 'new page' parses short, long, and list flags" {
-    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer arena.deinit();
-
-    var diag = Diagnostics{};
-    const cli = test_models.stabilis_cli;
-
-    const defaults = try parse(&arena, &.{ "stabilis", "new", "page", "About Me" }, cli, &diag);
-    try std.testing.expect(defaults.commands.? == .new);
-    try std.testing.expect(defaults.commands.?.new == .page);
-    try std.testing.expectEqualStrings("About Me", defaults.commands.?.new.page.title);
-    try std.testing.expectEqual(@as(?[]const u8, null), defaults.commands.?.new.page.slug);
-    try std.testing.expectEqual(false, defaults.commands.?.new.page.draft);
-    try std.testing.expectEqual(@as(usize, 0), defaults.commands.?.new.page.menus.len);
-
-    const s = try parse(&arena, &.{ "stabilis", "new", "page", "About", "-s", "about" }, cli, &diag);
-    try std.testing.expectEqualStrings("about", s.commands.?.new.page.slug.?);
-
-    const slug = try parse(&arena, &.{ "stabilis", "new", "page", "About", "--slug", "about" }, cli, &diag);
-    try std.testing.expectEqualStrings("about", slug.commands.?.new.page.slug.?);
-
-    const single = try parse(&arena, &.{ "stabilis", "new", "page", "About", "--menus", "main" }, cli, &diag);
-    try std.testing.expectEqual(@as(usize, 1), single.commands.?.new.page.menus.len);
-    try std.testing.expectEqualStrings("main", single.commands.?.new.page.menus[0]);
-
-    const comma = try parse(&arena, &.{ "stabilis", "new", "page", "About", "--menus", "main,footer" }, cli, &diag);
-    try std.testing.expectEqual(@as(usize, 2), comma.commands.?.new.page.menus.len);
-    try std.testing.expectEqualStrings("main", comma.commands.?.new.page.menus[0]);
-    try std.testing.expectEqualStrings("footer", comma.commands.?.new.page.menus[1]);
-
-    const repeated = try parse(&arena, &.{ "stabilis", "new", "page", "About", "-m", "main", "-m", "footer" }, cli, &diag);
-    try std.testing.expectEqual(@as(usize, 2), repeated.commands.?.new.page.menus.len);
-    try std.testing.expectEqualStrings("main", repeated.commands.?.new.page.menus[0]);
-    try std.testing.expectEqualStrings("footer", repeated.commands.?.new.page.menus[1]);
-
-    try std.testing.expectEqual(true, (try parse(&arena, &.{ "stabilis", "new", "page", "About", "--draft" }, cli, &diag)).commands.?.new.page.draft);
-
-    const page_help = try parse(&arena, &.{ "stabilis", "new", "page", "About", "--help" }, cli, &diag);
-    try std.testing.expectEqual(true, page_help.flags.help);
-    const page_h = try parse(&arena, &.{ "stabilis", "new", "page", "About", "-h" }, cli, &diag);
-    try std.testing.expectEqual(true, page_h.flags.help);
-
-    const all = try parse(&arena, &.{
-        "stabilis", "new",   "page",    "About",
-        "-s",       "about", "--draft", "--menus",
-        "main",
-    }, cli, &diag);
-    try std.testing.expectEqualStrings("About", all.commands.?.new.page.title);
-    try std.testing.expectEqualStrings("about", all.commands.?.new.page.slug.?);
-    try std.testing.expectEqual(true, all.commands.?.new.page.draft);
-    try std.testing.expectEqual(@as(usize, 1), all.commands.?.new.page.menus.len);
-    try std.testing.expectEqualStrings("main", all.commands.?.new.page.menus[0]);
-}
-
-test "parse 'new page' returns errors on bad input" {
-    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer arena.deinit();
-
-    var diag = Diagnostics{};
-    const cli = test_models.stabilis_cli;
-
-    try std.testing.expectError(error.MissingPositional, parse(&arena, &.{ "stabilis", "new", "page" }, cli, &diag));
-    try std.testing.expectError(error.MissingValue, parse(&arena, &.{ "stabilis", "new", "page", "About", "-s" }, cli, &diag));
-    try std.testing.expectError(error.UnknownFlag, parse(&arena, &.{ "stabilis", "new", "page", "About", "--bogus" }, cli, &diag));
-}
-
-test "parse 'serve' parses short, long, and combined flags" {
-    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer arena.deinit();
-
-    var diag = Diagnostics{};
-    const cli = test_models.stabilis_cli;
-
-    const defaults = try parse(&arena, &.{ "stabilis", "serve" }, cli, &diag);
-    try std.testing.expect(defaults.commands.? == .serve);
-    try std.testing.expectEqual(@as(?u16, null), defaults.commands.?.serve.port);
-    try std.testing.expectEqual(@as(?[]const u8, null), defaults.commands.?.serve.bind);
-    try std.testing.expectEqual(false, defaults.commands.?.serve.open);
-    try std.testing.expectEqual(false, defaults.commands.?.serve.no_drafts);
-
-    const p = try parse(&arena, &.{ "stabilis", "serve", "-p", "8080" }, cli, &diag);
-    try std.testing.expectEqual(@as(u16, 8080), p.commands.?.serve.port.?);
-
-    const port = try parse(&arena, &.{ "stabilis", "serve", "--port", "1313" }, cli, &diag);
-    try std.testing.expectEqual(@as(u16, 1313), port.commands.?.serve.port.?);
-
-    const bind = try parse(&arena, &.{ "stabilis", "serve", "--bind", "0.0.0.0" }, cli, &diag);
-    try std.testing.expectEqualStrings("0.0.0.0", bind.commands.?.serve.bind.?);
-
-    try std.testing.expectEqual(true, (try parse(&arena, &.{ "stabilis", "serve", "--open" }, cli, &diag)).commands.?.serve.open);
-    try std.testing.expectEqual(true, (try parse(&arena, &.{ "stabilis", "serve", "-n" }, cli, &diag)).commands.?.serve.no_drafts);
-
-    const serve_help = try parse(&arena, &.{ "stabilis", "serve", "--help" }, cli, &diag);
-    try std.testing.expectEqual(true, serve_help.flags.help);
-    const serve_h = try parse(&arena, &.{ "stabilis", "serve", "-h" }, cli, &diag);
-    try std.testing.expectEqual(true, serve_h.flags.help);
-
-    const combined = try parse(&arena, &.{ "stabilis", "serve", "-p", "8080", "--bind", "0.0.0.0", "--open", "-n" }, cli, &diag);
-    try std.testing.expectEqual(@as(u16, 8080), combined.commands.?.serve.port.?);
-    try std.testing.expectEqualStrings("0.0.0.0", combined.commands.?.serve.bind.?);
-    try std.testing.expectEqual(true, combined.commands.?.serve.open);
-    try std.testing.expectEqual(true, combined.commands.?.serve.no_drafts);
-}
-
-test "parse 'serve' returns errors on bad input" {
-    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer arena.deinit();
-
-    var diag = Diagnostics{};
-    const cli = test_models.stabilis_cli;
-
-    try std.testing.expectError(error.MissingValue, parse(&arena, &.{ "stabilis", "serve", "-p" }, cli, &diag));
-    try std.testing.expectError(error.InvalidValue, parse(&arena, &.{ "stabilis", "serve", "-p", "abc" }, cli, &diag));
-    try std.testing.expectError(error.UnknownFlag, parse(&arena, &.{ "stabilis", "serve", "--bogus" }, cli, &diag));
+    const out = try parse(&arena, &.{ "app", "outer", "middle", "inner", "deep" }, cli, &diag);
+    try std.testing.expect(out.commands.? == .outer);
+    try std.testing.expect(out.commands.?.outer == .middle);
+    try std.testing.expect(out.commands.?.outer.middle == .inner);
+    try std.testing.expectEqualStrings("deep", out.commands.?.outer.middle.inner.name);
+
+    try std.testing.expectError(error.NoSubCommand, parse(&arena, &.{ "app", "outer", "middle" }, cli, &diag));
+    try std.testing.expectError(error.UnknownSubCommand, parse(&arena, &.{ "app", "outer", "middle", "bogus" }, cli, &diag));
 }
