@@ -19,15 +19,6 @@ pub const output_index = "index.html";
 
 pub const post_url_prefix = "/posts";
 
-pub fn urlPrefixFor(kind: PageKind) []const u8 {
-    return switch (kind) {
-        .post => post_url_prefix,
-        .page => "/",
-        .home => "/",
-        .post_list => post_url_prefix,
-    };
-}
-
 pub fn templateNameFor(kind: PageKind) []const u8 {
     return switch (kind) {
         .home => "home.html",
@@ -35,13 +26,6 @@ pub fn templateNameFor(kind: PageKind) []const u8 {
         .page => "page.html",
         .post_list => "post-list.html",
     };
-}
-
-test "urlPrefixFor: each kind" {
-    try std.testing.expectEqualStrings("/posts", urlPrefixFor(.post));
-    try std.testing.expectEqualStrings("/posts", urlPrefixFor(.post_list));
-    try std.testing.expectEqualStrings("/", urlPrefixFor(.page));
-    try std.testing.expectEqualStrings("/", urlPrefixFor(.home));
 }
 
 test "templateNameFor: each kind" {

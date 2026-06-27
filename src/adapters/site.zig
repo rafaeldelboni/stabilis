@@ -27,12 +27,12 @@ fn parseSlug(arena: *std.heap.ArenaAllocator, file: File, page: ContentEntry) ![
 
 fn buildUrl(arena: *std.heap.ArenaAllocator, page_kind: PageKind, slug: []const u8) ![]const u8 {
     const allocator = arena.allocator();
-    const prefix = config.urlPrefixFor(page_kind);
-    if (prefix.len == 1 and prefix[0] == '/') {
-        if (slug.len == 0) return "/";
-        return try std.Io.Dir.path.join(allocator, &.{ "/", slug });
+    switch (page_kind) {
+        .post => return try std.Io.Dir.path.join(allocator, &.{ config.post_url_prefix, slug }),
+        .page => return try std.Io.Dir.path.join(allocator, &.{ "/", slug }),
+        .home => return "/",
+        .post_list => return config.post_url_prefix,
     }
-    return try std.Io.Dir.path.join(allocator, &.{ prefix, slug });
 }
 
 fn parseStringList(allocator: std.mem.Allocator, list: []const []const u8) ![]Context {
