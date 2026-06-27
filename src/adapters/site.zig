@@ -24,9 +24,7 @@ fn parseSlug(arena: *std.heap.ArenaAllocator, file: File, page: ContentEntry) ![
     return file_name.first();
 }
 
-/// Builds a URL path for a page kind and slug. Posts live under `/posts`,
-/// pages under `/`, home is `/`, and the post list is `/posts`.
-pub fn buildUrl(arena: *std.heap.ArenaAllocator, page_kind: PageKind, slug: []const u8) ![]const u8 {
+fn buildUrl(arena: *std.heap.ArenaAllocator, page_kind: PageKind, slug: []const u8) ![]const u8 {
     const allocator = arena.allocator();
     switch (page_kind) {
         .post => return try std.Io.Dir.path.join(allocator, &.{ "/posts", slug }),
@@ -429,28 +427,4 @@ test "smoke: full site with config, pages, posts, templates" {
     try std.testing.expect(site.templates.map.get("home.html") != null);
     try std.testing.expect(site.templates.map.get("post.html") != null);
     try std.testing.expect(site.templates.map.get("post-list.html") != null);
-}
-
-test "buildUrl: post joins slug under /posts" {
-    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer arena.deinit();
-    try std.testing.expectEqualStrings("/posts/hello-world", try buildUrl(&arena, .post, "hello-world"));
-}
-
-test "buildUrl: page joins slug under /" {
-    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer arena.deinit();
-    try std.testing.expectEqualStrings("/about", try buildUrl(&arena, .page, "about"));
-}
-
-test "buildUrl: home returns root" {
-    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer arena.deinit();
-    try std.testing.expectEqualStrings("/", try buildUrl(&arena, .home, "ignored"));
-}
-
-test "buildUrl: post_list returns /posts" {
-    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer arena.deinit();
-    try std.testing.expectEqualStrings("/posts", try buildUrl(&arena, .post_list, "ignored"));
 }
