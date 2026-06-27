@@ -19,8 +19,8 @@ const modelsCli = @import("models/cli.zig");
 const cli_help = @import("ports/cli.zig");
 const fs_reader = @import("ports/fs_reader.zig");
 const fs_writer = @import("ports/fs_writer.zig");
-const str = @import("string.zig");
-const time = @import("time.zig");
+const str = @import("adapters/string.zig");
+const time = @import("adapters/time.zig");
 
 fn newPageHandler(arena: *std.heap.ArenaAllocator, io: std.Io, args: NewPageResult, source_dir: []const u8) !void {
     const allocator = arena.allocator();
@@ -150,5 +150,7 @@ test {
     _ = @import("ports/fs_reader.zig");
     _ = @import("ports/fs_writer.zig");
     _ = @import("models.zig");
-    _ = @import("string.zig");
+    _ = @import("adapters/string.zig");
+    _ = @import("adapters/time.zig");
+    _ = @import("ports/time.zig");
 }

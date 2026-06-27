@@ -7,8 +7,8 @@ const ImageSpec = models.ImageSpec;
 const Frontmatter = models.Frontmatter;
 const MapEntries = models.MapEntries;
 const YamlNode = models.YamlNode;
-const str = @import("../string.zig");
-const time = @import("../time.zig");
+const str = @import("string.zig");
+const time = @import("time.zig");
 const yaml_lexer = @import("yaml_lexer.zig");
 
 fn asString(arena: *std.heap.ArenaAllocator, value: ?YamlNode) !?[]const u8 {

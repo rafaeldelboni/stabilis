@@ -8,7 +8,7 @@ const CtxValue = models.CtxValue;
 const PageKind = models.PageKind;
 const SliceBetween = models.SliceBetween;
 const Templates = models.Templates;
-const str = @import("../string.zig");
+const str = @import("string.zig");
 
 const RenderError = error{
     UnclosedSection,

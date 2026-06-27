@@ -5,7 +5,7 @@ const models = @import("../models.zig");
 const MapEntries = models.MapEntries;
 const YamlNode = models.YamlNode;
 const DateTime = models.DateTime;
-const str = @import("../string.zig");
+const str = @import("string.zig");
 
 fn unquote(input: []const u8) []const u8 {
     return if (str.sliceBetween(input, "\"", "\"", 0)) |double_quoted|
