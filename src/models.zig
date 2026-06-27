@@ -116,6 +116,8 @@ pub const BuildResult = struct {
     clear_dir: bool = false,
 };
 
+pub const default_output_dir = "public";
+
 pub const FlagsResult = struct {
     source_dir: ?[]const u8 = null,
     version: bool = false,
@@ -134,7 +136,7 @@ pub const stabilis_cli = modelsCli.Cli{
     .flags = .{
         .Result = FlagsResult,
         .items = &.{
-            .{ .long = "--source-dir", .short = "-s", .field = "source_dir", .help = "Source directory" },
+            .{ .long = "--source-dir", .short = "-S", .field = "source_dir", .help = "Source directory" },
             .{ .long = "--help", .short = "-h", .field = "help", .terminal = true, .help = "Show help" },
             .{ .long = "--version", .short = "-v", .field = "version", .terminal = true, .help = "Print version" },
         },

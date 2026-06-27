@@ -1,5 +1,6 @@
 const std = @import("std");
 
+const config = @import("../logic/config.zig");
 const logic = @import("../logic/template.zig");
 const models = @import("../models.zig");
 const Context = models.Context;
@@ -18,7 +19,7 @@ const RenderError = error{
 
 /// Given `kind` and `templates` return the contents of the template for that kind type.
 pub fn pageKindToTemplate(kind: PageKind, templates: Templates) ![]const u8 {
-    return templates.map.get(logic.templateFor(kind)) orelse error.TemplateNotFound;
+    return templates.map.get(config.templateNameFor(kind)) orelse error.TemplateNotFound;
 }
 
 test "pageKindToTemplate: returns template content" {

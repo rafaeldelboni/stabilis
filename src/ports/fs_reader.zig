@@ -1,12 +1,30 @@
 const std = @import("std");
 const Io = std.Io;
 
+const config = @import("../logic/config.zig");
 const models = @import("../models.zig");
 const File = models.File;
 
-pub fn readFile(io: Io, arena: *std.heap.ArenaAllocator, path: []const u8) ![]u8 {
+pub fn readFile(io: Io, arena: *std.heap.ArenaAllocator, base_path: []const u8, path: []const u8) !File {
     const allocator = arena.allocator();
-    return try std.Io.Dir.readFileAlloc(std.Io.Dir.cwd(), io, path, allocator, .unlimited);
+    const cwd = std.Io.Dir.cwd();
+
+    const full_path = try std.Io.Dir.path.join(allocator, &.{ base_path, path });
+    const abs_path = try cwd.realPathFileAlloc(io, full_path, allocator);
+    const dir_path = std.Io.Dir.path.dirname(abs_path) orelse abs_path;
+    const rel_path = if (std.mem.startsWith(u8, abs_path, base_path))
+        abs_path[base_path.len + 1 ..]
+    else
+        try allocator.dupe(u8, std.Io.Dir.path.basename(path));
+
+    return File{
+        .dir_path = dir_path,
+        .abs_path = abs_path,
+        .rel_path = rel_path,
+        .file_ext = try allocator.dupe(u8, std.Io.Dir.path.extension(path)),
+        .file_name = try allocator.dupe(u8, std.Io.Dir.path.basename(path)),
+        .contents = try std.Io.Dir.readFileAlloc(cwd, io, full_path, allocator, .unlimited),
+    };
 }
 
 fn walkDirImpl(io: Io, arena: *std.heap.ArenaAllocator, base_path: []const u8, path: []const u8) ![]File {
@@ -41,6 +59,18 @@ fn walkDirImpl(io: Io, arena: *std.heap.ArenaAllocator, base_path: []const u8, p
         }
     }
     return output.items;
+}
+
+pub fn loadFiles(arena: *std.heap.ArenaAllocator, io: std.Io, source_dir: []const u8) ![]models.File {
+    const allocator = arena.allocator();
+    const cwd = std.Io.Dir.cwd();
+    const base_path = try cwd.realPathFileAlloc(io, source_dir, allocator);
+
+    const config_file = try readFile(io, arena, source_dir, config.config_file);
+    const content_files = try walkDirImpl(io, arena, base_path, config.content_dir);
+    const template_files = try walkDirImpl(io, arena, base_path, config.templates_dir);
+
+    return try std.mem.concat(allocator, models.File, &.{ &.{config_file}, content_files, template_files });
 }
 
 /// Recursively walks `path`, returning a slice of every file found.

@@ -5,7 +5,9 @@ const cli_adapter = @import("adapters/cli.zig");
 const frontmatter = @import("adapters/frontmatter.zig");
 const page = @import("adapters/page.zig");
 const site = @import("adapters/site.zig");
+const config = @import("logic/config.zig");
 const models = @import("models.zig");
+const debug = @import("debug.zig");
 const CommandsResult = models.CommandsResult;
 const Context = models.Context;
 const Frontmatter = models.Frontmatter;
@@ -21,19 +23,6 @@ const fs_writer = @import("ports/fs_writer.zig");
 const str = @import("string.zig");
 const time = @import("time.zig");
 
-fn writePage(
-    arena: *std.heap.ArenaAllocator,
-    io: std.Io,
-    output_dir: []const u8,
-    page_data: Page,
-    post_list: []Context,
-    site_data: Site,
-) !void {
-    const file_path = try page.parseFilePath(arena, output_dir, page_data);
-    const html = try page.parseHtml(arena, page_data, post_list, site_data);
-    try fs_writer.writeFileDeep(io, html, file_path);
-}
-
 fn newPageHandler(arena: *std.heap.ArenaAllocator, io: std.Io, args: NewPageResult, source_dir: []const u8) !void {
     const allocator = arena.allocator();
     const slug = args.slug orelse try str.parseSlug(arena, args.title);
@@ -48,7 +37,7 @@ fn newPageHandler(arena: *std.heap.ArenaAllocator, io: std.Io, args: NewPageResu
     const file_body = try std.mem.concat(allocator, u8, &.{ "\n## ", args.title, "\n" });
     const file = try std.mem.concat(allocator, u8, &.{ file_header, file_body });
     const file_path = try std.Io.Dir.path.join(allocator, &.{
-        source_dir, "content", try std.mem.concat(allocator, u8, &.{ slug, ".md" }),
+        source_dir, config.content_dir, try std.mem.concat(allocator, u8, &.{ slug, config.content_ext }),
     });
     try fs_writer.writeFileDeep(io, file, file_path);
 }
@@ -68,31 +57,40 @@ fn newPostHandler(arena: *std.heap.ArenaAllocator, io: std.Io, args: NewPostResu
     const file_body = try std.mem.concat(allocator, u8, &.{ "\n## ", args.title, "\n\n", args.description orelse "" });
     const file = try std.mem.concat(allocator, u8, &.{ file_header, file_body });
     const file_path = try std.Io.Dir.path.join(allocator, &.{
-        source_dir, "content", "posts", try std.mem.concat(allocator, u8, &.{ slug, ".md" }),
+        source_dir, config.content_dir, config.posts_dir, try std.mem.concat(allocator, u8, &.{ slug, config.content_ext }),
     });
     try fs_writer.writeFileDeep(io, file, file_path);
 }
 
-fn buildHandler(arena: *std.heap.ArenaAllocator, io: std.Io, args: BuildResult, source_dir: []const u8) !void {
+fn renderSite(
+    arena: *std.heap.ArenaAllocator,
+    io: std.Io,
+    output_dir: []const u8,
+    site_data: Site,
+) !void {
     const allocator = arena.allocator();
-
-    const output_dir = args.destination orelse "public";
-
-    if (args.clear_dir) try fs_writer.deleteDir(io, output_dir);
-
-    const files = try fs_reader.walkDir(io, arena, source_dir);
-    const site_data = try site.parse(arena, files, args.build_drafts);
 
     var post_list = try std.ArrayList(Context).initCapacity(allocator, site_data.posts.len);
     for (site_data.posts) |post| try post_list.append(allocator, post.context);
 
-    for (site_data.posts) |p|
-        try writePage(arena, io, output_dir, p, post_list.items, site_data);
+    const all_pages = try std.mem.concat(allocator, Page, &.{ site_data.posts, site_data.pages });
+    for (all_pages) |p|
+        try fs_writer.writePage(arena, io, output_dir, p, post_list.items, site_data);
+}
 
-    for (site_data.pages) |p|
-        try writePage(arena, io, output_dir, p, post_list.items, site_data);
+fn buildHandler(arena: *std.heap.ArenaAllocator, io: std.Io, args: BuildResult, source_dir: []const u8) !void {
+    const output_dir = args.destination orelse models.default_output_dir;
 
-    std.debug.print("Site from: {s}/ created on: {s}/\n", .{ source_dir, output_dir });
+    if (args.clear_dir) try fs_writer.deleteDir(io, output_dir);
+
+    const files = try fs_reader.loadFiles(arena, io, source_dir);
+
+    const site_data = try site.parse(arena, files, args.build_drafts);
+    if (site_data.posts.len == 0 and site_data.pages.len == 0) return error.NoFilesFound;
+
+    try renderSite(arena, io, output_dir, site_data);
+
+    std.debug.print("Site from: {s} created on: {s}\n", .{ source_dir, output_dir });
 }
 
 pub fn main(init: std.process.Init) !u8 {
@@ -105,7 +103,7 @@ pub fn main(init: std.process.Init) !u8 {
     const args = try init.minimal.args.toSlice(arena.allocator());
 
     const out = cli_adapter.parse(&arena, args, cli, &diag) catch |err| {
-        try cli_help.printDiagError(io, &diag, err);
+        if (err != error.NoCommand) try cli_help.printDiagError(io, &diag, err);
         try cli_help.printHelp(io, args, cli);
         return 2;
     };
@@ -120,13 +118,19 @@ pub fn main(init: std.process.Init) !u8 {
 
     const source_dir = out.flags.source_dir orelse "./";
 
-    try switch (out.commands orelse return 0) {
+    _ = switch (out.commands orelse return 0) {
         .build => |build_args| buildHandler(&arena, io, build_args, source_dir),
         .serve => |serve_args| std.debug.print("serve not implemented: {any}\n", .{serve_args}),
         .new => |new_args| switch (new_args) {
             .post => newPostHandler(&arena, io, new_args.post, source_dir),
             .page => newPageHandler(&arena, io, new_args.page, source_dir),
         },
+    } catch |err| {
+        if (err == error.NoFilesFound)
+            std.debug.print("No {s} files found on: {s}\n", .{ cli.name, source_dir })
+        else
+            std.debug.print("error: {}\n", .{err});
+        return 2;
     };
     return 0;
 }
@@ -138,6 +142,7 @@ test {
     _ = @import("adapters/site.zig");
     _ = @import("adapters/template.zig");
     _ = @import("adapters/yaml_lexer.zig");
+    _ = @import("logic/config.zig");
     _ = @import("logic/frontmatter.zig");
     _ = @import("logic/site.zig");
     _ = @import("logic/template.zig");
