@@ -29,7 +29,6 @@ fn diagError(arg: []const u8, name: []const u8, diag: *Diagnostics, err: anyerro
     return err;
 }
 
-
 fn splitIntoSlice(
     arena: *std.heap.ArenaAllocator,
     comptime T: type,
