@@ -239,6 +239,9 @@ test "printHelp general lists commands, subcommands and global options" {
     try std.testing.expect(std.mem.indexOf(u8, out, "Global options:") != null);
     try std.testing.expect(std.mem.indexOf(u8, out, "--help") != null);
     try std.testing.expect(std.mem.indexOf(u8, out, "--version") != null);
+    try std.testing.expect(std.mem.indexOf(u8, out, "--name") != null);
+    try std.testing.expect(std.mem.indexOf(u8, out, "[boolean]") != null);
+    try std.testing.expect(std.mem.indexOf(u8, out, "[string]") != null);
 }
 
 test "printHelp leaf shows header, help, and options incl globals" {
@@ -253,6 +256,11 @@ test "printHelp leaf shows header, help, and options incl globals" {
     try std.testing.expect(std.mem.indexOf(u8, out, "--list") != null);
     try std.testing.expect(std.mem.indexOf(u8, out, "--help") != null);
     try std.testing.expect(std.mem.indexOf(u8, out, "--version") != null);
+    try std.testing.expect(std.mem.indexOf(u8, out, "--name") != null);
+    try std.testing.expect(std.mem.indexOf(u8, out, "[boolean]") != null);
+    try std.testing.expect(std.mem.indexOf(u8, out, "[string]") != null);
+    try std.testing.expect(std.mem.indexOf(u8, out, "[number]") != null);
+    try std.testing.expect(std.mem.indexOf(u8, out, "[string array]") != null);
 }
 
 test "printHelp group shows <subcommand> and Subcommands list" {
