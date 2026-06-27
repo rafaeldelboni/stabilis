@@ -1,6 +1,6 @@
 const std = @import("std");
 
-const models = @import("models.zig");
+const models = @import("../models.zig");
 const SliceBetween = models.SliceBetween;
 
 /// Finds the first `open`...`close` pair in `source` from `start_index`.

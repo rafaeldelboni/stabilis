@@ -1,7 +1,8 @@
 const std = @import("std");
 
-const models = @import("models.zig");
+const models = @import("../models.zig");
 const DateTime = models.DateTime;
+const time_logic = @import("../logic/time.zig");
 
 /// Returns the current wall-clock time via the `Io` instance.
 pub fn now(io: std.Io) DateTime {
@@ -26,28 +27,9 @@ pub fn now(io: std.Io) DateTime {
     };
 }
 
-/// Formats a `DateTime` as an RFC3339 string (`YYYY-MM-DDThh:mm:ssZ`).
-pub fn toString(arena: *std.heap.ArenaAllocator, d: DateTime) ![]const u8 {
-    return try std.fmt.allocPrint(
-        arena.allocator(),
-        "{d}-{d:0>2}-{d:0>2}T{d:0>2}:{d:0>2}:{d:0>2}Z",
-        .{ d.year, d.month, d.day, d.hour, d.min, d.sec },
-    );
-}
-
-test "toString: datetime formatted to RFC3339" {
-    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer arena.deinit();
-
-    const result = try toString(&arena, .{
-        .year = 2026,
-        .month = 5,
-        .day = 18,
-        .hour = 10,
-        .min = 0,
-        .sec = 0,
-    });
-    try std.testing.expectEqualStrings("2026-05-18T10:00:00Z", result);
+/// Returns the current wall-clock time formatted as an RFC3339 string.
+pub fn nowString(arena: *std.heap.ArenaAllocator, io: std.Io) ![]const u8 {
+    return try time_logic.toString(arena, now(io));
 }
 
 test "now: returns sane date values" {
@@ -63,4 +45,16 @@ test "now: returns sane date values" {
     try std.testing.expect(dt.hour <= 23);
     try std.testing.expect(dt.min <= 59);
     try std.testing.expect(dt.sec <= 59);
+}
+
+test "nowString: returns RFC3339 formatted current time" {
+    var threaded: std.Io.Threaded = .init_single_threaded;
+    defer threaded.deinit();
+    const io = threaded.io();
+
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+
+    const result = try nowString(&arena, io);
+    try std.testing.expect(result.len > 0);
 }
