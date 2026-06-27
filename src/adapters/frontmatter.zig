@@ -8,6 +8,7 @@ const Frontmatter = models.Frontmatter;
 const MapEntries = models.MapEntries;
 const YamlNode = models.YamlNode;
 const str = @import("../string.zig");
+const time = @import("../time.zig");
 const yaml_lexer = @import("yaml_lexer.zig");
 
 fn asString(arena: *std.heap.ArenaAllocator, value: ?YamlNode) !?[]const u8 {
@@ -15,11 +16,7 @@ fn asString(arena: *std.heap.ArenaAllocator, value: ?YamlNode) !?[]const u8 {
         return switch (v) {
             .string => |s| s,
             .boolean => |b| if (b) "true" else "false",
-            .datetime => |d| try std.fmt.allocPrint(
-                arena.allocator(),
-                "{d}-{d:0>2}-{d:0>2}T{d:0>2}:{d:0>2}:{d:0>2}Z",
-                .{ d.year, d.month, d.day, d.hour, d.min, d.sec },
-            ),
+            .datetime => |d| try time.toString(arena, d),
             .null => null,
             else => null,
         };
@@ -72,6 +69,67 @@ fn mapToFrontmatter(arena: *std.heap.ArenaAllocator, entries: MapEntries) !Front
         if (images == .list) fm.images = try listToImages(arena, images.list);
     }
     return fm;
+}
+
+fn frontmatterToYamlString(arena: *std.heap.ArenaAllocator, fm: Frontmatter) ![]const u8 {
+    const allocator = arena.allocator();
+    var list: std.ArrayList(u8) = .empty;
+
+    try list.appendSlice(allocator, "---\n");
+
+    if (fm.author) |author| {
+        const s = try std.fmt.allocPrint(allocator, "author: {s}\n", .{author});
+        try list.appendSlice(allocator, s);
+    }
+    if (fm.title) |title| {
+        const s = try std.fmt.allocPrint(allocator, "title: {s}\n", .{title});
+        try list.appendSlice(allocator, s);
+    }
+    if (fm.date) |date| {
+        const s = try std.fmt.allocPrint(allocator, "date: {s}\n", .{date});
+        try list.appendSlice(allocator, s);
+    }
+    if (fm.slug) |slug| {
+        const s = try std.fmt.allocPrint(allocator, "slug: {s}\n", .{slug});
+        try list.appendSlice(allocator, s);
+    }
+    if (fm.description) |description| {
+        const s = try std.fmt.allocPrint(allocator, "description: {s}\n", .{description});
+        try list.appendSlice(allocator, s);
+    }
+    if (fm.cover) |cover| {
+        const s = try std.fmt.allocPrint(allocator, "cover: {s}\n", .{cover});
+        try list.appendSlice(allocator, s);
+    }
+
+    {
+        const s = try std.fmt.allocPrint(allocator, "draft: {}\n", .{fm.draft});
+        try list.appendSlice(allocator, s);
+    }
+
+    if (fm.tags.len > 0) {
+        const joined = try std.mem.join(allocator, ", ", fm.tags);
+        const s = try std.fmt.allocPrint(allocator, "tags: [{s}]\n", .{joined});
+        try list.appendSlice(allocator, s);
+    }
+
+    if (fm.menus.len > 0) {
+        const joined = try std.mem.join(allocator, ", ", fm.menus);
+        const s = try std.fmt.allocPrint(allocator, "menus: [{s}]\n", .{joined});
+        try list.appendSlice(allocator, s);
+    }
+
+    if (fm.images.len > 0) {
+        try list.appendSlice(allocator, "images:\n");
+        for (fm.images) |image| {
+            const s = try std.fmt.allocPrint(allocator, "  - {{ file: {s}, caption: \"{s}\" }}\n", .{ image.file, image.caption orelse "" });
+            try list.appendSlice(allocator, s);
+        }
+    }
+
+    try list.appendSlice(allocator, "---\n");
+
+    return list.items;
 }
 
 /// Parses a markdown source into a ContentEntry by splitting the YAML
@@ -398,4 +456,44 @@ test "asString: list and map return null" {
 
     try std.testing.expect((try asString(&arena, .{ .list = &.{} })) == null);
     try std.testing.expect((try asString(&arena, .{ .map = .{} })) == null);
+}
+
+test "frontmatterToYamlString should parse frontmatter into yaml string" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+
+    const fm = models.Frontmatter{
+        .title = "Hello World",
+        .date = "2026-05-18T10:00:00Z",
+        .slug = "hello-world",
+        .description = "A post about Zig and blogging",
+        .draft = false,
+        .cover = "03.jpg",
+        .tags = &.{ "zig", "blogging", "ssg" },
+        .menus = &.{ "main", "about" },
+        .images = &.{
+            .{ .file = "01.jpg", .caption = "Arriving at dusk" },
+            .{ .file = "02.jpg", .caption = null },
+            .{ .file = "03.jpg", .caption = "The cabin" },
+        },
+    };
+
+    const expected =
+        \\---
+        \\title: Hello World
+        \\date: 2026-05-18T10:00:00Z
+        \\slug: hello-world
+        \\description: A post about Zig and blogging
+        \\cover: 03.jpg
+        \\draft: false
+        \\tags: [zig, blogging, ssg]
+        \\menus: [main, about]
+        \\images:
+        \\  - { file: 01.jpg, caption: "Arriving at dusk" }
+        \\  - { file: 02.jpg, caption: "" }
+        \\  - { file: 03.jpg, caption: "The cabin" }
+        \\---
+        \\
+    ;
+    try std.testing.expectEqualStrings(expected, try frontmatterToYamlString(&arena, fm));
 }
