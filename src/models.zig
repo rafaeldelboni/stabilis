@@ -43,8 +43,8 @@ pub const ImageSpec = struct {
 };
 
 pub const Frontmatter = struct {
-    title: ?[]const u8 = null,
     author: ?[]const u8 = null,
+    title: ?[]const u8 = null,
     date: ?[]const u8 = null,
     slug: ?[]const u8 = null,
     description: ?[]const u8 = null,

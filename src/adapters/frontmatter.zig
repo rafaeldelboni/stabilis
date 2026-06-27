@@ -88,13 +88,13 @@ pub fn frontmatterToYamlString(arena: *std.heap.ArenaAllocator, fm: Frontmatter)
     if (fm.author) |author|
         try appendFmt(&list, allocator, "author: {s}\n", .{author});
     if (fm.title) |title|
-        try appendFmt(&list, allocator, "title: {s}\n", .{try str.escapeDoubleQuote(allocator, title)});
+        try appendFmt(&list, allocator, "title: \"{s}\"\n", .{try str.escapeDoubleQuote(allocator, title)});
     if (fm.date) |date|
         try appendFmt(&list, allocator, "date: {s}\n", .{date});
     if (fm.slug) |slug|
         try appendFmt(&list, allocator, "slug: {s}\n", .{slug});
     if (fm.description) |description|
-        try appendFmt(&list, allocator, "description: {s}\n", .{try str.escapeDoubleQuote(allocator, description)});
+        try appendFmt(&list, allocator, "description: \"{s}\"\n", .{try str.escapeDoubleQuote(allocator, description)});
     if (fm.cover) |cover|
         try appendFmt(&list, allocator, "cover: {s}\n", .{cover});
 
@@ -470,10 +470,10 @@ test "frontmatterToYamlString should parse frontmatter into yaml string" {
 
     const expected =
         \\---
-        \\title: Hello World
+        \\title: "Hello World"
         \\date: 2026-05-18T10:00:00Z
         \\slug: hello-world
-        \\description: A post about Zig and blogging
+        \\description: "A post about Zig and blogging"
         \\cover: 03.jpg
         \\draft: true
         \\tags: [zig, blogging, ssg]
@@ -499,7 +499,7 @@ test "frontmatterToYamlString omits null/empty fields" {
 
     const expected =
         \\---
-        \\title: Only Title
+        \\title: "Only Title"
         \\---
         \\
     ;
@@ -518,8 +518,8 @@ test "frontmatterToYamlString escapes quotes in title and description" {
 
     const expected =
         \\---
-        \\title: Say \"hello\"
-        \\description: a \"quote\" and a backslash \\
+        \\title: "Say \"hello\""
+        \\description: "a \"quote\" and a backslash \\"
         \\draft: true
         \\---
         \\
