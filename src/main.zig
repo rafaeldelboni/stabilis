@@ -2,18 +2,24 @@ const std = @import("std");
 const build_options = @import("build_options");
 
 const cli_adapter = @import("adapters/cli.zig");
+const frontmatter = @import("adapters/frontmatter.zig");
 const page = @import("adapters/page.zig");
 const site = @import("adapters/site.zig");
 const models = @import("models.zig");
-const modelsCli = @import("models/cli.zig");
 const CommandsResult = models.CommandsResult;
 const Context = models.Context;
+const Frontmatter = models.Frontmatter;
 const Page = models.Page;
 const Site = models.Site;
 const BuildResult = models.BuildResult;
+const NewPostResult = models.NewPostResult;
+const NewPageResult = models.NewPageResult;
+const modelsCli = @import("models/cli.zig");
 const cli_help = @import("ports/cli.zig");
 const fs_reader = @import("ports/fs_reader.zig");
 const fs_writer = @import("ports/fs_writer.zig");
+const str = @import("string.zig");
+const time = @import("time.zig");
 
 fn writePage(
     arena: *std.heap.ArenaAllocator,
@@ -26,6 +32,28 @@ fn writePage(
     const file_path = try page.parseFilePath(arena, output_dir, page_data);
     const html = try page.parseHtml(arena, page_data, post_list, site_data);
     try fs_writer.writeFileDeep(io, html, file_path);
+}
+
+fn newPostHandler(arena: *std.heap.ArenaAllocator, io: std.Io, args: NewPostResult) !void {
+    const allocator = arena.allocator();
+    const output_dir = "./"; // TODO as arg?
+    const slug = try str.parseSlug(arena, args.title);
+    const fm = Frontmatter{
+        .title = args.title,
+        .date = try time.toString(arena, time.now(io)), //TODO
+        .description = args.description,
+        .slug = slug,
+        .draft = args.draft,
+        .tags = args.tags,
+    };
+    const file_header = try frontmatter.frontmatterToYamlString(arena, fm);
+    const file_body = try std.mem.concat(allocator, u8, &.{ "\n## ", args.title, "\n\n", args.description orelse "" });
+    const file = try std.mem.concat(allocator, u8, &.{ file_header, file_body });
+    const file_path = try std.Io.Dir.path.join(allocator, &.{
+        output_dir,
+        try std.mem.concat(allocator, u8, &.{ try site.buildUrl(arena, .post, slug), ".md" }),
+    });
+    try fs_writer.writeFileDeep(io, file, file_path);
 }
 
 fn buildHandler(arena: *std.heap.ArenaAllocator, io: std.Io, args: BuildResult) !void {
@@ -77,7 +105,7 @@ pub fn main(init: std.process.Init) !u8 {
         .build => |build_args| buildHandler(&arena, io, build_args),
         .serve => |serve_args| std.debug.print("serve not implemented: {any}\n", .{serve_args}),
         .new => |new_args| switch (new_args) {
-            .post => std.debug.print("new post not implemented: {any}\n", .{new_args.post}),
+            .post => newPostHandler(&arena, io, new_args.post),
             .page => std.debug.print("new page not implemented: {any}\n", .{new_args.page}),
         },
     };
