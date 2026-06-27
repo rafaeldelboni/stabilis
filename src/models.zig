@@ -129,6 +129,8 @@ pub const CommandsResult = union(enum) {
 };
 
 pub const stabilis_cli = modelsCli.Cli{
+    .name = "stabilis",
+    .description = "A static site generator",
     .flags = .{
         .Result = FlagsResult,
         .items = &.{

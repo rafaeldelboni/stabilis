@@ -48,6 +48,8 @@ pub const CommandsSpec = struct {
 
 /// The full CLI definition: shared flags and an optional command tree.
 pub const Cli = struct {
+    name: []const u8 = "",
+    description: []const u8 = "",
     flags: FlagsSpec,
     commands: ?CommandsSpec = null,
 };
