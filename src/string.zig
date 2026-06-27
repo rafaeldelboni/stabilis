@@ -64,6 +64,33 @@ pub fn parseSlug(arena: *std.heap.ArenaAllocator, input: []const u8) ![]const u8
     return out.items;
 }
 
+/// Replaces `&`, `<`, `>`, `"` with HTML entities.
+pub fn escapeHtml(allocator: std.mem.Allocator, input: []const u8) ![]const u8 {
+    var buf: std.ArrayList(u8) = .empty;
+    for (input) |c| {
+        switch (c) {
+            '&' => try buf.appendSlice(allocator, "&amp;"),
+            '<' => try buf.appendSlice(allocator, "&lt;"),
+            '>' => try buf.appendSlice(allocator, "&gt;"),
+            '"' => try buf.appendSlice(allocator, "&quot;"),
+            else => try buf.append(allocator, c),
+        }
+    }
+    return buf.items;
+}
+
+/// Escapes `\` and `"` so a value can be safely embedded inside a
+/// double-quoted YAML scalar (e.g. `title: "{s}"`). Every `\` becomes `\\`
+/// and every `"` becomes `\"`; all other bytes pass through unchanged.
+pub fn escapeDoubleQuote(allocator: std.mem.Allocator, input: []const u8) ![]const u8 {
+    var out: std.ArrayList(u8) = .empty;
+    for (input) |c| {
+        if (c == '"' or c == '\\') try out.append(allocator, '\\');
+        try out.append(allocator, c);
+    }
+    return out.items;
+}
+
 test "parseSlug creates valid slug from chaotic title string" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
@@ -145,4 +172,88 @@ test "sliceBetween with unicode content between delimiters" {
     try std.testing.expectEqualSlices(u8, "café", sliceBetween("[café]", "[", "]", 0).?.content);
     try std.testing.expectEqualSlices(u8, "日本語", sliceBetween("<<日本語>>", "<<", ">>", 0).?.content);
     try std.testing.expectEqualSlices(u8, "émoji 🎉", sliceBetween("---émoji 🎉---", "---", "---", 0).?.content);
+}
+
+test "escapeHtml replaces ampersand" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const result = try escapeHtml(arena.allocator(), "foo & bar");
+    try std.testing.expectEqualStrings("foo &amp; bar", result);
+}
+
+test "escapeHtml replaces angle brackets" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const result = try escapeHtml(arena.allocator(), "<div>hello</div>");
+    try std.testing.expectEqualStrings("&lt;div&gt;hello&lt;/div&gt;", result);
+}
+
+test "escapeHtml replaces double quotes" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const result = try escapeHtml(arena.allocator(), "say \"hello\"");
+    try std.testing.expectEqualStrings("say &quot;hello&quot;", result);
+}
+
+test "escapeHtml leaves plain text unchanged" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const result = try escapeHtml(arena.allocator(), "just plain text");
+    try std.testing.expectEqualStrings("just plain text", result);
+}
+
+test "escapeHtml handles empty string" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const result = try escapeHtml(arena.allocator(), "");
+    try std.testing.expectEqualStrings("", result);
+}
+
+test "escapeHtml mixes entities and plain text" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const result = try escapeHtml(arena.allocator(), "<p>Tom & Jerry \"cartoon\"</p>");
+    try std.testing.expectEqualStrings("&lt;p&gt;Tom &amp; Jerry &quot;cartoon&quot;&lt;/p&gt;", result);
+}
+
+test "escapeDoubleQuote leaves plain text unchanged" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const result = try escapeDoubleQuote(arena.allocator(), "just plain text");
+    try std.testing.expectEqualStrings("just plain text", result);
+}
+
+test "escapeDoubleQuote escapes double quotes" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const result = try escapeDoubleQuote(arena.allocator(), "say \"hello\" world");
+    try std.testing.expectEqualStrings("say \\\"hello\\\" world", result);
+}
+
+test "escapeDoubleQuote escapes backslashes" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const result = try escapeDoubleQuote(arena.allocator(), "C:\\Users\\foo");
+    try std.testing.expectEqualStrings("C:\\\\Users\\\\foo", result);
+}
+
+test "escapeDoubleQuote escapes mixed backslashes and quotes" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const result = try escapeDoubleQuote(arena.allocator(), "path=\"C:\\dir\\file\"");
+    try std.testing.expectEqualStrings("path=\\\"C:\\\\dir\\\\file\\\"", result);
+}
+
+test "escapeDoubleQuote handles empty string" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const result = try escapeDoubleQuote(arena.allocator(), "");
+    try std.testing.expectEqualStrings("", result);
+}
+
+test "escapeDoubleQuote leaves other special chars unchanged" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const result = try escapeDoubleQuote(arena.allocator(), "a:b#c{d}[e],f@g%h");
+    try std.testing.expectEqualStrings("a:b#c{d}[e],f@g%h", result);
 }

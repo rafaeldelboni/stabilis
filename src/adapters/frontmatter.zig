@@ -71,59 +71,49 @@ fn mapToFrontmatter(arena: *std.heap.ArenaAllocator, entries: MapEntries) !Front
     return fm;
 }
 
-fn frontmatterToYamlString(arena: *std.heap.ArenaAllocator, fm: Frontmatter) ![]const u8 {
+fn appendFmt(list: *std.ArrayList(u8), alloc: std.mem.Allocator, comptime fmt: []const u8, args: anytype) !void {
+    const s = try std.fmt.allocPrint(alloc, fmt, args);
+    try list.appendSlice(alloc, s);
+}
+
+/// Serializes a `Frontmatter` into a YAML string wrapped in `---` fences.
+/// Optional fields are omitted when null/empty; `draft` is emitted only
+/// when `true`. All allocations live in the caller's arena.
+pub fn frontmatterToYamlString(arena: *std.heap.ArenaAllocator, fm: Frontmatter) ![]const u8 {
     const allocator = arena.allocator();
     var list: std.ArrayList(u8) = .empty;
 
     try list.appendSlice(allocator, "---\n");
 
-    if (fm.author) |author| {
-        const s = try std.fmt.allocPrint(allocator, "author: {s}\n", .{author});
-        try list.appendSlice(allocator, s);
-    }
-    if (fm.title) |title| {
-        const s = try std.fmt.allocPrint(allocator, "title: {s}\n", .{title});
-        try list.appendSlice(allocator, s);
-    }
-    if (fm.date) |date| {
-        const s = try std.fmt.allocPrint(allocator, "date: {s}\n", .{date});
-        try list.appendSlice(allocator, s);
-    }
-    if (fm.slug) |slug| {
-        const s = try std.fmt.allocPrint(allocator, "slug: {s}\n", .{slug});
-        try list.appendSlice(allocator, s);
-    }
-    if (fm.description) |description| {
-        const s = try std.fmt.allocPrint(allocator, "description: {s}\n", .{description});
-        try list.appendSlice(allocator, s);
-    }
-    if (fm.cover) |cover| {
-        const s = try std.fmt.allocPrint(allocator, "cover: {s}\n", .{cover});
-        try list.appendSlice(allocator, s);
-    }
+    if (fm.author) |author|
+        try appendFmt(&list, allocator, "author: {s}\n", .{author});
+    if (fm.title) |title|
+        try appendFmt(&list, allocator, "title: {s}\n", .{try str.escapeDoubleQuote(allocator, title)});
+    if (fm.date) |date|
+        try appendFmt(&list, allocator, "date: {s}\n", .{date});
+    if (fm.slug) |slug|
+        try appendFmt(&list, allocator, "slug: {s}\n", .{slug});
+    if (fm.description) |description|
+        try appendFmt(&list, allocator, "description: {s}\n", .{try str.escapeDoubleQuote(allocator, description)});
+    if (fm.cover) |cover|
+        try appendFmt(&list, allocator, "cover: {s}\n", .{cover});
 
-    {
-        const s = try std.fmt.allocPrint(allocator, "draft: {}\n", .{fm.draft});
-        try list.appendSlice(allocator, s);
-    }
+    if (fm.draft) try appendFmt(&list, allocator, "draft: {}\n", .{fm.draft});
 
     if (fm.tags.len > 0) {
         const joined = try std.mem.join(allocator, ", ", fm.tags);
-        const s = try std.fmt.allocPrint(allocator, "tags: [{s}]\n", .{joined});
-        try list.appendSlice(allocator, s);
+        try appendFmt(&list, allocator, "tags: [{s}]\n", .{joined});
     }
 
     if (fm.menus.len > 0) {
         const joined = try std.mem.join(allocator, ", ", fm.menus);
-        const s = try std.fmt.allocPrint(allocator, "menus: [{s}]\n", .{joined});
-        try list.appendSlice(allocator, s);
+        try appendFmt(&list, allocator, "menus: [{s}]\n", .{joined});
     }
 
     if (fm.images.len > 0) {
         try list.appendSlice(allocator, "images:\n");
         for (fm.images) |image| {
-            const s = try std.fmt.allocPrint(allocator, "  - {{ file: {s}, caption: \"{s}\" }}\n", .{ image.file, image.caption orelse "" });
-            try list.appendSlice(allocator, s);
+            try appendFmt(&list, allocator, "  - {{ file: {s}, caption: \"{s}\" }}\n", .{ image.file, image.caption orelse "" });
         }
     }
 
@@ -467,7 +457,7 @@ test "frontmatterToYamlString should parse frontmatter into yaml string" {
         .date = "2026-05-18T10:00:00Z",
         .slug = "hello-world",
         .description = "A post about Zig and blogging",
-        .draft = false,
+        .draft = true,
         .cover = "03.jpg",
         .tags = &.{ "zig", "blogging", "ssg" },
         .menus = &.{ "main", "about" },
@@ -485,13 +475,107 @@ test "frontmatterToYamlString should parse frontmatter into yaml string" {
         \\slug: hello-world
         \\description: A post about Zig and blogging
         \\cover: 03.jpg
-        \\draft: false
+        \\draft: true
         \\tags: [zig, blogging, ssg]
         \\menus: [main, about]
         \\images:
         \\  - { file: 01.jpg, caption: "Arriving at dusk" }
         \\  - { file: 02.jpg, caption: "" }
         \\  - { file: 03.jpg, caption: "The cabin" }
+        \\---
+        \\
+    ;
+    try std.testing.expectEqualStrings(expected, try frontmatterToYamlString(&arena, fm));
+}
+
+test "frontmatterToYamlString omits null/empty fields" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+
+    const fm = models.Frontmatter{
+        .title = "Only Title",
+        .draft = false,
+    };
+
+    const expected =
+        \\---
+        \\title: Only Title
+        \\---
+        \\
+    ;
+    try std.testing.expectEqualStrings(expected, try frontmatterToYamlString(&arena, fm));
+}
+
+test "frontmatterToYamlString escapes quotes in title and description" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+
+    const fm = models.Frontmatter{
+        .title = "Say \"hello\"",
+        .description = "a \"quote\" and a backslash \\",
+        .draft = true,
+    };
+
+    const expected =
+        \\---
+        \\title: Say \"hello\"
+        \\description: a \"quote\" and a backslash \\
+        \\draft: true
+        \\---
+        \\
+    ;
+    try std.testing.expectEqualStrings(expected, try frontmatterToYamlString(&arena, fm));
+}
+
+test "frontmatterToYamlString emits tags and menus as flow sequences" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+
+    const fm = models.Frontmatter{
+        .draft = false,
+        .tags = &.{ "one", "two" },
+        .menus = &.{ "nav", "footer" },
+    };
+
+    const expected =
+        \\---
+        \\tags: [one, two]
+        \\menus: [nav, footer]
+        \\---
+        \\
+    ;
+    try std.testing.expectEqualStrings(expected, try frontmatterToYamlString(&arena, fm));
+}
+
+test "frontmatterToYamlString emits images with null caption as empty" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+
+    const fm = models.Frontmatter{
+        .draft = false,
+        .images = &.{
+            .{ .file = "pic.jpg", .caption = null },
+        },
+    };
+
+    const expected =
+        \\---
+        \\images:
+        \\  - { file: pic.jpg, caption: "" }
+        \\---
+        \\
+    ;
+    try std.testing.expectEqualStrings(expected, try frontmatterToYamlString(&arena, fm));
+}
+
+test "frontmatterToYamlString emits only fences for empty frontmatter" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+
+    const fm = models.Frontmatter{};
+
+    const expected =
+        \\---
         \\---
         \\
     ;
