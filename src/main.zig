@@ -34,13 +34,33 @@ fn writePage(
     try fs_writer.writeFileDeep(io, html, file_path);
 }
 
+fn newPageHandler(arena: *std.heap.ArenaAllocator, io: std.Io, args: NewPageResult) !void {
+    const allocator = arena.allocator();
+    const output_dir = "./"; // TODO as arg?
+    const slug = args.slug orelse try str.parseSlug(arena, args.title);
+    const fm = Frontmatter{
+        .title = args.title,
+        .date = try time.toString(arena, time.now(io)),
+        .slug = slug,
+        .draft = args.draft,
+        .menus = args.menus,
+    };
+    const file_header = try frontmatter.frontmatterToYamlString(arena, fm);
+    const file_body = try std.mem.concat(allocator, u8, &.{ "\n## ", args.title, "\n"});
+    const file = try std.mem.concat(allocator, u8, &.{ file_header, file_body });
+    const file_path = try std.Io.Dir.path.join(allocator, &.{
+        output_dir, "content", try std.mem.concat(allocator, u8, &.{ slug, ".md" }),
+    });
+    try fs_writer.writeFileDeep(io, file, file_path);
+}
+
 fn newPostHandler(arena: *std.heap.ArenaAllocator, io: std.Io, args: NewPostResult) !void {
     const allocator = arena.allocator();
     const output_dir = "./"; // TODO as arg?
     const slug = try str.parseSlug(arena, args.title);
     const fm = Frontmatter{
         .title = args.title,
-        .date = try time.toString(arena, time.now(io)), //TODO
+        .date = try time.toString(arena, time.now(io)),
         .description = args.description,
         .slug = slug,
         .draft = args.draft,
@@ -50,8 +70,7 @@ fn newPostHandler(arena: *std.heap.ArenaAllocator, io: std.Io, args: NewPostResu
     const file_body = try std.mem.concat(allocator, u8, &.{ "\n## ", args.title, "\n\n", args.description orelse "" });
     const file = try std.mem.concat(allocator, u8, &.{ file_header, file_body });
     const file_path = try std.Io.Dir.path.join(allocator, &.{
-        output_dir,
-        try std.mem.concat(allocator, u8, &.{ try site.buildUrl(arena, .post, slug), ".md" }),
+        output_dir, "content", "posts", try std.mem.concat(allocator, u8, &.{ slug, ".md" }),
     });
     try fs_writer.writeFileDeep(io, file, file_path);
 }
@@ -106,7 +125,7 @@ pub fn main(init: std.process.Init) !u8 {
         .serve => |serve_args| std.debug.print("serve not implemented: {any}\n", .{serve_args}),
         .new => |new_args| switch (new_args) {
             .post => newPostHandler(&arena, io, new_args.post),
-            .page => std.debug.print("new page not implemented: {any}\n", .{new_args.page}),
+            .page => newPageHandler(&arena, io, new_args.page),
         },
     };
     return 0;
