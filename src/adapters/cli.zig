@@ -1,18 +1,12 @@
 const std = @import("std");
 
 const modelsCli = @import("../models/cli.zig");
+const logic = @import("../logic/cli.zig");
 const Cli = modelsCli.Cli;
 const Diagnostics = modelsCli.Diagnostics;
 const Command = modelsCli.Command;
 const Flag = modelsCli.Flag;
-
-/// Maps a field type to its CLI value kind for help output.
-const FlagType = enum {
-    boolean,
-    number,
-    list_of_strings,
-    string,
-};
+const FlagType = logic.FlagType;
 
 /// The parse result: shared args plus an optional command result.
 fn Output(comptime cli: Cli) type {
@@ -35,19 +29,6 @@ fn diagError(arg: []const u8, name: []const u8, diag: *Diagnostics, err: anyerro
     return err;
 }
 
-/// Infers the `FlagType` from a struct field's type at comptime.
-pub fn parseFieldTypes(comptime T: type) FlagType {
-    return switch (@typeInfo(T)) {
-        .bool => .boolean,
-        .int => .number,
-        .optional => |info| parseFieldTypes(info.child),
-        .pointer => |info| if (info.size == .slice and @typeInfo(info.child) == .pointer)
-            .list_of_strings
-        else
-            .string,
-        else => .string,
-    };
-}
 
 fn splitIntoSlice(
     arena: *std.heap.ArenaAllocator,
@@ -96,7 +77,7 @@ fn parseFields(
     value: []const u8,
 ) !@FieldType(T, flag.field) {
     const FieldT = @FieldType(T, flag.field);
-    const flag_type = comptime parseFieldTypes(FieldT);
+    const flag_type = comptime logic.parseFieldTypes(FieldT);
     return switch (flag_type) {
         .boolean => std.mem.eql(u8, value, "true"),
         .number => std.fmt.parseInt(
@@ -122,7 +103,7 @@ fn applyFlag(
     diag: *Diagnostics,
 ) !Match {
     inline for (flags) |flag| {
-        if (std.mem.eql(u8, arg, flag.long) or std.mem.eql(u8, arg, flag.short)) {
+        if (logic.nameMatches(arg, flag)) {
             const FieldT = @FieldType(T, flag.field);
             if (@typeInfo(FieldT) == .bool) {
                 @field(target.*, flag.field) = true;
@@ -130,16 +111,14 @@ fn applyFlag(
             }
             if (i.* + 1 >= args.len) return diagError(arg, flag.field, diag, error.MissingValue);
             const raw = args[i.* + 1];
-            if (raw.len > 1 and raw[0] == '-' and !std.mem.eql(u8, raw, "--"))
+            if (logic.looksLikeFlag(raw))
                 return diagError(arg, flag.field, diag, error.MissingValue);
             i.* += 1;
             @field(target.*, flag.field) = try parseFields(arena, T, flag, @field(target.*, flag.field), raw);
             return .matched;
-        } else if (std.mem.indexOfScalar(u8, arg, '=')) |eq| {
-            const head = arg[0..eq];
-            if (std.mem.eql(u8, head, flag.long) or std.mem.eql(u8, head, flag.short)) {
-                const raw = arg[eq + 1 ..];
-                @field(target.*, flag.field) = try parseFields(arena, T, flag, @field(target.*, flag.field), raw);
+        } else if (logic.splitFlagAssignment(arg)) |assign| {
+            if (logic.nameMatches(assign.head, flag)) {
+                @field(target.*, flag.field) = try parseFields(arena, T, flag, @field(target.*, flag.field), assign.value);
                 return .matched;
             }
         }
@@ -165,7 +144,7 @@ fn parseArgs(
         if (try applyFlag(arena, arg, C, cmd_flags, &@field(out.commands.?, cmd_name), args, &i, diag) == .matched) continue :next_arg;
         if (try applyFlag(arena, arg, cli.flags.Result, cli.flags.items, &out.flags, args, &i, diag) == .matched) continue :next_arg;
 
-        if (arg.len > 0 and arg[0] == '-') return diagError(arg, cmd_name, diag, error.UnknownFlag);
+        if (logic.startsLikeFlag(arg)) return diagError(arg, cmd_name, diag, error.UnknownFlag);
 
         inline for (positionals, 0..) |pos, j| {
             if (j == pos_idx) {
@@ -212,7 +191,7 @@ fn parseSharedOnly(
     diag_name: []const u8,
     diag: *Diagnostics,
 ) !bool {
-    if (args.len == 0 or args[0].len == 0 or args[0][0] != '-') return false;
+    if (args.len == 0 or !logic.startsLikeFlag(args[0])) return false;
     var i: usize = 0;
     while (i < args.len) : (i += 1) {
         if (try applyFlag(arena, args[i], cli.flags.Result, cli.flags.items, &out.flags, args, &i, diag) == .matched) continue;

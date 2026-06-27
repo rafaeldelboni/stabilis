@@ -139,7 +139,9 @@ test {
     _ = @import("adapters/frontmatter.zig");
     _ = @import("adapters/markdown.zig");
     _ = @import("adapters/site.zig");
+    _ = @import("adapters/string.zig");
     _ = @import("adapters/template.zig");
+    _ = @import("adapters/time.zig");
     _ = @import("adapters/yaml_lexer.zig");
     _ = @import("logic/config.zig");
     _ = @import("logic/frontmatter.zig");
@@ -149,8 +151,6 @@ test {
     _ = @import("ports/cli.zig");
     _ = @import("ports/fs_reader.zig");
     _ = @import("ports/fs_writer.zig");
-    _ = @import("models.zig");
-    _ = @import("adapters/string.zig");
-    _ = @import("logic/time.zig");
     _ = @import("ports/time.zig");
+    _ = @import("models.zig");
 }

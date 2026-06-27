@@ -1,7 +1,7 @@
 const std = @import("std");
 
 const models = @import("../models/cli.zig");
-const adapters = @import("../adapters/cli.zig");
+const logic = @import("../logic/cli.zig");
 const Cli = models.Cli;
 const Command = models.Command;
 const Flag = models.Flag;
@@ -14,9 +14,9 @@ fn printFlags(
 ) !void {
     inline for (flags) |flag| {
         const FieldT = @FieldType(T, flag.field);
-        const kind = switch (adapters.parseFieldTypes(FieldT)) {
+        const kind = switch (logic.parseFieldTypes(FieldT)) {
             .list_of_strings => "string array",
-            else => @tagName(adapters.parseFieldTypes(FieldT)),
+            else => @tagName(logic.parseFieldTypes(FieldT)),
         };
         try w.print("    {s}, {s: <14} {s: <2} [{s}]\n", .{
             flag.short,

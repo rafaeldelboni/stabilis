@@ -2,7 +2,7 @@ const std = @import("std");
 
 const models = @import("../models.zig");
 const DateTime = models.DateTime;
-const time_logic = @import("../logic/time.zig");
+const time_logic = @import("../adapters/time.zig");
 
 /// Returns the current wall-clock time via the `Io` instance.
 pub fn now(io: std.Io) DateTime {
