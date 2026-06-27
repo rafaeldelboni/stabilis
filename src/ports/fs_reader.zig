@@ -5,6 +5,7 @@ const config = @import("../logic/config.zig");
 const models = @import("../models.zig");
 const File = models.File;
 
+/// Reads a single file relative to `base_path` and returns a populated `File`.
 pub fn readFile(io: Io, arena: *std.heap.ArenaAllocator, base_path: []const u8, path: []const u8) !File {
     const allocator = arena.allocator();
     const cwd = std.Io.Dir.cwd();
@@ -61,6 +62,7 @@ fn walkDirImpl(io: Io, arena: *std.heap.ArenaAllocator, base_path: []const u8, p
     return output.items;
 }
 
+/// Loads the config, content, and template files from `source_dir` into one slice.
 pub fn loadFiles(arena: *std.heap.ArenaAllocator, io: std.Io, source_dir: []const u8) ![]models.File {
     const allocator = arena.allocator();
     const cwd = std.Io.Dir.cwd();

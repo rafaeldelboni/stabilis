@@ -19,6 +19,7 @@ pub const output_index = "index.html";
 
 pub const post_url_prefix = "/posts";
 
+/// Returns the template filename for the given page kind.
 pub fn templateNameFor(kind: PageKind) []const u8 {
     return switch (kind) {
         .home => "home.html",

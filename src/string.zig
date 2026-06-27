@@ -3,6 +3,7 @@ const std = @import("std");
 const models = @import("models.zig");
 const SliceBetween = models.SliceBetween;
 
+/// Finds the first `open`...`close` pair in `source` from `start_index`.
 pub fn sliceBetween(
     source: []const u8,
     open: []const u8,
@@ -41,6 +42,7 @@ fn escapeNonAsciiChar(input: u21) ?u8 {
     };
 }
 
+/// Lowercases, strips non-ASCII, and slugifies `input` into a URL-safe slug.
 pub fn parseSlug(arena: *std.heap.ArenaAllocator, input: []const u8) ![]const u8 {
     const allocator = arena.allocator();
     var out: std.ArrayList(u8) = .empty;

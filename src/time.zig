@@ -26,6 +26,7 @@ pub fn now(io: std.Io) DateTime {
     };
 }
 
+/// Formats a `DateTime` as an RFC3339 string (`YYYY-MM-DDThh:mm:ssZ`).
 pub fn toString(arena: *std.heap.ArenaAllocator, d: DateTime) ![]const u8 {
     return try std.fmt.allocPrint(
         arena.allocator(),

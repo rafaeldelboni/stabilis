@@ -65,6 +65,7 @@ fn parseMenuEntryContext(allocator: std.mem.Allocator, name: []const u8, url: []
     return ctx;
 }
 
+/// Parses loaded files into a `Site` (config, templates, pages, posts, menu).
 pub fn parse(
     arena: *std.heap.ArenaAllocator,
     files: []const File,

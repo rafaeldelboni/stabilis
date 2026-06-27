@@ -48,6 +48,13 @@ pub fn templateFor(kind: PageKind) []const u8 {
     return config.templateNameFor(kind);
 }
 
+test "templateFor: each kind maps to its template filename" {
+    try std.testing.expectEqualStrings("home.html", templateFor(.home));
+    try std.testing.expectEqualStrings("post.html", templateFor(.post));
+    try std.testing.expectEqualStrings("page.html", templateFor(.page));
+    try std.testing.expectEqualStrings("post-list.html", templateFor(.post_list));
+}
+
 test "parseTag: variable" {
     const tag = parseTag(.{ .content = " name ", .open_index = 0, .close_index = 9 });
     try std.testing.expectEqual(Tag.Kind.variable, tag.kind);
