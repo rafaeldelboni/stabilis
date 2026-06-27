@@ -113,7 +113,11 @@ pub fn frontmatterToYamlString(arena: *std.heap.ArenaAllocator, fm: Frontmatter)
     if (fm.images.len > 0) {
         try list.appendSlice(allocator, "images:\n");
         for (fm.images) |image| {
-            try appendFmt(&list, allocator, "  - {{ file: {s}, caption: \"{s}\" }}\n", .{ image.file, image.caption orelse "" });
+            if (image.caption) |caption| {
+                try appendFmt(&list, allocator, "  - {{ file: {s}, caption: \"{s}\" }}\n", .{ image.file, try str.escapeDoubleQuote(allocator, caption) });
+            } else {
+                try appendFmt(&list, allocator, "  - {{ file: {s}, caption: }}\n", .{image.file});
+            }
         }
     }
 
@@ -480,7 +484,7 @@ test "frontmatterToYamlString should parse frontmatter into yaml string" {
         \\menus: [main, about]
         \\images:
         \\  - { file: 01.jpg, caption: "Arriving at dusk" }
-        \\  - { file: 02.jpg, caption: "" }
+        \\  - { file: 02.jpg, caption: }
         \\  - { file: 03.jpg, caption: "The cabin" }
         \\---
         \\
@@ -561,7 +565,7 @@ test "frontmatterToYamlString emits images with null caption as empty" {
     const expected =
         \\---
         \\images:
-        \\  - { file: pic.jpg, caption: "" }
+        \\  - { file: pic.jpg, caption: }
         \\---
         \\
     ;
@@ -580,4 +584,48 @@ test "frontmatterToYamlString emits only fences for empty frontmatter" {
         \\
     ;
     try std.testing.expectEqualStrings(expected, try frontmatterToYamlString(&arena, fm));
+}
+
+test "frontmatterToYamlString round-trips through parse" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+
+    const fm = models.Frontmatter{
+        .title = "Hello World",
+        .date = "2026-05-18T10:00:00Z",
+        .slug = "hello-world",
+        .description = "A post about Zig and blogging",
+        .draft = true,
+        .cover = "03.jpg",
+        .tags = &.{ "zig", "blogging", "ssg" },
+        .menus = &.{ "main", "about" },
+        .images = &.{
+            .{ .file = "01.jpg", .caption = "Arriving at dusk" },
+            .{ .file = "02.jpg", .caption = null },
+            .{ .file = "03.jpg", .caption = "The cabin" },
+        },
+    };
+
+    const yaml = try frontmatterToYamlString(&arena, fm);
+    const result = try parse(&arena, yaml);
+
+    try std.testing.expectEqualStrings("Hello World", result.frontmatter.title.?);
+    try std.testing.expectEqualStrings("2026-05-18T10:00:00Z", result.frontmatter.date.?);
+    try std.testing.expectEqualStrings("hello-world", result.frontmatter.slug.?);
+    try std.testing.expectEqualStrings("A post about Zig and blogging", result.frontmatter.description.?);
+    try std.testing.expectEqual(true, result.frontmatter.draft);
+    try std.testing.expectEqualStrings("03.jpg", result.frontmatter.cover.?);
+    try std.testing.expectEqual(@as(usize, 3), result.frontmatter.tags.len);
+    try std.testing.expectEqualStrings("zig", result.frontmatter.tags[0]);
+    try std.testing.expectEqualStrings("blogging", result.frontmatter.tags[1]);
+    try std.testing.expectEqualStrings("ssg", result.frontmatter.tags[2]);
+    try std.testing.expectEqual(@as(usize, 2), result.frontmatter.menus.len);
+    try std.testing.expectEqualStrings("main", result.frontmatter.menus[0]);
+    try std.testing.expectEqualStrings("about", result.frontmatter.menus[1]);
+    try std.testing.expectEqual(@as(usize, 3), result.frontmatter.images.len);
+    try std.testing.expectEqualStrings("01.jpg", result.frontmatter.images[0].file);
+    try std.testing.expectEqualStrings("Arriving at dusk", result.frontmatter.images[0].caption.?);
+    try std.testing.expectEqualStrings("", result.frontmatter.images[1].caption.?);
+    try std.testing.expectEqualStrings("03.jpg", result.frontmatter.images[2].file);
+    try std.testing.expectEqualStrings("The cabin", result.frontmatter.images[2].caption.?);
 }

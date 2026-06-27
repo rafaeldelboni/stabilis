@@ -79,9 +79,7 @@ pub fn escapeHtml(allocator: std.mem.Allocator, input: []const u8) ![]const u8 {
     return buf.items;
 }
 
-/// Escapes `\` and `"` so a value can be safely embedded inside a
-/// double-quoted YAML scalar (e.g. `title: "{s}"`). Every `\` becomes `\\`
-/// and every `"` becomes `\"`; all other bytes pass through unchanged.
+/// Escapes `\` and `"` so a value can be safely embedded inside a double-quoted YAML scalar.
 pub fn escapeDoubleQuote(allocator: std.mem.Allocator, input: []const u8) ![]const u8 {
     var out: std.ArrayList(u8) = .empty;
     for (input) |c| {
