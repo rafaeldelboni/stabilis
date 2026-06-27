@@ -24,8 +24,8 @@
 - [x] `stabilis version | --version | -v` — print version from build.zig.zon
 - [x] `stabilis help | --help | -h` — top-level + per-command help via `*Args.help`
 - [x] CLI dispatch in main.zig — switch on Command, route to run* fns, catch errors → help + exit 2
-- [ ] New Post Hander based on CLI input create basic md file + frontmatter
-- [ ] New Page Hander based on CLI input create basic md file + frontmatter
+- [x] New Post Hander based on CLI input create basic md file + frontmatter
+- [x] New Page Hander based on CLI input create basic md file + frontmatter
 - [ ] File watcher for dev mode (used by serve)
 - [ ] Dev server + SSE live reload (used by serve)
 - [ ] RSS/Atom feed generation
