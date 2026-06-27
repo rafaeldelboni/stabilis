@@ -110,7 +110,6 @@ pub const ServeResult = struct {
 };
 
 pub const BuildResult = struct {
-    source: ?[]const u8 = null,
     destination: ?[]const u8 = null,
     build_drafts: bool = false,
     minify: bool = false,
@@ -118,6 +117,7 @@ pub const BuildResult = struct {
 };
 
 pub const FlagsResult = struct {
+    source_dir: ?[]const u8 = null,
     version: bool = false,
     help: bool = false,
 };
@@ -134,6 +134,7 @@ pub const stabilis_cli = modelsCli.Cli{
     .flags = .{
         .Result = FlagsResult,
         .items = &.{
+            .{ .long = "--source-dir", .short = "-s", .field = "version", .help = "Source directory" },
             .{ .long = "--help", .short = "-h", .field = "help", .terminal = true, .help = "Show help" },
             .{ .long = "--version", .short = "-v", .field = "version", .terminal = true, .help = "Print version" },
         },
@@ -169,7 +170,7 @@ pub const stabilis_cli = modelsCli.Cli{
                             .{ .long = "--minify", .short = "-m", .field = "minify", .help = "Minify the output" },
                             .{ .long = "--clear-dir", .short = "-c", .field = "clear_dir", .help = "Clear destination directory" },
                         },
-                        .positionals = &.{"source"},
+                        .positionals = &.{},
                     },
                 },
             },

@@ -34,9 +34,8 @@ fn writePage(
     try fs_writer.writeFileDeep(io, html, file_path);
 }
 
-fn newPageHandler(arena: *std.heap.ArenaAllocator, io: std.Io, args: NewPageResult) !void {
+fn newPageHandler(arena: *std.heap.ArenaAllocator, io: std.Io, args: NewPageResult, source_dir: []const u8) !void {
     const allocator = arena.allocator();
-    const output_dir = "./"; // TODO as arg?
     const slug = args.slug orelse try str.parseSlug(arena, args.title);
     const fm = Frontmatter{
         .title = args.title,
@@ -49,14 +48,13 @@ fn newPageHandler(arena: *std.heap.ArenaAllocator, io: std.Io, args: NewPageResu
     const file_body = try std.mem.concat(allocator, u8, &.{ "\n## ", args.title, "\n" });
     const file = try std.mem.concat(allocator, u8, &.{ file_header, file_body });
     const file_path = try std.Io.Dir.path.join(allocator, &.{
-        output_dir, "content", try std.mem.concat(allocator, u8, &.{ slug, ".md" }),
+        source_dir, "content", try std.mem.concat(allocator, u8, &.{ slug, ".md" }),
     });
     try fs_writer.writeFileDeep(io, file, file_path);
 }
 
-fn newPostHandler(arena: *std.heap.ArenaAllocator, io: std.Io, args: NewPostResult) !void {
+fn newPostHandler(arena: *std.heap.ArenaAllocator, io: std.Io, args: NewPostResult, source_dir: []const u8) !void {
     const allocator = arena.allocator();
-    const output_dir = "./"; // TODO as arg?
     const slug = try str.parseSlug(arena, args.title);
     const fm = Frontmatter{
         .title = args.title,
@@ -70,20 +68,19 @@ fn newPostHandler(arena: *std.heap.ArenaAllocator, io: std.Io, args: NewPostResu
     const file_body = try std.mem.concat(allocator, u8, &.{ "\n## ", args.title, "\n\n", args.description orelse "" });
     const file = try std.mem.concat(allocator, u8, &.{ file_header, file_body });
     const file_path = try std.Io.Dir.path.join(allocator, &.{
-        output_dir, "content", "posts", try std.mem.concat(allocator, u8, &.{ slug, ".md" }),
+        source_dir, "content", "posts", try std.mem.concat(allocator, u8, &.{ slug, ".md" }),
     });
     try fs_writer.writeFileDeep(io, file, file_path);
 }
 
-fn buildHandler(arena: *std.heap.ArenaAllocator, io: std.Io, args: BuildResult) !void {
+fn buildHandler(arena: *std.heap.ArenaAllocator, io: std.Io, args: BuildResult, source_dir: []const u8) !void {
     const allocator = arena.allocator();
 
     const output_dir = args.destination orelse "public";
-    const input_dir = args.source orelse "example";
 
     if (args.clear_dir) try fs_writer.deleteDir(io, output_dir);
 
-    const files = try fs_reader.walkDir(io, arena, input_dir);
+    const files = try fs_reader.walkDir(io, arena, source_dir);
     const site_data = try site.parse(arena, files, args.build_drafts);
 
     var post_list = try std.ArrayList(Context).initCapacity(allocator, site_data.posts.len);
@@ -95,7 +92,7 @@ fn buildHandler(arena: *std.heap.ArenaAllocator, io: std.Io, args: BuildResult) 
     for (site_data.pages) |p|
         try writePage(arena, io, output_dir, p, post_list.items, site_data);
 
-    std.debug.print("Site from: {s}/ created on: {s}/\n", .{ input_dir, output_dir });
+    std.debug.print("Site from: {s}/ created on: {s}/\n", .{ source_dir, output_dir });
 }
 
 pub fn main(init: std.process.Init) !u8 {
@@ -120,12 +117,15 @@ pub fn main(init: std.process.Init) !u8 {
         try cli_help.printHelp(io, args, cli);
         return 0;
     }
+
+    const source_dir = out.flags.source_dir orelse "./";
+
     try switch (out.commands orelse return 0) {
-        .build => |build_args| buildHandler(&arena, io, build_args),
+        .build => |build_args| buildHandler(&arena, io, build_args, source_dir),
         .serve => |serve_args| std.debug.print("serve not implemented: {any}\n", .{serve_args}),
         .new => |new_args| switch (new_args) {
-            .post => newPostHandler(&arena, io, new_args.post),
-            .page => newPageHandler(&arena, io, new_args.page),
+            .post => newPostHandler(&arena, io, new_args.post, source_dir),
+            .page => newPageHandler(&arena, io, new_args.page, source_dir),
         },
     };
     return 0;
