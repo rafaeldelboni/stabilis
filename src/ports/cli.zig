@@ -27,24 +27,24 @@ fn printFlags(
     }
 }
 
+fn printCommands(w: *std.Io.Writer, comptime cmds: []const Command, comptime depth: usize) !void {
+    const pad = [_]u8{' '} ** (depth * 2);
+    inline for (cmds) |cmd| {
+        try w.print("{s}{s: <10} {s}\n", .{ pad, cmd.name, cmd.help });
+        switch (cmd.body) {
+            .sub_commands => |subs| try printCommands(w, subs, depth + 1),
+            else => {},
+        }
+    }
+}
+
 fn printHelpGeneral(
     w: *std.Io.Writer,
     comptime cli: Cli,
 ) !void {
-    try w.print("stabilis <command>\n\nCommands:\n", .{});
-    if (cli.commands) |cli_cmd| {
-        inline for (cli_cmd.items) |cmd| {
-            try w.print("    {s: <10} {s}\n", .{ cmd.name, cmd.help });
-            switch (cmd.body) {
-                .sub_commands => |sub_commands| {
-                    inline for (sub_commands) |sub_cmd| {
-                        try w.print("      {s: <8} {s}\n", .{ sub_cmd.name, sub_cmd.help });
-                    }
-                },
-                else => {},
-            }
-        }
-    }
+    if (cli.description.len > 0) try w.print("{s} - {s}\n\n", .{ cli.name, cli.description });
+    try w.print("{s} <command>\n\nCommands:\n", .{cli.name});
+    if (cli.commands) |cli_cmd| try printCommands(w, cli_cmd.items, 1);
     if (cli.flags.items.len > 0) {
         try w.print("\nGlobal options:\n", .{});
         try printFlags(w, cli.flags.Result, cli.flags.items);
@@ -78,7 +78,7 @@ fn printHelpImpl(
     const cmd = maybe_cmd.?;
     switch (cmd.body) {
         .command => |spec| {
-            try w.print("stabilis {s}", .{cmd.name});
+            try w.print("{s} {s}", .{ cli.name, cmd.name });
             for (spec.positionals) |a| try w.print(" [{s}]", .{a});
             try w.print("\n\n{s}\n\nOptions:\n", .{cmd.help});
             try printFlags(w, spec.Result, spec.flags);
@@ -86,7 +86,7 @@ fn printHelpImpl(
         },
         .sub_commands => |sub_cmds| {
             if (args.len == 0) {
-                try w.print("stabilis {s} <subcommand>\n\n{s}\n\nSubcommands:\n", .{ cmd.name, cmd.help });
+                try w.print("{s} {s} <subcommand>\n\n{s}\n\nSubcommands:\n", .{ cli.name, cmd.name, cmd.help });
                 inline for (sub_cmds) |sub_cmd| {
                     try w.print("    {s: <10} {s}\n", .{ sub_cmd.name, sub_cmd.help });
                 }
@@ -152,82 +152,194 @@ pub fn printDiagError(io: std.Io, diag: *Diagnostics, err: anyerror) !void {
     try stderr.flush();
 }
 
-const test_models = @import("../models.zig");
+const modelsCli = @import("../models/cli.zig");
 
-fn captureHelp(allocator: std.mem.Allocator, args: []const []const u8) ![]u8 {
+const t_top_flags = struct {
+    version: bool = false,
+    help: bool = false,
+    name: []const u8 = "",
+};
+const t_top_items = [_]modelsCli.Flag{
+    .{ .long = "--help", .short = "-h", .field = "help", .terminal = true, .help = "Show help" },
+    .{ .long = "--version", .short = "-v", .field = "version", .terminal = true, .help = "Print version" },
+    .{ .long = "--name", .short = "-n", .field = "name", .help = "Name" },
+};
+
+const t_leaf_result = struct {
+    bool_flag: bool = false,
+    str_flag: []const u8 = "",
+    num_flag: ?u16 = null,
+    list_flag: []const []const u8 = &.{},
+};
+const t_leaf_items = [_]modelsCli.Flag{
+    .{ .long = "--bool", .short = "-b", .field = "bool_flag", .help = "A bool" },
+    .{ .long = "--str", .short = "-s", .field = "str_flag", .help = "A string" },
+    .{ .long = "--num", .short = "-N", .field = "num_flag", .help = "A number" },
+    .{ .long = "--list", .short = "-l", .field = "list_flag", .help = "A list" },
+};
+const t_sub_result = struct {
+    title: []const u8 = "",
+};
+const t_sub_items = [_]modelsCli.Flag{};
+fn t_leaf_cli() modelsCli.Cli {
+    return .{
+        .name = "app",
+        .description = "test app",
+        .flags = .{ .Result = t_top_flags, .items = &t_top_items },
+        .commands = .{
+            .Result = union(enum) { leaf: t_leaf_result },
+            .items = &.{.{
+                .name = "leaf",
+                .help = "Leaf help",
+                .body = .{ .command = .{
+                    .Result = t_leaf_result,
+                    .flags = &t_leaf_items,
+                    .positionals = &.{"source"},
+                } },
+            }},
+        },
+    };
+}
+fn t_group_cli() modelsCli.Cli {
+    return .{
+        .name = "app",
+        .flags = .{ .Result = t_top_flags, .items = &t_top_items },
+        .commands = .{
+            .Result = union(enum) { grp: union(enum) { sub: t_sub_result } },
+            .items = &.{.{
+                .name = "grp",
+                .help = "Group help",
+                .body = .{ .sub_commands = &.{.{
+                    .name = "sub",
+                    .help = "Sub help",
+                    .body = .{ .command = .{
+                        .Result = t_sub_result,
+                        .flags = &t_sub_items,
+                        .positionals = &.{"title"},
+                    } },
+                }} },
+            }},
+        },
+    };
+}
+
+fn captureHelp(allocator: std.mem.Allocator, cli: modelsCli.Cli, args: []const []const u8) ![]u8 {
     var aw: std.Io.Writer.Allocating = .init(allocator);
-    try printHelpTo(&aw.writer, args, test_models.stabilis_cli);
+    try printHelpTo(&aw.writer, args, cli);
     return try aw.toOwnedSlice();
 }
 
-test "printHelp general shows commands and global options" {
-    const out = try captureHelp(std.testing.allocator, &.{ "stabilis", "--help" });
+test "printHelp general lists commands, subcommands and global options" {
+    const out = try captureHelp(std.testing.allocator, t_leaf_cli(), &.{ "app", "--help" });
     defer std.testing.allocator.free(out);
-
-    try std.testing.expect(std.mem.indexOf(u8, out, "stabilis <command>") != null);
+    try std.testing.expect(std.mem.indexOf(u8, out, "app <command>") != null);
+    try std.testing.expect(std.mem.indexOf(u8, out, "app - test app") != null);
     try std.testing.expect(std.mem.indexOf(u8, out, "Commands:") != null);
-    try std.testing.expect(std.mem.indexOf(u8, out, "build") != null);
-    try std.testing.expect(std.mem.indexOf(u8, out, "serve") != null);
-    try std.testing.expect(std.mem.indexOf(u8, out, "new") != null);
+    try std.testing.expect(std.mem.indexOf(u8, out, "leaf") != null);
     try std.testing.expect(std.mem.indexOf(u8, out, "Global options:") != null);
     try std.testing.expect(std.mem.indexOf(u8, out, "--help") != null);
     try std.testing.expect(std.mem.indexOf(u8, out, "--version") != null);
 }
 
-test "printHelp build shows flags and globals" {
-    const out = try captureHelp(std.testing.allocator, &.{ "stabilis", "build", "--help" });
+test "printHelp leaf shows header, help, and options incl globals" {
+    const out = try captureHelp(std.testing.allocator, t_leaf_cli(), &.{ "app", "leaf", "--help" });
     defer std.testing.allocator.free(out);
-
-    try std.testing.expect(std.mem.indexOf(u8, out, "stabilis build [source]") != null);
-    try std.testing.expect(std.mem.indexOf(u8, out, "Build the site") != null);
+    try std.testing.expect(std.mem.indexOf(u8, out, "app leaf [source]") != null);
+    try std.testing.expect(std.mem.indexOf(u8, out, "Leaf help") != null);
     try std.testing.expect(std.mem.indexOf(u8, out, "Options:") != null);
-    try std.testing.expect(std.mem.indexOf(u8, out, "--dest") != null);
-    try std.testing.expect(std.mem.indexOf(u8, out, "--build-drafts") != null);
-    try std.testing.expect(std.mem.indexOf(u8, out, "--minify") != null);
-    try std.testing.expect(std.mem.indexOf(u8, out, "--clear-dir") != null);
+    try std.testing.expect(std.mem.indexOf(u8, out, "--bool") != null);
+    try std.testing.expect(std.mem.indexOf(u8, out, "--str") != null);
+    try std.testing.expect(std.mem.indexOf(u8, out, "--num") != null);
+    try std.testing.expect(std.mem.indexOf(u8, out, "--list") != null);
     try std.testing.expect(std.mem.indexOf(u8, out, "--help") != null);
     try std.testing.expect(std.mem.indexOf(u8, out, "--version") != null);
 }
 
-test "printHelp new shows subcommands" {
-    const out = try captureHelp(std.testing.allocator, &.{ "stabilis", "new", "--help" });
+test "printHelp group shows <subcommand> and Subcommands list" {
+    const out = try captureHelp(std.testing.allocator, t_group_cli(), &.{ "app", "grp", "--help" });
     defer std.testing.allocator.free(out);
-
-    try std.testing.expect(std.mem.indexOf(u8, out, "stabilis new <subcommand>") != null);
+    try std.testing.expect(std.mem.indexOf(u8, out, "app grp <subcommand>") != null);
     try std.testing.expect(std.mem.indexOf(u8, out, "Subcommands:") != null);
-    try std.testing.expect(std.mem.indexOf(u8, out, "post") != null);
-    try std.testing.expect(std.mem.indexOf(u8, out, "page") != null);
+    try std.testing.expect(std.mem.indexOf(u8, out, "sub") != null);
 }
 
-test "printHelp new post shows flags and globals" {
-    const out = try captureHelp(std.testing.allocator, &.{ "stabilis", "new", "post", "--help" });
+test "printHelp nested leaf shows header and options" {
+    const out = try captureHelp(std.testing.allocator, t_group_cli(), &.{ "app", "grp", "sub", "--help" });
+    defer std.testing.allocator.free(out);
+    try std.testing.expect(std.mem.indexOf(u8, out, "app sub [title]") != null);
+    try std.testing.expect(std.mem.indexOf(u8, out, "Sub help") != null);
+    try std.testing.expect(std.mem.indexOf(u8, out, "Options:") != null);
+    try std.testing.expect(std.mem.indexOf(u8, out, "--help") != null);
+}
+
+test "printHelp nested subcommands two levels deep indents deeper" {
+    const inner_result = struct {
+        name: []const u8 = "",
+    };
+    const inner_items = [_]modelsCli.Flag{};
+    const cli = modelsCli.Cli{
+        .name = "app",
+        .flags = .{ .Result = t_top_flags, .items = &t_top_items },
+        .commands = .{
+            .Result = union(enum) { outer: union(enum) { middle: union(enum) { inner: inner_result } } },
+            .items = &.{.{
+                .name = "outer",
+                .help = "Outer help",
+                .body = .{ .sub_commands = &.{.{
+                    .name = "middle",
+                    .help = "Middle help",
+                    .body = .{ .sub_commands = &.{.{
+                        .name = "inner",
+                        .help = "Inner help",
+                        .body = .{ .command = .{
+                            .Result = inner_result,
+                            .flags = &inner_items,
+                            .positionals = &.{"name"},
+                        } },
+                    }} },
+                }} },
+            }},
+        },
+    };
+
+    const out = try captureHelp(std.testing.allocator, cli, &.{ "app", "--help" });
     defer std.testing.allocator.free(out);
 
-    try std.testing.expect(std.mem.indexOf(u8, out, "stabilis post [title]") != null);
-    try std.testing.expect(std.mem.indexOf(u8, out, "Scaffold new post") != null);
-    try std.testing.expect(std.mem.indexOf(u8, out, "--desc") != null);
-    try std.testing.expect(std.mem.indexOf(u8, out, "--tags") != null);
-    try std.testing.expect(std.mem.indexOf(u8, out, "--draft") != null);
-    try std.testing.expect(std.mem.indexOf(u8, out, "--help") != null);
-    try std.testing.expect(std.mem.indexOf(u8, out, "--version") != null);
+    try std.testing.expect(std.mem.indexOf(u8, out, "outer") != null);
+    try std.testing.expect(std.mem.indexOf(u8, out, "middle") != null);
+    try std.testing.expect(std.mem.indexOf(u8, out, "inner") != null);
+
+    const leadingSpaces = struct {
+        fn of(buf: []const u8, needle: []const u8) usize {
+            const idx = std.mem.indexOf(u8, buf, needle) orelse return 0;
+            const line_start = if (std.mem.lastIndexOfScalar(u8, buf[0..idx], '\n')) |nl| nl + 1 else 0;
+            var n: usize = 0;
+            while (line_start + n < buf.len and buf[line_start + n] == ' ') n += 1;
+            return n;
+        }
+    }.of;
+
+    const outer_n = leadingSpaces(out, "outer");
+    const middle_n = leadingSpaces(out, "middle");
+    const inner_n = leadingSpaces(out, "inner");
+    try std.testing.expect(middle_n > outer_n);
+    try std.testing.expect(inner_n > middle_n);
 }
 
-test "printDiagError formats error message" {
+test "printDiagError formats UnknownCommand" {
     var aw: std.Io.Writer.Allocating = .init(std.testing.allocator);
     var diag = Diagnostics{ .arg = "delbongo", .name = "" };
     try printDiagErrorTo(&aw.writer, &diag, error.UnknownCommand);
     const out = try aw.toOwnedSlice();
     defer std.testing.allocator.free(out);
-
     try std.testing.expect(std.mem.indexOf(u8, out, "error: unknown command: 'delbongo'") != null);
 }
 
-test "printDiagError missing positional" {
+test "printDiagError formats MissingPositional" {
     var aw: std.Io.Writer.Allocating = .init(std.testing.allocator);
     var diag = Diagnostics{ .arg = "title", .name = "post" };
     try printDiagErrorTo(&aw.writer, &diag, error.MissingPositional);
     const out = try aw.toOwnedSlice();
     defer std.testing.allocator.free(out);
-
     try std.testing.expect(std.mem.indexOf(u8, out, "error: missing positional argument: 'title'") != null);
 }
