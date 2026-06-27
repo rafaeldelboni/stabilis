@@ -33,7 +33,16 @@ ports/  <--  adapters/  <--  logic/
 
 - `logic/` depends only on `models.zig` (pure, no I/O); `logic/config.zig` is the filesystem-contract module every layer imports
 - `adapters/` depends on `ports/` (I/O primitives) and `logic/` (domain functions)
-- `ports/` depends only on `models.zig`, `logic/config.zig`, and the standard library
+- `ports/` depends only on `models.zig`, `logic/` (pure domain functions), and the standard library
+
+### Purity rule
+
+Dependencies are governed by purity:
+
+- **Pure may call only pure.** `logic/` calls only `logic/` and `models.zig`.
+- **Impure may call pure and impure.** `ports/` and `adapters/` call `logic/`, `models.zig`, and the standard library freely.
+
+This lets impure ports compose pure domain functions (e.g. `ports/time.zig` can call `logic/time.zig`) without dragging in other ports or adapters, keeping the dependency arrow pointing strictly inward.
 
 ### Naming conventions
 
