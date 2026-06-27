@@ -134,7 +134,7 @@ pub const stabilis_cli = modelsCli.Cli{
     .flags = .{
         .Result = FlagsResult,
         .items = &.{
-            .{ .long = "--source-dir", .short = "-s", .field = "version", .help = "Source directory" },
+            .{ .long = "--source-dir", .short = "-s", .field = "source_dir", .help = "Source directory" },
             .{ .long = "--help", .short = "-h", .field = "help", .terminal = true, .help = "Show help" },
             .{ .long = "--version", .short = "-v", .field = "version", .terminal = true, .help = "Print version" },
         },
