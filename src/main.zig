@@ -46,7 +46,7 @@ fn newPageHandler(arena: *std.heap.ArenaAllocator, io: std.Io, args: NewPageResu
         .menus = args.menus,
     };
     const file_header = try frontmatter.frontmatterToYamlString(arena, fm);
-    const file_body = try std.mem.concat(allocator, u8, &.{ "\n## ", args.title, "\n"});
+    const file_body = try std.mem.concat(allocator, u8, &.{ "\n## ", args.title, "\n" });
     const file = try std.mem.concat(allocator, u8, &.{ file_header, file_body });
     const file_path = try std.Io.Dir.path.join(allocator, &.{
         output_dir, "content", try std.mem.concat(allocator, u8, &.{ slug, ".md" }),
