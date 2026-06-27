@@ -2,9 +2,6 @@ const std = @import("std");
 
 const models = @import("../models.zig");
 const DateTime = models.DateTime;
-const time_port = @import("../ports/time.zig");
-
-pub const now = time_port.now;
 
 /// Formats a `DateTime` as an RFC3339 string (`YYYY-MM-DDThh:mm:ssZ`).
 pub fn toString(arena: *std.heap.ArenaAllocator, d: DateTime) ![]const u8 {

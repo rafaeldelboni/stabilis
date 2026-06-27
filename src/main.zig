@@ -21,13 +21,14 @@ const fs_reader = @import("ports/fs_reader.zig");
 const fs_writer = @import("ports/fs_writer.zig");
 const str = @import("adapters/string.zig");
 const time = @import("adapters/time.zig");
+const time_port = @import("ports/time.zig");
 
 fn newPageHandler(arena: *std.heap.ArenaAllocator, io: std.Io, args: NewPageResult, source_dir: []const u8) !void {
     const allocator = arena.allocator();
     const slug = args.slug orelse try str.parseSlug(arena, args.title);
     const fm = Frontmatter{
         .title = args.title,
-        .date = try time.toString(arena, time.now(io)),
+        .date = try time.toString(arena, time_port.now(io)),
         .slug = slug,
         .draft = args.draft,
         .menus = args.menus,
@@ -46,7 +47,7 @@ fn newPostHandler(arena: *std.heap.ArenaAllocator, io: std.Io, args: NewPostResu
     const slug = try str.parseSlug(arena, args.title);
     const fm = Frontmatter{
         .title = args.title,
-        .date = try time.toString(arena, time.now(io)),
+        .date = try time.toString(arena, time_port.now(io)),
         .description = args.description,
         .slug = slug,
         .draft = args.draft,
