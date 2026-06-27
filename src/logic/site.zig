@@ -1,44 +1,38 @@
 const std = @import("std");
 
+const config = @import("config.zig");
 const models = @import("../models.zig");
 const File = models.File;
 const PageKind = models.PageKind;
 
-pub const config_path = "site.yaml";
-pub const post_list_path = "content/posts/_index.md";
-pub const home_page_path = "content/_index.md";
-pub const templates_path_prefix = "templates/";
-pub const posts_path_prefix = "content/posts/";
-pub const pages_path_prefix = "content/";
-
 /// Returns true if `file` is the site configuration file ("site.yaml").
 pub fn isConfig(file: File) bool {
-    return std.mem.eql(u8, file.rel_path, config_path);
+    return std.mem.eql(u8, file.rel_path, config.config_file);
 }
 
 /// Returns true if `file` is a template (under "templates/").
 pub fn isTemplate(file: File) bool {
-    return std.mem.startsWith(u8, file.rel_path, templates_path_prefix);
+    return std.mem.startsWith(u8, file.rel_path, config.templates_prefix);
 }
 
 /// Returns true if `file` is the post list index ("content/posts/_index.md").
 pub fn isPostList(file: File) bool {
-    return std.mem.eql(u8, file.rel_path, post_list_path);
+    return std.mem.eql(u8, file.rel_path, config.post_list_path);
 }
 
 /// Returns true if `file` is a blog post (under "content/posts/").
 pub fn isPost(file: File) bool {
-    return std.mem.startsWith(u8, file.rel_path, posts_path_prefix);
+    return std.mem.startsWith(u8, file.rel_path, config.posts_path_prefix);
 }
 
 /// Returns true if `file` is the home page ("content/_index.md").
 pub fn isHomePage(file: File) bool {
-    return std.mem.eql(u8, file.rel_path, home_page_path);
+    return std.mem.eql(u8, file.rel_path, config.home_page_path);
 }
 
 /// Returns true if `file` is a content page (under "content/").
 pub fn isPage(file: File) bool {
-    return std.mem.startsWith(u8, file.rel_path, pages_path_prefix);
+    return std.mem.startsWith(u8, file.rel_path, config.pages_path_prefix);
 }
 
 /// Returns PageKind given `file`

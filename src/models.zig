@@ -43,8 +43,8 @@ pub const ImageSpec = struct {
 };
 
 pub const Frontmatter = struct {
-    title: ?[]const u8 = null,
     author: ?[]const u8 = null,
+    title: ?[]const u8 = null,
     date: ?[]const u8 = null,
     slug: ?[]const u8 = null,
     description: ?[]const u8 = null,
@@ -110,14 +110,16 @@ pub const ServeResult = struct {
 };
 
 pub const BuildResult = struct {
-    source: ?[]const u8 = null,
     destination: ?[]const u8 = null,
     build_drafts: bool = false,
     minify: bool = false,
     clear_dir: bool = false,
 };
 
+pub const default_output_dir = "public";
+
 pub const FlagsResult = struct {
+    source_dir: ?[]const u8 = null,
     version: bool = false,
     help: bool = false,
 };
@@ -134,6 +136,7 @@ pub const stabilis_cli = modelsCli.Cli{
     .flags = .{
         .Result = FlagsResult,
         .items = &.{
+            .{ .long = "--source-dir", .short = "-S", .field = "source_dir", .help = "Source directory" },
             .{ .long = "--help", .short = "-h", .field = "help", .terminal = true, .help = "Show help" },
             .{ .long = "--version", .short = "-v", .field = "version", .terminal = true, .help = "Print version" },
         },
@@ -169,7 +172,7 @@ pub const stabilis_cli = modelsCli.Cli{
                             .{ .long = "--minify", .short = "-m", .field = "minify", .help = "Minify the output" },
                             .{ .long = "--clear-dir", .short = "-c", .field = "clear_dir", .help = "Clear destination directory" },
                         },
-                        .positionals = &.{"source"},
+                        .positionals = &.{},
                     },
                 },
             },

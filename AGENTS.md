@@ -16,7 +16,7 @@ This project follows the **Ports and Adapters** architecture (also known as hexa
 
 - **Adapters** — pure translation layers between a port and the domain model. They take data from ports (e.g., raw file paths and bytes) and produce domain types (e.g., `Site`, `Template`, `Page`), or vice versa. Adapters do *not* orchestrate or wire layers together. In this project, `src/adapters/` contains these translation layers.
 
-- **Logic** — pure domain functions with no I/O. They operate only on domain types and have no side effects. In this project, `src/logic/` contains pure functions (e.g., YAML lexing, template tag parsing, frontmatter parsing).
+- **Logic** — pure domain functions with no I/O. They operate only on domain types and have no side effects. In this project, `src/logic/` contains pure functions (e.g., YAML lexing, template tag parsing, frontmatter parsing) and `src/logic/config.zig` — the project's filesystem contract in one place: input layout (`content/`, `templates/`, `site.yaml`, …), output layout (`index.html`), URL routing prefixes, and template-name mapping per `PageKind`. `config.zig` depends only on `models.zig` and is imported by every layer. Add new path/layout literals there, not inline.
 
 - **Models** — domain types shared across all layers. In this project, `src/models.zig` defines `Site`, `Page`, `Post`, `Template`, `Frontmatter`, etc.
 
@@ -28,12 +28,12 @@ This project follows the **Ports and Adapters** architecture (also known as hexa
 ports/  <--  adapters/  <--  logic/
   ^             ^              ^
   |             |              |
-  +--- models.zig --->--------+
+  +--- models.zig ---<---------+
 ```
 
-- `logic/` depends only on `models.zig` (pure, no I/O)
+- `logic/` depends only on `models.zig` (pure, no I/O); `logic/config.zig` is the filesystem-contract module every layer imports
 - `adapters/` depends on `ports/` (I/O primitives) and `logic/` (domain functions)
-- `ports/` depends only on `models.zig` and the standard library
+- `ports/` depends only on `models.zig`, `logic/config.zig`, and the standard library
 
 ### Naming conventions
 

@@ -1,5 +1,6 @@
 const std = @import("std");
 
+const config = @import("../logic/config.zig");
 const logic = @import("../logic/site.zig");
 const models = @import("../models.zig");
 const ContentEntry = models.ContentEntry;
@@ -27,10 +28,10 @@ fn parseSlug(arena: *std.heap.ArenaAllocator, file: File, page: ContentEntry) ![
 fn buildUrl(arena: *std.heap.ArenaAllocator, page_kind: PageKind, slug: []const u8) ![]const u8 {
     const allocator = arena.allocator();
     switch (page_kind) {
-        .post => return try std.Io.Dir.path.join(allocator, &.{ "/posts", slug }),
+        .post => return try std.Io.Dir.path.join(allocator, &.{ config.post_url_prefix, slug }),
         .page => return try std.Io.Dir.path.join(allocator, &.{ "/", slug }),
         .home => return "/",
-        .post_list => return "/posts",
+        .post_list => return config.post_url_prefix,
     }
 }
 
@@ -64,13 +65,14 @@ fn parseMenuEntryContext(allocator: std.mem.Allocator, name: []const u8, url: []
     return ctx;
 }
 
+/// Parses loaded files into a `Site` (config, templates, pages, posts, menu).
 pub fn parse(
     arena: *std.heap.ArenaAllocator,
     files: []const File,
     keep_drafts: bool,
 ) !Site {
     const allocator = arena.allocator();
-    var config: MapEntries = .{};
+    var site_config: MapEntries = .{};
     var templates: Templates = .{};
     var site_title: []const u8 = "";
     var site_base_url: []const u8 = "";
@@ -117,17 +119,17 @@ pub fn parse(
             }
         }
         if (logic.isTemplate(file))
-            if (std.mem.cutPrefix(u8, file.rel_path, logic.templates_path_prefix)) |template_key|
+            if (std.mem.cutPrefix(u8, file.rel_path, config.templates_prefix)) |template_key|
                 try templates.map.put(allocator, template_key, file.contents);
         if (logic.isConfig(file))
-            config = try yaml_lexer.parse(arena, file.contents);
+            site_config = try yaml_lexer.parse(arena, file.contents);
     }
 
     var main_menu: std.ArrayList(Context) = .empty;
-    if (config.map.count() > 0) {
-        site_title = config.map.get("title").?.string;
-        site_base_url = config.map.get("base_url").?.string;
-        for (config.map.get("menu").?.map.map.get("main").?.list) |entry| {
+    if (site_config.map.count() > 0) {
+        site_title = site_config.map.get("title").?.string;
+        site_base_url = site_config.map.get("base_url").?.string;
+        for (site_config.map.get("menu").?.map.map.get("main").?.list) |entry| {
             try main_menu.append(allocator, try parseMenuEntryContext(
                 allocator,
                 entry.map.map.get("name").?.string,

@@ -1,5 +1,6 @@
 const std = @import("std");
 
+const config = @import("../logic/config.zig");
 const logic = @import("../logic/template.zig");
 const models = @import("../models.zig");
 const Context = models.Context;
@@ -18,7 +19,7 @@ const RenderError = error{
 
 /// Given `kind` and `templates` return the contents of the template for that kind type.
 pub fn pageKindToTemplate(kind: PageKind, templates: Templates) ![]const u8 {
-    return templates.map.get(logic.templateFor(kind)) orelse error.TemplateNotFound;
+    return templates.map.get(config.templateNameFor(kind)) orelse error.TemplateNotFound;
 }
 
 test "pageKindToTemplate: returns template content" {
@@ -43,21 +44,6 @@ test "pageKindToTemplate: returns error when template not found" {
     defer templates.deinit(allocator);
 
     try std.testing.expectError(error.TemplateNotFound, pageKindToTemplate(.post, templates));
-}
-
-/// Replaces `&`, `<`, `>`, `"` with HTML entities.
-fn escapeHtml(allocator: std.mem.Allocator, input: []const u8) ![]const u8 {
-    var buf: std.ArrayList(u8) = .empty;
-    for (input) |c| {
-        switch (c) {
-            '&' => try buf.appendSlice(allocator, "&amp;"),
-            '<' => try buf.appendSlice(allocator, "&lt;"),
-            '>' => try buf.appendSlice(allocator, "&gt;"),
-            '"' => try buf.appendSlice(allocator, "&quot;"),
-            else => try buf.append(allocator, c),
-        }
-    }
-    return buf.items;
 }
 
 /// Finds the matching `{{/ name }}` closing tag, handling nested same-name sections via depth counting.
@@ -124,7 +110,7 @@ fn renderVariable(
 ) !void {
     if (context.map.get(name)) |value| {
         switch (value) {
-            .string => |s| try output.appendSlice(allocator, try escapeHtml(allocator, s)),
+            .string => |s| try output.appendSlice(allocator, try str.escapeHtml(allocator, s)),
             else => {},
         }
     }
@@ -412,48 +398,6 @@ test "flat string list via \".\" key" {
 
     const result = try render(&arena, "{{# tags }}<li>{{ . }}</li>{{/ tags }}", templates, context);
     try std.testing.expectEqualStrings("<li>zig</li><li>programming</li>", result);
-}
-
-test "escapeHtml replaces ampersand" {
-    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer arena.deinit();
-    const result = try escapeHtml(arena.allocator(), "foo & bar");
-    try std.testing.expectEqualStrings("foo &amp; bar", result);
-}
-
-test "escapeHtml replaces angle brackets" {
-    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer arena.deinit();
-    const result = try escapeHtml(arena.allocator(), "<div>hello</div>");
-    try std.testing.expectEqualStrings("&lt;div&gt;hello&lt;/div&gt;", result);
-}
-
-test "escapeHtml replaces double quotes" {
-    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer arena.deinit();
-    const result = try escapeHtml(arena.allocator(), "say \"hello\"");
-    try std.testing.expectEqualStrings("say &quot;hello&quot;", result);
-}
-
-test "escapeHtml leaves plain text unchanged" {
-    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer arena.deinit();
-    const result = try escapeHtml(arena.allocator(), "just plain text");
-    try std.testing.expectEqualStrings("just plain text", result);
-}
-
-test "escapeHtml handles empty string" {
-    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer arena.deinit();
-    const result = try escapeHtml(arena.allocator(), "");
-    try std.testing.expectEqualStrings("", result);
-}
-
-test "escapeHtml mixes entities and plain text" {
-    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer arena.deinit();
-    const result = try escapeHtml(arena.allocator(), "<p>Tom & Jerry \"cartoon\"</p>");
-    try std.testing.expectEqualStrings("&lt;p&gt;Tom &amp; Jerry &quot;cartoon&quot;&lt;/p&gt;", result);
 }
 
 test "findSectionEnd simple section" {

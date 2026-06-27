@@ -1,5 +1,6 @@
 const std = @import("std");
 
+const config = @import("../logic/config.zig");
 const template = @import("template.zig");
 const models = @import("../models.zig");
 const Context = models.Context;
@@ -15,7 +16,7 @@ pub fn parseFilePath(
 ) ![]const u8 {
     const allocator = arena.allocator();
     const url = page.context.map.get("url").?.string;
-    return try std.Io.Dir.path.join(allocator, &.{ output_dir, url, "index.html" });
+    return try std.Io.Dir.path.join(allocator, &.{ output_dir, url, config.output_index });
 }
 
 /// Renders a page into HTML by merging its context with posts and menu, then applying the matching template.
