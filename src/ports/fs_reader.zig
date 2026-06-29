@@ -92,7 +92,7 @@ test "walkDir reads example directory" {
 
     const results = try walkDir(std.testing.io, &arena, "example");
 
-    try std.testing.expectEqual(9, results.len);
+    try std.testing.expectEqual(10, results.len);
 
     const expected: []const []const u8 = &.{
         "content/_index.md",

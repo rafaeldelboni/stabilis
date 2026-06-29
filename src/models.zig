@@ -73,12 +73,15 @@ pub const Page = struct {
     context: Context,
 };
 
+pub const TagIndexes = std.json.ArrayHashMap(std.ArrayList(usize));
+
 pub const Site = struct {
     title: []const u8,
     base_url: []const u8,
     templates: Templates,
     pages: []const Page,
     posts: []const Page,
+    tags: TagIndexes,
     menu_main: []Context,
 };
 

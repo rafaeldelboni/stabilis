@@ -7,6 +7,7 @@ const ContentEntry = models.ContentEntry;
 const Context = models.Context;
 const File = models.File;
 const MapEntries = models.MapEntries;
+const TagIndexes = models.TagIndexes;
 const Templates = models.Templates;
 const Page = models.Page;
 const PageKind = models.PageKind;
@@ -78,6 +79,7 @@ pub fn parse(
     var site_base_url: []const u8 = "";
     var pages: std.ArrayList(Page) = .empty;
     var posts: std.ArrayList(Page) = .empty;
+    var tags: TagIndexes = .{};
     var page_main_menu: std.ArrayList(Context) = .empty;
 
     for (files) |file| {
@@ -109,8 +111,17 @@ pub fn parse(
                     if (page.frontmatter.date) |date| try context.map.put(allocator, "date", .{ .string = date });
                     if (page.frontmatter.description) |description| try context.map.put(allocator, "description", .{ .string = description });
                     if (page.frontmatter.cover) |cover| try context.map.put(allocator, "cover", .{ .string = cover });
-                    if (page.frontmatter.tags.len > 0)
+                    if (page.frontmatter.tags.len > 0) {
                         try context.map.put(allocator, "tags", .{ .list = try parseStringList(allocator, page.frontmatter.tags) });
+                        for (page.frontmatter.tags) |tag|
+                            if (tags.map.getPtr(tag)) |tag_indexes|
+                                try tag_indexes.append(allocator, posts.items.len + 1)
+                            else {
+                                var list: std.ArrayList(usize) = .empty;
+                                try list.append(allocator, posts.items.len + 1);
+                                try tags.map.put(allocator, tag, list);
+                            };
+                    }
                     if (page.frontmatter.images.len > 0)
                         try context.map.put(allocator, "images", .{ .list = try parseImageList(allocator, page.frontmatter.images) });
                     try posts.append(allocator, Page{ .kind = page_kind, .context = context });
@@ -146,6 +157,7 @@ pub fn parse(
         .templates = templates,
         .pages = pages.items,
         .posts = posts.items,
+        .tags = tags,
     };
 }
 
