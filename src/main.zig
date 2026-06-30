@@ -75,6 +75,12 @@ fn renderSite(
     const all_pages = try std.mem.concat(allocator, Page, &.{ site_data.posts, site_data.pages });
     for (all_pages) |p|
         try fs_writer.writePage(arena, io, output_dir, p, post_list.items, site_data);
+
+    for (site_data.tags.map.values()) |tag| {
+        var tagged = try allocator.alloc(Context, tag.indexes.items.len);
+        for (tag.indexes.items, 0..) |idx, i| tagged[i] = site_data.posts[idx].context;
+        try fs_writer.writePage(arena, io, output_dir, tag.page, tagged, site_data);
+    }
 }
 
 fn buildHandler(arena: *std.heap.ArenaAllocator, io: std.Io, args: BuildResult, source_dir: []const u8) !void {
@@ -138,6 +144,7 @@ test {
     _ = @import("adapters/cli.zig");
     _ = @import("adapters/frontmatter.zig");
     _ = @import("adapters/markdown.zig");
+    _ = @import("adapters/page.zig");
     _ = @import("adapters/site.zig");
     _ = @import("adapters/string.zig");
     _ = @import("adapters/template.zig");

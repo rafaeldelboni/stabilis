@@ -62,6 +62,7 @@ pub const PageKind = enum {
     post,
     page,
     post_list,
+    tag_post_list,
 };
 
 pub const Templates = std.json.ArrayHashMap([]const u8);
@@ -73,12 +74,20 @@ pub const Page = struct {
     context: Context,
 };
 
+pub const Tag = struct {
+    page: Page,
+    indexes: std.ArrayList(usize),
+};
+
+pub const Tags = std.json.ArrayHashMap(Tag);
+
 pub const Site = struct {
     title: []const u8,
     base_url: []const u8,
     templates: Templates,
     pages: []const Page,
     posts: []const Page,
+    tags: Tags,
     menu_main: []Context,
 };
 

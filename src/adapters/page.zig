@@ -80,6 +80,7 @@ test "parseHtml renders page with template and context" {
         .templates = templates,
         .pages = &.{},
         .posts = &.{},
+        .tags = .{},
         .menu_main = &.{},
     };
 
