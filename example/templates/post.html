@@ -4,7 +4,9 @@
     <h1>{{ title }}</h1>
     <time>{{ date }}</time>
     {{# tags }}
-    <span class="tag">{{ . }}</span>
+    <span class="tag">
+      <a href="/posts/tags/{{ . }}">{{ . }}</a>
+    </span>
     {{/ tags }}
     <div class="content">
       {{{ body }}}
