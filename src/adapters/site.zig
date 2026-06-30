@@ -58,27 +58,21 @@ fn parseMenuEntryContext(allocator: std.mem.Allocator, name: []const u8, url: []
     return ctx;
 }
 
-fn parseTagContext(arena: *std.heap.ArenaAllocator, tag: []const u8) !Context {
+/// Records post `index` under `tag`, creating the tag's page on first sight.
+/// Returns the tag's context so the post's tag-link list can reuse it.
+fn upsertTag(arena: *std.heap.ArenaAllocator, tags: *Tags, tag: []const u8, index: usize) !Context {
     const allocator = arena.allocator();
-    var tag_context: Context = .{};
     const tag_slug = try string.parseSlug(arena, tag);
-    try tag_context.map.put(allocator, "title", .{ .string = tag });
-    try tag_context.map.put(allocator, "slug", .{ .string = tag_slug });
-    try tag_context.map.put(allocator, "url", .{ .string = try buildUrl(arena, .tag_post_list, tag_slug) });
-    return tag_context;
-}
-
-fn parseTagPage(arena: *std.heap.ArenaAllocator, tags: *Tags, tag_context: Context, index: usize) !void {
-    const allocator = arena.allocator();
-    const tag_slug = tag_context.map.get("slug").?.string;
-    if (tags.map.getPtr(tag_slug)) |current_tag|
-        try current_tag.indexes.append(allocator, index)
-    else {
-        var indexes: std.ArrayList(usize) = .empty;
-        try indexes.append(allocator, index);
-        const tag_page = Page{ .kind = .tag_post_list, .context = tag_context };
-        try tags.map.put(allocator, tag_slug, Tag{ .page = tag_page, .indexes = indexes });
+    const tag_entry = try tags.map.getOrPut(allocator, tag_slug);
+    if (!tag_entry.found_existing) {
+        var tag_context: Context = .{};
+        try tag_context.map.put(allocator, "title", .{ .string = tag });
+        try tag_context.map.put(allocator, "slug", .{ .string = tag_slug });
+        try tag_context.map.put(allocator, "url", .{ .string = try buildUrl(arena, .tag_post_list, tag_slug) });
+        tag_entry.value_ptr.* = .{ .page = .{ .kind = .tag_post_list, .context = tag_context }, .indexes = .empty };
     }
+    try tag_entry.value_ptr.indexes.append(allocator, index);
+    return tag_entry.value_ptr.page.context;
 }
 
 /// Parses loaded files into a `Site` (config, templates, pages, posts, menu).
@@ -128,11 +122,8 @@ pub fn parse(
                     if (page.frontmatter.cover) |cover| try context.map.put(allocator, "cover", .{ .string = cover });
                     if (page.frontmatter.tags.len > 0) {
                         var tag_outer_context = try std.ArrayList(Context).initCapacity(allocator, page.frontmatter.tags.len);
-                        for (page.frontmatter.tags) |tag| {
-                            const tag_context = try parseTagContext(arena, tag);
-                            try parseTagPage(arena, &tags, tag_context, posts.items.len);
-                            tag_outer_context.appendAssumeCapacity(tag_context);
-                        }
+                        for (page.frontmatter.tags) |tag|
+                            tag_outer_context.appendAssumeCapacity(try upsertTag(arena, &tags, tag, posts.items.len));
                         try context.map.put(allocator, "tags", .{ .list = tag_outer_context.items });
                     }
                     if (page.frontmatter.images.len > 0)
