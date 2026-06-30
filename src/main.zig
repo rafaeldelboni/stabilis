@@ -144,6 +144,7 @@ test {
     _ = @import("adapters/cli.zig");
     _ = @import("adapters/frontmatter.zig");
     _ = @import("adapters/markdown.zig");
+    _ = @import("adapters/page.zig");
     _ = @import("adapters/site.zig");
     _ = @import("adapters/string.zig");
     _ = @import("adapters/template.zig");

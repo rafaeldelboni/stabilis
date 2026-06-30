@@ -70,14 +70,14 @@ fn parseTagContext(arena: *std.heap.ArenaAllocator, tag: []const u8) !Context {
 
 fn parseTagPage(arena: *std.heap.ArenaAllocator, tags: *Tags, tag_context: Context, index: usize) !void {
     const allocator = arena.allocator();
-    const tag = tag_context.map.get("title").?.string;
-    if (tags.map.getPtr(tag)) |current_tag|
+    const tag_slug = tag_context.map.get("slug").?.string;
+    if (tags.map.getPtr(tag_slug)) |current_tag|
         try current_tag.indexes.append(allocator, index)
     else {
         var indexes: std.ArrayList(usize) = .empty;
         try indexes.append(allocator, index);
         const tag_page = Page{ .kind = .tag_post_list, .context = tag_context };
-        try tags.map.put(allocator, tag, Tag{ .page = tag_page, .indexes = indexes });
+        try tags.map.put(allocator, tag_slug, Tag{ .page = tag_page, .indexes = indexes });
     }
 }
 
