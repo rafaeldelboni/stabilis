@@ -18,6 +18,7 @@ pub const templates_prefix = "templates/";
 pub const output_index = "index.html";
 
 pub const post_url_prefix = "/posts";
+pub const tag_post_list_url_prefix = "/posts/tags";
 
 /// Returns the template filename for the given page kind.
 pub fn templateNameFor(kind: PageKind) []const u8 {
@@ -26,6 +27,7 @@ pub fn templateNameFor(kind: PageKind) []const u8 {
         .post => "post.html",
         .page => "page.html",
         .post_list => "post-list.html",
+        .tag_post_list => "tag-post-list.html",
     };
 }
 

@@ -7,15 +7,16 @@ const ContentEntry = models.ContentEntry;
 const Context = models.Context;
 const File = models.File;
 const MapEntries = models.MapEntries;
-const TagIndexes = models.TagIndexes;
+const Tag = models.Tag;
+const Tags = models.Tags;
 const Templates = models.Templates;
 const Page = models.Page;
 const PageKind = models.PageKind;
 const ImageSpec = models.ImageSpec;
 const Site = models.Site;
-const string = @import("string.zig");
 const frontmatter = @import("frontmatter.zig");
 const markdown = @import("markdown.zig");
+const string = @import("string.zig");
 const yaml_lexer = @import("yaml_lexer.zig");
 
 fn parseSlug(arena: *std.heap.ArenaAllocator, file: File, page: ContentEntry) ![]const u8 {
@@ -33,6 +34,7 @@ fn buildUrl(arena: *std.heap.ArenaAllocator, page_kind: PageKind, slug: []const 
         .page => return try std.Io.Dir.path.join(allocator, &.{ "/", slug }),
         .home => return "/",
         .post_list => return config.post_url_prefix,
+        .tag_post_list => return try std.Io.Dir.path.join(allocator, &.{ config.tag_post_list_url_prefix, slug }),
     }
 }
 
@@ -66,6 +68,25 @@ fn parseMenuEntryContext(allocator: std.mem.Allocator, name: []const u8, url: []
     return ctx;
 }
 
+fn parseTagPage(arena: *std.heap.ArenaAllocator, tags: *Tags, tag: []const u8, index: usize) !void {
+    const allocator = arena.allocator();
+    if (tags.map.getPtr(tag)) |current_tag|
+        try current_tag.indexes.append(allocator, index)
+    else {
+        var indexes: std.ArrayList(usize) = .empty;
+        try indexes.append(allocator, index);
+
+        var tag_context: Context = .{};
+        const tag_slug = try string.parseSlug(arena, tag);
+        try tag_context.map.put(allocator, "title", .{ .string = tag });
+        try tag_context.map.put(allocator, "slug", .{ .string = tag_slug });
+        try tag_context.map.put(allocator, "url", .{ .string = try buildUrl(arena, .tag_post_list, tag_slug) });
+
+        const tag_page = Page{ .kind = .tag_post_list, .context = tag_context };
+        try tags.map.put(allocator, tag, Tag{ .page = tag_page, .indexes = indexes });
+    }
+}
+
 /// Parses loaded files into a `Site` (config, templates, pages, posts, menu).
 pub fn parse(
     arena: *std.heap.ArenaAllocator,
@@ -79,7 +100,7 @@ pub fn parse(
     var site_base_url: []const u8 = "";
     var pages: std.ArrayList(Page) = .empty;
     var posts: std.ArrayList(Page) = .empty;
-    var tags: TagIndexes = .{};
+    var tags: Tags = .{};
     var page_main_menu: std.ArrayList(Context) = .empty;
 
     for (files) |file| {
@@ -113,14 +134,7 @@ pub fn parse(
                     if (page.frontmatter.cover) |cover| try context.map.put(allocator, "cover", .{ .string = cover });
                     if (page.frontmatter.tags.len > 0) {
                         try context.map.put(allocator, "tags", .{ .list = try parseStringList(allocator, page.frontmatter.tags) });
-                        for (page.frontmatter.tags) |tag|
-                            if (tags.map.getPtr(tag)) |tag_indexes|
-                                try tag_indexes.append(allocator, posts.items.len + 1)
-                            else {
-                                var list: std.ArrayList(usize) = .empty;
-                                try list.append(allocator, posts.items.len + 1);
-                                try tags.map.put(allocator, tag, list);
-                            };
+                        for (page.frontmatter.tags) |tag| try parseTagPage(arena, &tags, tag, posts.items.len);
                     }
                     if (page.frontmatter.images.len > 0)
                         try context.map.put(allocator, "images", .{ .list = try parseImageList(allocator, page.frontmatter.images) });
