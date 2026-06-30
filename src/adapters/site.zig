@@ -431,6 +431,15 @@ test "smoke: full site with config, pages, posts, templates" {
     try std.testing.expectEqualStrings("zig", tags[0].map.get("title").?.string);
     try std.testing.expectEqualStrings("blogging", tags[1].map.get("title").?.string);
 
+    // site tags
+    try std.testing.expectEqual(@as(usize, 2), site.tags.map.count());
+    const zig_tag = site.tags.map.get("zig").?;
+    try std.testing.expectEqualStrings("zig", zig_tag.page.context.map.get("title").?.string);
+    try std.testing.expectEqualStrings("/posts/tags/zig", zig_tag.page.context.map.get("url").?.string);
+    try std.testing.expectEqual(PageKind.tag_post_list, zig_tag.page.kind);
+    try std.testing.expectEqual(@as(usize, 1), zig_tag.indexes.items.len);
+    try std.testing.expectEqual(@as(usize, 0), zig_tag.indexes.items[0]);
+
     // templates
     try std.testing.expect(site.templates.map.get("partials/header.html") != null);
     try std.testing.expect(site.templates.map.get("home.html") != null);

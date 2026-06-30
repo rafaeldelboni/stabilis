@@ -36,4 +36,5 @@ test "templateNameFor: each kind" {
     try std.testing.expectEqualStrings("post.html", templateNameFor(.post));
     try std.testing.expectEqualStrings("page.html", templateNameFor(.page));
     try std.testing.expectEqualStrings("post-list.html", templateNameFor(.post_list));
+    try std.testing.expectEqualStrings("tag-post-list.html", templateNameFor(.tag_post_list));
 }

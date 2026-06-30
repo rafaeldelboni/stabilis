@@ -104,6 +104,7 @@ test "walkDir reads example directory" {
         "templates/partials/header.html",
         "templates/post-list.html",
         "templates/post.html",
+        "templates/tag-post-list.html",
     };
 
     for (expected) |rel_path| {
