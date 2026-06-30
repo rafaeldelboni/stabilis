@@ -38,16 +38,6 @@ fn buildUrl(arena: *std.heap.ArenaAllocator, page_kind: PageKind, slug: []const 
     }
 }
 
-fn parseStringList(allocator: std.mem.Allocator, list: []const []const u8) ![]Context {
-    var outer_context = try std.ArrayList(Context).initCapacity(allocator, list.len);
-    for (list) |item| {
-        var inner_context: Context = .{};
-        try inner_context.map.put(allocator, ".", .{ .string = item });
-        outer_context.appendAssumeCapacity(inner_context);
-    }
-    return outer_context.items;
-}
-
 fn parseImageList(allocator: std.mem.Allocator, images: []const ImageSpec) ![]Context {
     var outer_context = try std.ArrayList(Context).initCapacity(allocator, images.len);
     for (images) |image| {
@@ -68,20 +58,24 @@ fn parseMenuEntryContext(allocator: std.mem.Allocator, name: []const u8, url: []
     return ctx;
 }
 
-fn parseTagPage(arena: *std.heap.ArenaAllocator, tags: *Tags, tag: []const u8, index: usize) !void {
+fn parseTagContext(arena: *std.heap.ArenaAllocator, tag: []const u8) !Context {
     const allocator = arena.allocator();
+    var tag_context: Context = .{};
+    const tag_slug = try string.parseSlug(arena, tag);
+    try tag_context.map.put(allocator, "title", .{ .string = tag });
+    try tag_context.map.put(allocator, "slug", .{ .string = tag_slug });
+    try tag_context.map.put(allocator, "url", .{ .string = try buildUrl(arena, .tag_post_list, tag_slug) });
+    return tag_context;
+}
+
+fn parseTagPage(arena: *std.heap.ArenaAllocator, tags: *Tags, tag_context: Context, index: usize) !void {
+    const allocator = arena.allocator();
+    const tag = tag_context.map.get("title").?.string;
     if (tags.map.getPtr(tag)) |current_tag|
         try current_tag.indexes.append(allocator, index)
     else {
         var indexes: std.ArrayList(usize) = .empty;
         try indexes.append(allocator, index);
-
-        var tag_context: Context = .{};
-        const tag_slug = try string.parseSlug(arena, tag);
-        try tag_context.map.put(allocator, "title", .{ .string = tag });
-        try tag_context.map.put(allocator, "slug", .{ .string = tag_slug });
-        try tag_context.map.put(allocator, "url", .{ .string = try buildUrl(arena, .tag_post_list, tag_slug) });
-
         const tag_page = Page{ .kind = .tag_post_list, .context = tag_context };
         try tags.map.put(allocator, tag, Tag{ .page = tag_page, .indexes = indexes });
     }
@@ -133,8 +127,13 @@ pub fn parse(
                     if (page.frontmatter.description) |description| try context.map.put(allocator, "description", .{ .string = description });
                     if (page.frontmatter.cover) |cover| try context.map.put(allocator, "cover", .{ .string = cover });
                     if (page.frontmatter.tags.len > 0) {
-                        try context.map.put(allocator, "tags", .{ .list = try parseStringList(allocator, page.frontmatter.tags) });
-                        for (page.frontmatter.tags) |tag| try parseTagPage(arena, &tags, tag, posts.items.len);
+                        var tag_outer_context = try std.ArrayList(Context).initCapacity(allocator, page.frontmatter.tags.len);
+                        for (page.frontmatter.tags) |tag| {
+                            const tag_context = try parseTagContext(arena, tag);
+                            try parseTagPage(arena, &tags, tag_context, posts.items.len);
+                            tag_outer_context.appendAssumeCapacity(tag_context);
+                        }
+                        try context.map.put(allocator, "tags", .{ .list = tag_outer_context.items });
                     }
                     if (page.frontmatter.images.len > 0)
                         try context.map.put(allocator, "images", .{ .list = try parseImageList(allocator, page.frontmatter.images) });
@@ -185,24 +184,6 @@ fn testFile(rel_path: []const u8, contents: []const u8) File {
         .file_name = split.first(),
         .contents = contents,
     };
-}
-
-test "parseStringList wraps strings as Context with \".\" key" {
-    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer arena.deinit();
-
-    const result = try parseStringList(arena.allocator(), &.{ "zig", "blogging" });
-    try std.testing.expectEqual(@as(usize, 2), result.len);
-    try std.testing.expectEqualStrings("zig", result[0].map.get(".").?.string);
-    try std.testing.expectEqualStrings("blogging", result[1].map.get(".").?.string);
-}
-
-test "parseStringList empty input returns empty slice" {
-    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer arena.deinit();
-
-    const result = try parseStringList(arena.allocator(), &.{});
-    try std.testing.expectEqual(@as(usize, 0), result.len);
 }
 
 test "parse with only config populates site metadata" {
@@ -268,8 +249,8 @@ test "parse post populates posts list with frontmatter in context" {
     try std.testing.expectEqual(PageKind.post, post.kind);
     try std.testing.expectEqualStrings("Hello World", post.context.map.get("title").?.string);
     try std.testing.expectEqualStrings("2026-06-01", post.context.map.get("date").?.string);
-    try std.testing.expectEqualStrings("zig", post.context.map.get("tags").?.list[0].map.get(".").?.string);
-    try std.testing.expectEqualStrings("ssg", post.context.map.get("tags").?.list[1].map.get(".").?.string);
+    try std.testing.expectEqualStrings("zig", post.context.map.get("tags").?.list[0].map.get("title").?.string);
+    try std.testing.expectEqualStrings("ssg", post.context.map.get("tags").?.list[1].map.get("title").?.string);
     try std.testing.expectEqual(true, post.context.map.get("draft").?.bool);
     try std.testing.expect(std.mem.containsAtLeast(u8, post.context.map.get("body").?.string, 1, "<h2>"));
     try std.testing.expectEqualStrings("hello-world", post.context.map.get("slug").?.string);
@@ -447,8 +428,8 @@ test "smoke: full site with config, pages, posts, templates" {
 
     const tags = post.context.map.get("tags").?.list;
     try std.testing.expectEqual(@as(usize, 2), tags.len);
-    try std.testing.expectEqualStrings("zig", tags[0].map.get(".").?.string);
-    try std.testing.expectEqualStrings("blogging", tags[1].map.get(".").?.string);
+    try std.testing.expectEqualStrings("zig", tags[0].map.get("title").?.string);
+    try std.testing.expectEqualStrings("blogging", tags[1].map.get("title").?.string);
 
     // templates
     try std.testing.expect(site.templates.map.get("partials/header.html") != null);
