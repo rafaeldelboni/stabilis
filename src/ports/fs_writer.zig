@@ -41,3 +41,83 @@ pub fn writePage(
     const html = try page.parseHtml(arena, page_data, post_list, site_data);
     try writeFileDeep(io, html, file_path);
 }
+
+/// Recursively copies `source_path` into `dest_path`, creating dirs as needed.
+pub fn copyDir(
+    io: Io,
+    arena: *std.heap.ArenaAllocator,
+    source_path: []const u8,
+    dest_path: []const u8,
+) !void {
+    const allocator = arena.allocator();
+    const cwd = std.Io.Dir.cwd();
+
+    const source_dir = try std.Io.Dir.openDir(cwd, io, source_path, .{ .iterate = true });
+    defer source_dir.close(io);
+    const dir_source_path = try source_dir.realPathFileAlloc(io, ".", allocator);
+
+    try std.Io.Dir.createDirPath(cwd, io, dest_path);
+    const dir_dest_path = try cwd.realPathFileAlloc(io, dest_path, allocator);
+
+    var dir_entries = source_dir.iterate();
+    while (try dir_entries.next(io)) |dir_entry| {
+        switch (dir_entry.kind) {
+            .file => {
+                const abs_source_path = try std.Io.Dir.path.resolve(allocator, &.{ dir_source_path, dir_entry.name });
+                const abs_dest_path = try std.Io.Dir.path.resolve(allocator, &.{ dir_dest_path, dir_entry.name });
+                try std.Io.Dir.copyFileAbsolute(abs_source_path, abs_dest_path, io, .{});
+            },
+            .directory => {
+                const branch_source_path = try std.Io.Dir.path.join(allocator, &.{ source_path, dir_entry.name });
+                const branch_dest_path = try std.Io.Dir.path.join(allocator, &.{ dest_path, dir_entry.name });
+                try copyDir(io, arena, branch_source_path, branch_dest_path);
+            },
+            else => {},
+        }
+    }
+}
+
+// integration test: requires example/ directory
+test "copyDir mirrors example directory" {
+    const allocator = std.testing.allocator;
+    var arena = std.heap.ArenaAllocator.init(allocator);
+    defer arena.deinit();
+
+    var tmp = std.testing.tmpDir(.{ .iterate = true });
+    defer tmp.cleanup();
+
+    const io = std.testing.io;
+    const cwd = std.Io.Dir.cwd();
+
+    const tmp_path = try cwd.realPathFileAlloc(io, ".zig-cache/tmp", arena.allocator());
+    const dest_path = try std.Io.Dir.path.join(arena.allocator(), &.{ tmp_path, &tmp.sub_path });
+
+    try copyDir(io, &arena, "example", dest_path);
+
+    var dest_dir = try std.Io.Dir.openDir(cwd, io, dest_path, .{ .iterate = true });
+    defer dest_dir.close(io);
+
+    const expected: []const []const u8 = &.{
+        "content/_index.md",
+        "content/posts/_index.md",
+        "content/posts/hello-world.md",
+        "site.yaml",
+        "templates/home.html",
+        "templates/page.html",
+        "templates/partials/header.html",
+        "templates/post-list.html",
+        "templates/post.html",
+        "templates/tag-post-list.html",
+    };
+
+    for (expected) |rel_path| {
+        const abs = try std.Io.Dir.path.resolve(arena.allocator(), &.{ dest_path, rel_path });
+        const f = std.Io.Dir.openFile(cwd, io, abs, .{}) catch {
+            std.debug.print("missing: {s}\n", .{rel_path});
+            return error.TestUnexpectedResult;
+        };
+        f.close(io);
+    }
+
+    try std.testing.expectEqual(expected.len, 10);
+}

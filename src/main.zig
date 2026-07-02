@@ -95,6 +95,13 @@ fn buildHandler(arena: *std.heap.ArenaAllocator, io: std.Io, args: BuildResult, 
 
     try renderSite(arena, io, output_dir, site_data);
 
+    const static_dst = try std.Io.Dir.path.join(arena.allocator(), &.{ output_dir, config.static_dir });
+
+    fs_writer.copyDir(io, arena, config.static_dir, static_dst) catch |err| switch (err) {
+        error.FileNotFound => {},
+        else => return err,
+    };
+
     std.debug.print("Site from: {s} created on: {s}\n", .{ source_dir, output_dir });
 }
 

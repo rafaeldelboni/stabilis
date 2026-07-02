@@ -27,9 +27,9 @@
 - [x] New Post Hander based on CLI input create basic md file + frontmatter
 - [x] New Page Hander based on CLI input create basic md file + frontmatter
 - [x] Tag pages (per-tag post list at /posts/tags/<slug> + tag links on posts)
+- [ ] Static asset handling (copy static/ → output for images and other files)
 - [ ] File watcher for dev mode (used by serve)
 - [ ] Dev server + SSE live reload (used by serve)
 - [ ] RSS/Atom feed generation
 - [ ] Shortcode system
 - [ ] Minification outputs
-- [ ] Static asset handling (copy static/ → output for images and other files)
