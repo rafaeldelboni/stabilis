@@ -84,7 +84,6 @@ pub fn loadFiles(arena: *std.heap.ArenaAllocator, io: std.Io, source_dir: []cons
     return try std.mem.concat(allocator, models.File, &.{ &.{config_file}, content_files, template_files });
 }
 
-
 // integration test: requires example/ directory
 test "walkDir reads example directory" {
     const allocator = std.testing.allocator;
