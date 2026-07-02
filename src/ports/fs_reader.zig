@@ -62,6 +62,15 @@ fn walkDirImpl(io: Io, arena: *std.heap.ArenaAllocator, base_path: []const u8, p
     return output.items;
 }
 
+/// Recursively walks `path`, returning a slice of every file found.
+/// Directory entries that are not files or directories (symlinks, etc.) are ignored.
+/// All strings in the returned `File` values are arena-allocated.
+pub fn walkDir(io: Io, arena: *std.heap.ArenaAllocator, path: []const u8) ![]File {
+    const cwd = std.Io.Dir.cwd();
+    const abs_path = try cwd.realPathFileAlloc(io, path, arena.allocator());
+    return walkDirImpl(io, arena, abs_path, "/");
+}
+
 /// Loads the config, content, and template files from `source_dir` into one slice.
 pub fn loadFiles(arena: *std.heap.ArenaAllocator, io: std.Io, source_dir: []const u8) ![]models.File {
     const allocator = arena.allocator();
@@ -73,15 +82,6 @@ pub fn loadFiles(arena: *std.heap.ArenaAllocator, io: std.Io, source_dir: []cons
     const template_files = try walkDirImpl(io, arena, base_path, config.templates_dir);
 
     return try std.mem.concat(allocator, models.File, &.{ &.{config_file}, content_files, template_files });
-}
-
-/// Recursively walks `path`, returning a slice of every file found.
-/// Directory entries that are not files or directories (symlinks, etc.) are ignored.
-/// All strings in the returned `File` values are arena-allocated.
-pub fn walkDir(io: Io, arena: *std.heap.ArenaAllocator, path: []const u8) ![]File {
-    const cwd = std.Io.Dir.cwd();
-    const abs_path = try cwd.realPathFileAlloc(io, path, arena.allocator());
-    return walkDirImpl(io, arena, abs_path, "/");
 }
 
 // integration test: requires example/ directory
