@@ -16,7 +16,7 @@ fn asString(arena: *std.heap.ArenaAllocator, value: ?YamlNode) !?[]const u8 {
         return switch (v) {
             .string => |s| s,
             .boolean => |b| if (b) "true" else "false",
-            .datetime => |d| try time.toString(arena, d),
+            .datetime => |d| try time.toIsoString(arena, d),
             .null => null,
             else => null,
         };

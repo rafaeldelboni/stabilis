@@ -2,7 +2,7 @@ const std = @import("std");
 
 const models = @import("../models.zig");
 const DateTime = models.DateTime;
-const time_logic = @import("../adapters/time.zig");
+const time = @import("../adapters/time.zig");
 
 /// Returns the current wall-clock time via the `Io` instance.
 pub fn now(io: std.Io) DateTime {
@@ -27,9 +27,9 @@ pub fn now(io: std.Io) DateTime {
     };
 }
 
-/// Returns the current wall-clock time formatted as an RFC3339 string.
-pub fn nowString(arena: *std.heap.ArenaAllocator, io: std.Io) ![]const u8 {
-    return try time_logic.toString(arena, now(io));
+/// Returns the current wall-clock time formatted as an ISO 8601 string.
+pub fn nowIsoString(arena: *std.heap.ArenaAllocator, io: std.Io) ![]const u8 {
+    return try time.toIsoString(arena, now(io));
 }
 
 test "now: returns sane date values" {
@@ -55,6 +55,6 @@ test "nowString: returns RFC3339 formatted current time" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
 
-    const result = try nowString(&arena, io);
+    const result = try nowIsoString(&arena, io);
     try std.testing.expect(result.len > 0);
 }

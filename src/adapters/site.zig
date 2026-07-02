@@ -117,7 +117,9 @@ pub fn parse(
             switch (page_kind) {
                 .post => {
                     if (page.frontmatter.author) |author| try context.map.put(allocator, "author", .{ .string = author });
-                    if (page.frontmatter.date) |date| try context.map.put(allocator, "date", .{ .string = date });
+                    if (page.frontmatter.date) |date| {
+                        try context.map.put(allocator, "date", .{ .string = date });
+                    }
                     if (page.frontmatter.description) |description| try context.map.put(allocator, "description", .{ .string = description });
                     if (page.frontmatter.cover) |cover| try context.map.put(allocator, "cover", .{ .string = cover });
                     if (page.frontmatter.tags.len > 0) {

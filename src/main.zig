@@ -27,7 +27,7 @@ fn newPageHandler(arena: *std.heap.ArenaAllocator, io: std.Io, args: NewPageResu
     const slug = args.slug orelse try str.parseSlug(arena, args.title);
     const fm = Frontmatter{
         .title = args.title,
-        .date = try time.nowString(arena, io),
+        .date = try time.nowIsoString(arena, io),
         .slug = slug,
         .draft = args.draft,
         .menus = args.menus,
@@ -46,7 +46,7 @@ fn newPostHandler(arena: *std.heap.ArenaAllocator, io: std.Io, args: NewPostResu
     const slug = try str.parseSlug(arena, args.title);
     const fm = Frontmatter{
         .title = args.title,
-        .date = try time.nowString(arena, io),
+        .date = try time.nowIsoString(arena, io),
         .description = args.description,
         .slug = slug,
         .draft = args.draft,
@@ -95,9 +95,9 @@ fn buildHandler(arena: *std.heap.ArenaAllocator, io: std.Io, args: BuildResult, 
 
     try renderSite(arena, io, output_dir, site_data);
 
-    const static_dst = try std.Io.Dir.path.join(arena.allocator(), &.{ output_dir, config.static_dir });
+    const static_source = try std.Io.Dir.path.join(arena.allocator(), &.{ source_dir, config.static_dir });
 
-    fs_writer.copyDir(io, arena, config.static_dir, static_dst) catch |err| switch (err) {
+    fs_writer.copyDir(io, arena, static_source, output_dir) catch |err| switch (err) {
         error.FileNotFound => {},
         else => return err,
     };
