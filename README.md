@@ -6,6 +6,8 @@ Progress tracked in [TODO.md](TODO.md).
 
 ## Installation
 
+Installs to `/usr/local/bin` by default; prefix with `sudo` or use `--dir ~/.local/bin` to avoid that.
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/rafaeldelboni/stabilis/main/install.sh | bash
 ```
