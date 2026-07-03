@@ -22,3 +22,38 @@ jobs:
       - uses: actions/checkout@v3
       - uses: mlugg/setup-zig@v2
       - run: zig fmt build.zig src/ --check
+
+  integration:
+    runs-on: ubuntu-latest
+    name: Build and smoke test binary
+    steps:
+      - uses: actions/checkout@v3
+      - uses: mlugg/setup-zig@v2
+      - run: zig build --summary all
+
+      - name: Help
+        run: |
+          ./zig-out/bin/stabilis --help
+          ./zig-out/bin/stabilis --help | grep -q stabilis
+          ./zig-out/bin/stabilis --help | grep -q build
+          ./zig-out/bin/stabilis --help | grep -q serve
+          ./zig-out/bin/stabilis --help | grep -q new
+
+      - name: Version
+        run: |
+          out=$(./zig-out/bin/stabilis --version)
+          test -n "$out"
+
+      - name: Build example fixture
+        run: ./zig-out/bin/stabilis build -S example -d tmp/site -c
+
+      - name: Verify expected output
+        run: |
+          test -f tmp/site/index.html
+          test -f tmp/site/posts/index.html
+          test -f tmp/site/posts/hello-world/index.html
+          test -f tmp/site/posts/github-flavored-markdown-syntax-guide/index.html
+          test -f tmp/site/posts/tags/blogging/index.html
+          test -f tmp/site/posts/tags/markdown/index.html
+          test -f tmp/site/posts/tags/zig/index.html
+          test -f tmp/site/images/manly-palmer-hall-alchemical-manuscript.jpg
