@@ -128,14 +128,6 @@ pub fn printHelp(
     try stdout.flush();
 }
 
-/// Prints the version string to stdout.
-pub fn printVersion(io: std.Io, name: []const u8, version: []const u8) !void {
-    var buf: [256]u8 = undefined;
-    var stdout = std.Io.File.stdout().writer(io, &buf);
-    try stdout.interface.print("{s} {s}\n", .{ name, version });
-    try stdout.flush();
-}
-
 fn printDiagErrorTo(w: *std.Io.Writer, diag: *Diagnostics, err: anyerror) !void {
     const msg = switch (err) {
         error.NoCommand => "no command given",

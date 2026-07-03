@@ -19,6 +19,7 @@ const modelsCli = @import("models/cli.zig");
 const cli_help = @import("ports/cli.zig");
 const fs_reader = @import("ports/fs_reader.zig");
 const fs_writer = @import("ports/fs_writer.zig");
+const printer = @import("ports/printer.zig");
 const str = @import("adapters/string.zig");
 const time = @import("ports/time.zig");
 
@@ -39,6 +40,7 @@ fn newPageHandler(arena: *std.heap.ArenaAllocator, io: std.Io, args: NewPageResu
         source_dir, config.content_dir, try std.mem.concat(allocator, u8, &.{ slug, config.content_ext }),
     });
     try fs_writer.writeFileDeep(io, file, file_path);
+    try printer.print(io, "Created page: {s}\n", .{file_path});
 }
 
 fn newPostHandler(arena: *std.heap.ArenaAllocator, io: std.Io, args: NewPostResult, source_dir: []const u8) !void {
@@ -59,6 +61,7 @@ fn newPostHandler(arena: *std.heap.ArenaAllocator, io: std.Io, args: NewPostResu
         source_dir, config.content_dir, config.posts_dir, try std.mem.concat(allocator, u8, &.{ slug, config.content_ext }),
     });
     try fs_writer.writeFileDeep(io, file, file_path);
+    try printer.print(io, "Created post: {s}\n", .{file_path});
 }
 
 fn renderSite(
@@ -102,7 +105,7 @@ fn buildHandler(arena: *std.heap.ArenaAllocator, io: std.Io, args: BuildResult, 
         else => return err,
     };
 
-    std.debug.print("Site from: {s} created on: {s}\n", .{ source_dir, output_dir });
+    try printer.print(io, "Site from: {s} created on: {s}\n", .{ source_dir, output_dir });
 }
 
 pub fn main(init: std.process.Init) !u8 {
@@ -120,7 +123,7 @@ pub fn main(init: std.process.Init) !u8 {
         return 2;
     };
     if (out.flags.version) {
-        try cli_help.printVersion(io, cli.name, build_options.version);
+        try printer.printVersion(io, cli.name, build_options.version);
         return 0;
     }
     if (out.flags.help) {
@@ -132,16 +135,16 @@ pub fn main(init: std.process.Init) !u8 {
 
     _ = switch (out.commands orelse return 0) {
         .build => |build_args| buildHandler(&arena, io, build_args, source_dir),
-        .serve => |serve_args| std.debug.print("serve not implemented: {any}\n", .{serve_args}),
+        .serve => |serve_args| printer.errPrint(io, "serve not implemented: {any}\n", .{serve_args}),
         .new => |new_args| switch (new_args) {
             .post => newPostHandler(&arena, io, new_args.post, source_dir),
             .page => newPageHandler(&arena, io, new_args.page, source_dir),
         },
     } catch |err| {
         if (err == error.NoFilesFound or err == error.FileNotFound)
-            std.debug.print("No {s} files found on: {s}\n", .{ cli.name, source_dir })
+            try printer.errPrint(io, "No {s} files found on: {s}\n", .{ cli.name, source_dir })
         else
-            std.debug.print("error: {}\n", .{err});
+            try printer.errPrint(io, "error: {}\n", .{err});
         return 2;
     };
     return 0;
@@ -165,6 +168,7 @@ test {
     _ = @import("ports/cli.zig");
     _ = @import("ports/fs_reader.zig");
     _ = @import("ports/fs_writer.zig");
+    _ = @import("ports/printer.zig");
     _ = @import("ports/time.zig");
     _ = @import("models.zig");
 }
