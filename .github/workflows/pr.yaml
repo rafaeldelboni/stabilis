@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     name: Build and Test
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v7
       - uses: mlugg/setup-zig@v2
       - run: zig build test --summary all
 
@@ -19,6 +19,32 @@ jobs:
     runs-on: ubuntu-latest
     name: Check non-conforming formated files
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v7
       - uses: mlugg/setup-zig@v2
       - run: zig fmt build.zig src/ --check
+
+  integration:
+    runs-on: ubuntu-latest
+    name: Build and smoke test binary
+    steps:
+      - uses: actions/checkout@v7
+      - uses: mlugg/setup-zig@v2
+      - run: zig build --summary all
+
+      - name: Help
+        run: |
+          ./zig-out/bin/stabilis --help | grep -q stabilis
+          ./zig-out/bin/stabilis --help | grep -q build
+          ./zig-out/bin/stabilis --help | grep -q serve
+          ./zig-out/bin/stabilis --help | grep -q new
+
+      - name: Version
+        run: |
+          out=$(./zig-out/bin/stabilis --version)
+          test -n "$out"
+
+      - name: Build example fixture
+        run: ./zig-out/bin/stabilis build -S example -d tmp/site -c
+
+      - name: Show generated tree
+        run: find tmp/site | sort
