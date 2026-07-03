@@ -45,3 +45,6 @@ jobs:
 
       - name: Build example fixture
         run: ./zig-out/bin/stabilis build -S example -d tmp/site -c
+
+      - name: Show generated tree
+        run: find tmp/site | sort
