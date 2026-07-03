@@ -44,7 +44,7 @@ jobs:
           test -n "$out"
 
       - name: Build example fixture
-        run: ./zig-out/bin/stabilis build -S example -d tmp/site -c
+        run: ./zig-out/bin/stabilis build -S example -d tmp/site
 
       - name: Verify expected output
         run: |
