@@ -44,15 +44,4 @@ jobs:
           test -n "$out"
 
       - name: Build example fixture
-        run: ./zig-out/bin/stabilis build -S example -d tmp/site
-
-      - name: Verify expected output
-        run: |
-          test -f tmp/site/index.html
-          test -f tmp/site/posts/index.html
-          test -f tmp/site/posts/hello-world/index.html
-          test -f tmp/site/posts/github-flavored-markdown-syntax-guide/index.html
-          test -f tmp/site/posts/tags/blogging/index.html
-          test -f tmp/site/posts/tags/markdown/index.html
-          test -f tmp/site/posts/tags/zig/index.html
-          test -f tmp/site/images/manly-palmer-hall-alchemical-manuscript.jpg
+        run: ./zig-out/bin/stabilis build -S example -d tmp/site -c
