@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     name: Build and Test
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: mlugg/setup-zig@v2
       - run: zig build test --summary all
 
@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     name: Check non-conforming formated files
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: mlugg/setup-zig@v2
       - run: zig fmt build.zig src/ --check
 
@@ -27,7 +27,7 @@ jobs:
     runs-on: ubuntu-latest
     name: Build and smoke test binary
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: mlugg/setup-zig@v2
       - run: zig build --summary all
 

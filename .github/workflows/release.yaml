@@ -29,7 +29,7 @@ jobs:
     name: Build ${{ matrix.target }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: mlugg/setup-zig@v2
 
@@ -40,7 +40,7 @@ jobs:
           cp zig-out/bin/stabilis ${{ matrix.asset_name }}/stabilis
           zip -r ${{ matrix.asset_name }}.zip ${{ matrix.asset_name }}
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.asset_name }}
           path: ${{ matrix.asset_name }}.zip
@@ -51,9 +51,9 @@ jobs:
     name: Create Release
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           path: artifacts
 
@@ -62,7 +62,7 @@ jobs:
           find artifacts -name '*.zip' -exec cp {} release/ \;
           cp install.sh release/
 
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         with:
           files: release/*
           generate_release_notes: true
