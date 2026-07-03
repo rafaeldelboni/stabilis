@@ -120,7 +120,7 @@ pub fn main(init: std.process.Init) !u8 {
         return 2;
     };
     if (out.flags.version) {
-        std.debug.print("{s} {s}\n", .{ cli.name, build_options.version });
+        try cli_help.printVersion(io, cli.name, build_options.version);
         return 0;
     }
     if (out.flags.help) {
