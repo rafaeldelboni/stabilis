@@ -5,6 +5,7 @@ const PageKind = models.PageKind;
 pub const config_file = "site.yaml";
 pub const content_dir = "content";
 pub const templates_dir = "templates";
+pub const static_dir = "static";
 pub const posts_dir = "posts";
 pub const content_ext = ".md";
 pub const index_file_name = "_index.md";

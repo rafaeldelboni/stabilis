@@ -1,5 +1,6 @@
 const std = @import("std");
 
+const time = @import("../adapters/time.zig");
 const config = @import("../logic/config.zig");
 const logic = @import("../logic/site.zig");
 const models = @import("../models.zig");
@@ -117,7 +118,10 @@ pub fn parse(
             switch (page_kind) {
                 .post => {
                     if (page.frontmatter.author) |author| try context.map.put(allocator, "author", .{ .string = author });
-                    if (page.frontmatter.date) |date| try context.map.put(allocator, "date", .{ .string = date });
+                    if (page.frontmatter.date) |date| {
+                        try context.map.put(allocator, "date", .{ .string = try time.toIsoString(arena, date) });
+                        try context.map.put(allocator, "date_human", .{ .string = try time.toHumanString(arena, date) });
+                    }
                     if (page.frontmatter.description) |description| try context.map.put(allocator, "description", .{ .string = description });
                     if (page.frontmatter.cover) |cover| try context.map.put(allocator, "cover", .{ .string = cover });
                     if (page.frontmatter.tags.len > 0) {
@@ -223,7 +227,7 @@ test "parse post populates posts list with frontmatter in context" {
         testFile("content/posts/hello.md",
             \\---
             \\title: Hello World
-            \\date: 2026-06-01
+            \\date: 2026-06-01T10:00:00Z
             \\tags: [zig, ssg]
             \\draft: true
             \\---
@@ -239,7 +243,7 @@ test "parse post populates posts list with frontmatter in context" {
     const post = site.posts[0];
     try std.testing.expectEqual(PageKind.post, post.kind);
     try std.testing.expectEqualStrings("Hello World", post.context.map.get("title").?.string);
-    try std.testing.expectEqualStrings("2026-06-01", post.context.map.get("date").?.string);
+    try std.testing.expectEqualStrings("2026-06-01T10:00:00Z", post.context.map.get("date").?.string);
     try std.testing.expectEqualStrings("zig", post.context.map.get("tags").?.list[0].map.get("title").?.string);
     try std.testing.expectEqualStrings("ssg", post.context.map.get("tags").?.list[1].map.get("title").?.string);
     try std.testing.expectEqual(true, post.context.map.get("draft").?.bool);

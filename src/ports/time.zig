@@ -2,7 +2,7 @@ const std = @import("std");
 
 const models = @import("../models.zig");
 const DateTime = models.DateTime;
-const time_logic = @import("../adapters/time.zig");
+const time = @import("../adapters/time.zig");
 
 /// Returns the current wall-clock time via the `Io` instance.
 pub fn now(io: std.Io) DateTime {
@@ -27,9 +27,9 @@ pub fn now(io: std.Io) DateTime {
     };
 }
 
-/// Returns the current wall-clock time formatted as an RFC3339 string.
-pub fn nowString(arena: *std.heap.ArenaAllocator, io: std.Io) ![]const u8 {
-    return try time_logic.toString(arena, now(io));
+/// Returns the current wall-clock time formatted as an ISO 8601 string.
+pub fn nowIsoString(arena: *std.heap.ArenaAllocator, io: std.Io) ![]const u8 {
+    return try time.toIsoString(arena, now(io));
 }
 
 test "now: returns sane date values" {
@@ -42,9 +42,9 @@ test "now: returns sane date values" {
     try std.testing.expect(dt.year >= 2026);
     try std.testing.expect(dt.month >= 1 and dt.month <= 12);
     try std.testing.expect(dt.day >= 1 and dt.day <= 31);
-    try std.testing.expect(dt.hour <= 23);
-    try std.testing.expect(dt.min <= 59);
-    try std.testing.expect(dt.sec <= 59);
+    try std.testing.expect(dt.hour.? <= 23);
+    try std.testing.expect(dt.min.? <= 59);
+    try std.testing.expect(dt.sec.? <= 59);
 }
 
 test "nowString: returns RFC3339 formatted current time" {
@@ -55,6 +55,6 @@ test "nowString: returns RFC3339 formatted current time" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
 
-    const result = try nowString(&arena, io);
+    const result = try nowIsoString(&arena, io);
     try std.testing.expect(result.len > 0);
 }

@@ -18,9 +18,9 @@ pub const File = struct {
 };
 
 pub const DateTime = struct {
-    sec: u6, // [0, 60]
-    min: u6, // [0, 59]
-    hour: u5, // [0, 23]
+    sec: ?u6, // [0, 60]
+    min: ?u6, // [0, 59]
+    hour: ?u5, // [0, 23]
     day: u5, // [1, 31]
     month: u4, // [1, 12]
     year: i16, // C.E.
@@ -45,7 +45,7 @@ pub const ImageSpec = struct {
 pub const Frontmatter = struct {
     author: ?[]const u8 = null,
     title: ?[]const u8 = null,
-    date: ?[]const u8 = null,
+    date: ?DateTime = null,
     slug: ?[]const u8 = null,
     description: ?[]const u8 = null,
     draft: bool = false,

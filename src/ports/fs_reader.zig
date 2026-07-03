@@ -62,6 +62,15 @@ fn walkDirImpl(io: Io, arena: *std.heap.ArenaAllocator, base_path: []const u8, p
     return output.items;
 }
 
+/// Recursively walks `path`, returning a slice of every file found.
+/// Directory entries that are not files or directories (symlinks, etc.) are ignored.
+/// All strings in the returned `File` values are arena-allocated.
+pub fn walkDir(io: Io, arena: *std.heap.ArenaAllocator, path: []const u8) ![]File {
+    const cwd = std.Io.Dir.cwd();
+    const abs_path = try cwd.realPathFileAlloc(io, path, arena.allocator());
+    return walkDirImpl(io, arena, abs_path, "/");
+}
+
 /// Loads the config, content, and template files from `source_dir` into one slice.
 pub fn loadFiles(arena: *std.heap.ArenaAllocator, io: std.Io, source_dir: []const u8) ![]models.File {
     const allocator = arena.allocator();
@@ -75,15 +84,6 @@ pub fn loadFiles(arena: *std.heap.ArenaAllocator, io: std.Io, source_dir: []cons
     return try std.mem.concat(allocator, models.File, &.{ &.{config_file}, content_files, template_files });
 }
 
-/// Recursively walks `path`, returning a slice of every file found.
-/// Directory entries that are not files or directories (symlinks, etc.) are ignored.
-/// All strings in the returned `File` values are arena-allocated.
-pub fn walkDir(io: Io, arena: *std.heap.ArenaAllocator, path: []const u8) ![]File {
-    const cwd = std.Io.Dir.cwd();
-    const abs_path = try cwd.realPathFileAlloc(io, path, arena.allocator());
-    return walkDirImpl(io, arena, abs_path, "/");
-}
-
 // integration test: requires example/ directory
 test "walkDir reads example directory" {
     const allocator = std.testing.allocator;
@@ -92,13 +92,15 @@ test "walkDir reads example directory" {
 
     const results = try walkDir(std.testing.io, &arena, "example");
 
-    try std.testing.expectEqual(10, results.len);
+    try std.testing.expectEqual(12, results.len);
 
     const expected: []const []const u8 = &.{
         "content/_index.md",
         "content/posts/_index.md",
+        "content/posts/github-flavored-markdown-syntax-guide.md",
         "content/posts/hello-world.md",
         "site.yaml",
+        "static/images/manly-palmer-hall-alchemical-manuscript.jpg",
         "templates/home.html",
         "templates/page.html",
         "templates/partials/header.html",
