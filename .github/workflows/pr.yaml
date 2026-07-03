@@ -33,15 +33,14 @@ jobs:
 
       - name: Help
         run: |
-          ./zig-out/bin/stabilis --help
-          ./zig-out/bin/stabilis --help | grep -q stabilis
-          ./zig-out/bin/stabilis --help | grep -q build
-          ./zig-out/bin/stabilis --help | grep -q serve
-          ./zig-out/bin/stabilis --help | grep -q new
+          ./zig-out/bin/stabilis --help 2>&1 | grep -q stabilis
+          ./zig-out/bin/stabilis --help 2>&1 | grep -q build
+          ./zig-out/bin/stabilis --help 2>&1 | grep -q serve
+          ./zig-out/bin/stabilis --help 2>&1 | grep -q new
 
       - name: Version
         run: |
-          out=$(./zig-out/bin/stabilis --version)
+          out=$(./zig-out/bin/stabilis --version 2>&1)
           test -n "$out"
 
       - name: Build example fixture
