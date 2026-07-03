@@ -42,9 +42,9 @@ test "now: returns sane date values" {
     try std.testing.expect(dt.year >= 2026);
     try std.testing.expect(dt.month >= 1 and dt.month <= 12);
     try std.testing.expect(dt.day >= 1 and dt.day <= 31);
-    try std.testing.expect(dt.hour <= 23);
-    try std.testing.expect(dt.min <= 59);
-    try std.testing.expect(dt.sec <= 59);
+    try std.testing.expect(dt.hour.? <= 23);
+    try std.testing.expect(dt.min.? <= 59);
+    try std.testing.expect(dt.sec.? <= 59);
 }
 
 test "nowString: returns RFC3339 formatted current time" {

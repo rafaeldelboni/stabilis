@@ -6,9 +6,6 @@ description: "Here’s an overview of Markdown syntax that you can use anywhere 
 tags: [markdown, zig]
 ---
 
-# Github Flavored Markdown - Syntax guide
-> [source](https://guides.github.com/features/mastering-markdown/)
-
 Here’s an overview of Markdown syntax that you can use anywhere on GitHub.com or in your own text files.  [font](https://guides.github.com/features/mastering-markdown/)
 
 ## Headers

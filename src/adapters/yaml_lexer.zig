@@ -24,28 +24,22 @@ fn parseBool(input: []const u8) ?bool {
 
 fn parseDate(input: []const u8) ?DateTime {
     if (!std.mem.containsAtLeast(u8, input, 2, "-")) return null;
-    if (!std.mem.containsAtLeast(u8, input, 1, "T")) return null;
-    if (!std.mem.containsAtLeast(u8, input, 2, ":")) return null;
 
     var date_and_time = std.mem.splitScalar(u8, input, 'T');
     var date = std.mem.splitScalar(u8, date_and_time.first(), '-');
-    const year = date.first();
-    const month = date.next() orelse "1";
-    const day = date.next() orelse "1";
+    const year = std.fmt.parseInt(i16, date.first(), 10) catch return null;
+    const month = std.fmt.parseInt(u4, date.next() orelse "1", 10) catch return null;
+    const day = std.fmt.parseInt(u5, date.next() orelse "1", 10) catch return null;
 
-    var time = std.mem.splitScalar(u8, date_and_time.next() orelse "", ':');
-    const hour = time.first();
-    const minute = time.next() orelse "00";
-    const second = std.mem.trimEnd(u8, time.next() orelse "00", "Z");
+    if (date_and_time.next()) |time_str| {
+        var time = std.mem.splitScalar(u8, time_str, ':');
+        const hour = std.fmt.parseInt(u5, time.first(), 10) catch return null;
+        const min = std.fmt.parseInt(u6, time.next() orelse "00", 10) catch return null;
+        const sec = std.fmt.parseInt(u6, std.mem.trimEnd(u8, time.next() orelse "00", "Z"), 10) catch return null;
+        return .{ .year = year, .month = month, .day = day, .hour = hour, .min = min, .sec = sec };
+    }
 
-    return .{
-        .year = std.fmt.parseInt(i16, year, 10) catch return null,
-        .month = std.fmt.parseInt(u4, month, 10) catch return null,
-        .day = std.fmt.parseInt(u5, day, 10) catch return null,
-        .hour = std.fmt.parseInt(u5, hour, 10) catch return null,
-        .min = std.fmt.parseInt(u6, minute, 10) catch return null,
-        .sec = std.fmt.parseInt(u6, second, 10) catch return null,
-    };
+    return .{ .year = year, .month = month, .day = day, .hour = null, .min = null, .sec = null };
 }
 
 /// Parses an inline YAML map like `{ key: value, ... }` into a MapEntries
@@ -463,9 +457,25 @@ test "parseDate: valid RFC3339 datetime" {
     try std.testing.expectEqual(@as(i16, 2026), result.?.year);
     try std.testing.expectEqual(@as(u4, 5), result.?.month);
     try std.testing.expectEqual(@as(u5, 18), result.?.day);
-    try std.testing.expectEqual(@as(u5, 10), result.?.hour);
-    try std.testing.expectEqual(@as(u6, 0), result.?.min);
-    try std.testing.expectEqual(@as(u6, 0), result.?.sec);
+    try std.testing.expectEqual(@as(u5, 10), result.?.hour.?);
+    try std.testing.expectEqual(@as(u6, 0), result.?.min.?);
+    try std.testing.expectEqual(@as(u6, 0), result.?.sec.?);
+}
+
+test "parseDate: date-only sets time fields null" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const input = try allocator.dupe(u8, "2026-05-18");
+    const result = parseDate(input);
+    try std.testing.expect(result != null);
+    try std.testing.expectEqual(@as(i16, 2026), result.?.year);
+    try std.testing.expectEqual(@as(u4, 5), result.?.month);
+    try std.testing.expectEqual(@as(u5, 18), result.?.day);
+    try std.testing.expect(result.?.hour == null);
+    try std.testing.expect(result.?.min == null);
+    try std.testing.expect(result.?.sec == null);
 }
 
 test "parseDate: returns null for non-datetime input" {
@@ -475,7 +485,6 @@ test "parseDate: returns null for non-datetime input" {
 
     try std.testing.expect(parseDate(try allocator.dupe(u8, "hello")) == null);
     try std.testing.expect(parseDate(try allocator.dupe(u8, "")) == null);
-    try std.testing.expect(parseDate(try allocator.dupe(u8, "2026-05-18")) == null);
     try std.testing.expect(parseDate(try allocator.dupe(u8, "10:00:00")) == null);
     try std.testing.expect(parseDate(try allocator.dupe(u8, "2026/05/18T10:00:00Z")) == null);
 }

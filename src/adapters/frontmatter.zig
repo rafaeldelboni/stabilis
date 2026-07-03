@@ -52,7 +52,9 @@ fn mapToFrontmatter(arena: *std.heap.ArenaAllocator, entries: MapEntries) !Front
     var fm = Frontmatter{};
     fm.author = (try asString(arena, entries.map.get("author"))) orelse fm.author;
     fm.title = (try asString(arena, entries.map.get("title"))) orelse fm.title;
-    fm.date = (try asString(arena, entries.map.get("date"))) orelse fm.date;
+    if (entries.map.get("date")) |date| {
+        if (date == .datetime) fm.date = date.datetime;
+    }
     fm.slug = (try asString(arena, entries.map.get("slug"))) orelse fm.slug;
     fm.description = (try asString(arena, entries.map.get("description"))) orelse fm.description;
     fm.cover = (try asString(arena, entries.map.get("cover"))) orelse fm.cover;
@@ -90,7 +92,7 @@ pub fn frontmatterToYamlString(arena: *std.heap.ArenaAllocator, fm: Frontmatter)
     if (fm.title) |title|
         try appendFmt(&list, allocator, "title: \"{s}\"\n", .{try str.escapeDoubleQuote(allocator, title)});
     if (fm.date) |date|
-        try appendFmt(&list, allocator, "date: {s}\n", .{date});
+        try appendFmt(&list, allocator, "date: {s}\n", .{try time.toIsoString(arena, date)});
     if (fm.slug) |slug|
         try appendFmt(&list, allocator, "slug: {s}\n", .{slug});
     if (fm.description) |description|
@@ -160,7 +162,7 @@ test "parse frontmatter-shaped content" {
     const source =
         \\---
         \\title: My Post
-        \\date: 2026-05-18
+        \\date: 2026-05-18T10:00:00Z
         \\draft: false
         \\tags: [zig, ssg]
         \\---
@@ -169,7 +171,9 @@ test "parse frontmatter-shaped content" {
     ;
     const result = try parse(&arena, source);
     try std.testing.expectEqualStrings("My Post", result.frontmatter.title.?);
-    try std.testing.expectEqualStrings("2026-05-18", result.frontmatter.date.?);
+    try std.testing.expectEqual(@as(i16, 2026), result.frontmatter.date.?.year);
+    try std.testing.expectEqual(@as(u4, 5), result.frontmatter.date.?.month);
+    try std.testing.expectEqual(@as(u5, 18), result.frontmatter.date.?.day);
     try std.testing.expectEqual(false, result.frontmatter.draft);
     try std.testing.expectEqual(@as(usize, 2), result.frontmatter.tags.len);
     try std.testing.expectEqualStrings("zig", result.frontmatter.tags[0]);
@@ -458,7 +462,7 @@ test "frontmatterToYamlString should parse frontmatter into yaml string" {
 
     const fm = models.Frontmatter{
         .title = "Hello World",
-        .date = "2026-05-18T10:00:00Z",
+        .date = .{ .year = 2026, .month = 5, .day = 18, .hour = 10, .min = 0, .sec = 0 },
         .slug = "hello-world",
         .description = "A post about Zig and blogging",
         .draft = true,
@@ -592,7 +596,7 @@ test "frontmatterToYamlString round-trips through parse" {
 
     const fm = models.Frontmatter{
         .title = "Hello World",
-        .date = "2026-05-18T10:00:00Z",
+        .date = .{ .year = 2026, .month = 5, .day = 18, .hour = 10, .min = 0, .sec = 0 },
         .slug = "hello-world",
         .description = "A post about Zig and blogging",
         .draft = true,
@@ -610,7 +614,10 @@ test "frontmatterToYamlString round-trips through parse" {
     const result = try parse(&arena, yaml);
 
     try std.testing.expectEqualStrings("Hello World", result.frontmatter.title.?);
-    try std.testing.expectEqualStrings("2026-05-18T10:00:00Z", result.frontmatter.date.?);
+    try std.testing.expectEqual(@as(i16, 2026), result.frontmatter.date.?.year);
+    try std.testing.expectEqual(@as(u4, 5), result.frontmatter.date.?.month);
+    try std.testing.expectEqual(@as(u5, 18), result.frontmatter.date.?.day);
+    try std.testing.expectEqual(@as(u5, 10), result.frontmatter.date.?.hour);
     try std.testing.expectEqualStrings("hello-world", result.frontmatter.slug.?);
     try std.testing.expectEqualStrings("A post about Zig and blogging", result.frontmatter.description.?);
     try std.testing.expectEqual(true, result.frontmatter.draft);

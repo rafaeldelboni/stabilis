@@ -27,7 +27,7 @@ fn newPageHandler(arena: *std.heap.ArenaAllocator, io: std.Io, args: NewPageResu
     const slug = args.slug orelse try str.parseSlug(arena, args.title);
     const fm = Frontmatter{
         .title = args.title,
-        .date = try time.nowIsoString(arena, io),
+        .date = time.now(io),
         .slug = slug,
         .draft = args.draft,
         .menus = args.menus,
@@ -46,7 +46,7 @@ fn newPostHandler(arena: *std.heap.ArenaAllocator, io: std.Io, args: NewPostResu
     const slug = try str.parseSlug(arena, args.title);
     const fm = Frontmatter{
         .title = args.title,
-        .date = try time.nowIsoString(arena, io),
+        .date = time.now(io),
         .description = args.description,
         .slug = slug,
         .draft = args.draft,
