@@ -12,19 +12,23 @@ pub const Watcher = struct {
         else => @compileError("fs_watcher: unsupported OS, only Linux and macOS"),
     };
 
+    /// Creates a watcher monitoring the given `paths` for filesystem changes.
     pub fn init(io: std.Io, arena: *std.heap.ArenaAllocator, paths: []const []const u8) !Watcher {
         return .{ .impl = try Impl.init(io, arena, paths) };
     }
 
+    /// Releases OS resources held by the watcher (does not free arena memory).
     pub fn deinit(self: *Watcher) void {
         self.impl.deinit();
     }
 
+    /// Blocks for up to `timeout_ms` waiting for a change; returns `.timeout` if none.
     pub fn wait(self: *Watcher, timeout_ms: u32) !WaitResult {
         return self.impl.wait(timeout_ms);
     }
 };
 
+/// Closes a file descriptor using the OS-appropriate syscall.
 fn closeFd(fd: std.posix.fd_t) void {
     switch (builtin.os.tag) {
         .linux => _ = std.os.linux.close(fd),
@@ -39,7 +43,6 @@ const Linux = struct {
     mask: std.os.linux.fanotify.MarkMask,
     watch_dir: []const u8,
 
-    /// Opens a fanotify fd and marks the given directory trees for inode-based event notifications.
     fn init(io: std.Io, arena: *std.heap.ArenaAllocator, paths: []const []const u8) !Linux {
         const fan = std.os.linux.fanotify;
         const fd = try fanotify_init();
@@ -286,6 +289,7 @@ const MacOs = struct {
         }
     }
 
+    /// FSEvents callback: signals the semaphore on the first non-history event.
     fn eventCallback(
         _: ConstFSEventStreamRef,
         client_callback_info: ?*anyopaque,
