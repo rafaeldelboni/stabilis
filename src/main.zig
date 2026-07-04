@@ -122,7 +122,7 @@ fn buildHandler(arena: *std.heap.ArenaAllocator, io: std.Io, args: BuildResult, 
     }) catch {};
 }
 
-fn watcherLoop(watcher: *fs_watcher.Watcher, arena: *std.heap.ArenaAllocator, io: std.Io, args: ServeResult, source_dir: []const u8) !void {
+fn watcherLoop(watcher: *fs_watcher.Watcher, arena: *std.heap.ArenaAllocator, io: std.Io, args: ServeResult, source_dir: []const u8) void {
     std.debug.print("Watching: {s}\n", .{source_dir});
     std.debug.print("Press Ctrl+C to stop\n", .{});
 
