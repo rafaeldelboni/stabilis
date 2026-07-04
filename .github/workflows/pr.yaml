@@ -26,7 +26,7 @@ jobs:
       - uses: mlugg/setup-zig@v2
       - run: zig fmt build.zig src/ --check
 
-  integration:
+  smoke:
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest]
