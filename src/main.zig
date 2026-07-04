@@ -115,7 +115,7 @@ fn buildHandler(arena: *std.heap.ArenaAllocator, io: std.Io, args: BuildResult, 
     const output_dir = try build(arena, io, args.build_drafts, args.clear_dir, args.destination, source_dir);
     const elapsed = start.untilNow(io);
 
-    printer.print(io, "built {s} -> {s} in {d}ms\n", .{
+    printer.print(io, "Built {s} -> {s} in {d}ms\n", .{
         source_dir,
         output_dir,
         elapsed.raw.toMilliseconds(),
@@ -139,7 +139,7 @@ fn watcherLoop(watcher: *fs_watcher.Watcher, arena: *std.heap.ArenaAllocator, io
             };
             const elapsed = start.untilNow(io);
 
-            printer.print(io, "rebuilt {s} -> {s} in {d}ms\n", .{
+            printer.print(io, "Rebuilt {s} -> {s} in {d}ms\n", .{
                 source_dir,
                 output_dir,
                 elapsed.raw.toMilliseconds(),
