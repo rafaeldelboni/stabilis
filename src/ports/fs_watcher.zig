@@ -12,8 +12,8 @@ pub const Watcher = struct {
         else => @compileError("fs_watcher: unsupported OS, only Linux and macOS"),
     };
 
-    pub fn init(io: std.Io, allocator: std.mem.Allocator, paths: []const []const u8) !Watcher {
-        return .{ .impl = try Impl.init(io, allocator, paths) };
+    pub fn init(io: std.Io, arena: *std.heap.ArenaAllocator, paths: []const []const u8) !Watcher {
+        return .{ .impl = try Impl.init(io, arena, paths) };
     }
 
     pub fn deinit(self: *Watcher) void {
@@ -35,13 +35,12 @@ fn closeFd(fd: std.posix.fd_t) void {
 
 const Linux = struct {
     fd: std.posix.fd_t,
-    allocator: std.mem.Allocator,
     io: std.Io,
     mask: std.os.linux.fanotify.MarkMask,
     watch_dir: []const u8,
 
     /// Opens a fanotify fd and marks the given directory trees for inode-based event notifications.
-    fn init(io: std.Io, allocator: std.mem.Allocator, paths: []const []const u8) !Linux {
+    fn init(io: std.Io, arena: *std.heap.ArenaAllocator, paths: []const []const u8) !Linux {
         const fan = std.os.linux.fanotify;
         const fd = try fanotify_init();
         errdefer closeFd(fd);
@@ -61,12 +60,11 @@ const Linux = struct {
         for (paths) |path| {
             markDirTree(io, fd, mask, path);
         }
-        const watch_dir = try allocator.dupe(u8, paths[0]);
-        return .{ .fd = fd, .allocator = allocator, .io = io, .mask = mask, .watch_dir = watch_dir };
+        const watch_dir = try arena.allocator().dupe(u8, paths[0]);
+        return .{ .fd = fd, .io = io, .mask = mask, .watch_dir = watch_dir };
     }
 
     fn deinit(self: *Linux) void {
-        self.allocator.free(self.watch_dir);
         closeFd(self.fd);
     }
 
@@ -80,6 +78,7 @@ const Linux = struct {
         if (n == 0) return .timeout;
 
         var buf: [4096]u8 = undefined;
+        // NONBLOCK fd: EAGAIN means no events yet, treat as timeout.
         const len = std.posix.read(self.fd, &buf) catch |err| switch (err) {
             error.WouldBlock => return .timeout,
             else => return err,
@@ -168,19 +167,11 @@ const Linux = struct {
         );
         return switch (std.os.linux.errno(rc2)) {
             .SUCCESS => {},
-            .BADF => unreachable,
-            .EXIST => return, // mark already exists — benign
-            .INVAL => unreachable,
-            .ISDIR => return,
-            .NODEV => return,
-            .NOENT => return,
-            .NOMEM => return,
-            .NOSPC => return,
-            .NOTDIR => return,
-            .OPNOTSUPP => return,
-            .PERM => return,
-            .XDEV => return,
-            else => return, // swallow, matching the original `catch return`
+            // All non-success errnos are swallowed: markDirTree is best-effort
+            // and silently skips dirs it can't mark (missing, permission-denied,
+            // cross-device, etc.). The caller treats an unmarked dir as "no
+            // events from here", which is acceptable for a file watcher.
+            else => return,
         };
     }
 };
@@ -191,10 +182,9 @@ const MacOs = struct {
     semaphore: std.c.dispatch.semaphore_t,
     dispatch_queue: std.c.dispatch.queue_t,
     stream: ?FSEventStreamRef = null,
-    paths_arena: std.heap.ArenaAllocator,
     watch_roots: [][:0]const u8,
 
-    fn init(_: std.Io, allocator: std.mem.Allocator, paths: []const []const u8) !MacOs {
+    fn init(_: std.Io, arena: *std.heap.ArenaAllocator, paths: []const []const u8) !MacOs {
         var core_services = std.DynLib.open(
             "/System/Library/Frameworks/CoreServices.framework/CoreServices",
         ) catch return error.OpenFrameworkFailed;
@@ -214,12 +204,9 @@ const MacOs = struct {
         const dispatch_queue = std.c.dispatch.queue_create("watcher-playground", .SERIAL()) orelse return error.SystemResources;
         errdefer dispatch_queue.as_object().release();
 
-        var paths_arena = std.heap.ArenaAllocator.init(allocator);
-        errdefer paths_arena.deinit();
-
-        const watch_roots = try paths_arena.allocator().alloc([:0]const u8, paths.len);
+        const watch_roots = try arena.allocator().alloc([:0]const u8, paths.len);
         for (paths, watch_roots) |path, *root| {
-            root.* = try paths_arena.allocator().dupeZ(u8, path);
+            root.* = try arena.allocator().dupeZ(u8, path);
         }
 
         var self: MacOs = .{
@@ -228,11 +215,10 @@ const MacOs = struct {
             .semaphore = semaphore,
             .dispatch_queue = dispatch_queue,
             .stream = null,
-            .paths_arena = paths_arena,
             .watch_roots = watch_roots,
         };
 
-        try self.startStream(allocator);
+        try self.startStream(arena.allocator());
         return self;
     }
 
@@ -245,7 +231,6 @@ const MacOs = struct {
         self.semaphore.as_object().release();
         self.dispatch_queue.as_object().release();
         self.core_services.close();
-        self.paths_arena.deinit();
     }
 
     fn wait(self: *MacOs, timeout_ms: u32) !WaitResult {
@@ -294,8 +279,11 @@ const MacOs = struct {
         rs.FSEventStreamSetDispatchQueue(stream, self.dispatch_queue);
         if (!rs.FSEventStreamStart(stream)) return error.StreamStartFailed;
 
-        // Drain initial events (history_done, root scan, etc.) by waiting
-        // in a loop until no event arrives within a 100ms window.
+        // FSEvents fires an initial burst of history_done / root-scan events
+        // immediately after Start. Drain them synchronously (up to ~2s) so the
+        // first real `wait` call doesn't see stale history as a "change".
+        // We poll the semaphore in 100ms windows until one window comes back
+        // empty, meaning the initial burst has been consumed.
         var attempts: u8 = 0;
         while (attempts < 20) : (attempts += 1) {
             const r = self.semaphore.wait(.time(.NOW, 100 * std.time.ns_per_ms));
@@ -417,15 +405,16 @@ const MacOs = struct {
 
 test "watcher detects file modification" {
     const io = std.testing.io;
-    const allocator = std.testing.allocator;
 
     var tmp_dir = std.testing.tmpDir(.{ .iterate = true });
     defer tmp_dir.cleanup();
 
-    const dir_path = try tmp_dir.dir.realPathFileAlloc(io, ".", allocator);
-    defer allocator.free(dir_path);
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
 
-    var watcher = try Watcher.init(io, allocator, &.{dir_path});
+    const dir_path = try tmp_dir.dir.realPathFileAlloc(io, ".", arena.allocator());
+
+    var watcher = try Watcher.init(io, &arena, &.{dir_path});
     defer watcher.deinit();
 
     const initial = try watcher.wait(200);
@@ -439,15 +428,16 @@ test "watcher detects file modification" {
 
 test "watcher returns timeout when nothing changes" {
     const io = std.testing.io;
-    const allocator = std.testing.allocator;
 
     var tmp_dir = std.testing.tmpDir(.{ .iterate = true });
     defer tmp_dir.cleanup();
 
-    const dir_path = try tmp_dir.dir.realPathFileAlloc(io, ".", allocator);
-    defer allocator.free(dir_path);
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
 
-    var watcher = try Watcher.init(io, allocator, &.{dir_path});
+    const dir_path = try tmp_dir.dir.realPathFileAlloc(io, ".", arena.allocator());
+
+    var watcher = try Watcher.init(io, &arena, &.{dir_path});
     defer watcher.deinit();
 
     const result = try watcher.wait(300);
@@ -456,15 +446,16 @@ test "watcher returns timeout when nothing changes" {
 
 test "watcher detects changes in subdirectory" {
     const io = std.testing.io;
-    const allocator = std.testing.allocator;
 
     var tmp_dir = std.testing.tmpDir(.{ .iterate = true });
     defer tmp_dir.cleanup();
 
-    const dir_path = try tmp_dir.dir.realPathFileAlloc(io, ".", allocator);
-    defer allocator.free(dir_path);
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
 
-    var watcher = try Watcher.init(io, allocator, &.{dir_path});
+    const dir_path = try tmp_dir.dir.realPathFileAlloc(io, ".", arena.allocator());
+
+    var watcher = try Watcher.init(io, &arena, &.{dir_path});
     defer watcher.deinit();
 
     const initial = try watcher.wait(200);
