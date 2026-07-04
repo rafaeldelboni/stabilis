@@ -61,5 +61,5 @@ jobs:
           sleep 1
           echo "smoke marker" >> example/content/posts/hello-world.md
           sleep 1
-          kill $WATCH_PID
+          kill $WATCH_PID 2>/dev/null
           cat tmp/watch.log
