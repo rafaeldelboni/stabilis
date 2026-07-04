@@ -10,6 +10,7 @@ pub fn build(b: *std.Build) void {
             .root_source_file = b.path("src/main.zig"),
             .target = target,
             .optimize = optimize,
+            .link_libc = true,
             .strip = optimize != .Debug,
         }),
     });
@@ -69,13 +70,13 @@ pub fn build(b: *std.Build) void {
     }
 
     const test_filters = b.option([]const []const u8, "test-filter", "Skip tests that do not match any filter") orelse &[0][]const u8{};
+
+    const test_step = b.step("test", "Run tests");
     const exe_tests = b.addTest(.{
         .root_module = exe.root_module,
         .filters = test_filters,
     });
     exe_tests.root_module.linkLibrary(md4c_lib);
-
-    const test_step = b.step("test", "Run tests");
     test_step.dependOn(&b.addRunArtifact(exe_tests).step);
 }
 
