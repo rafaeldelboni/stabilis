@@ -8,8 +8,11 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
-    name: Build and Test
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    name: Build and execute tests (${{ matrix.os }})
     steps:
       - uses: actions/checkout@v7
       - uses: mlugg/setup-zig@v2
@@ -24,8 +27,11 @@ jobs:
       - run: zig fmt build.zig src/ --check
 
   integration:
-    runs-on: ubuntu-latest
-    name: Build and smoke test binary
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    name: Build and smoke test (${{ matrix.os }})
     steps:
       - uses: actions/checkout@v7
       - uses: mlugg/setup-zig@v2

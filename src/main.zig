@@ -167,6 +167,7 @@ test {
     _ = @import("logic/yaml_lexer.zig");
     _ = @import("ports/cli.zig");
     _ = @import("ports/fs_reader.zig");
+    _ = @import("ports/fs_watcher.zig");
     _ = @import("ports/fs_writer.zig");
     _ = @import("ports/printer.zig");
     _ = @import("ports/time.zig");
