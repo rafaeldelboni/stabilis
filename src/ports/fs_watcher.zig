@@ -118,7 +118,7 @@ const Linux = struct {
     /// Recursively marks `dir_path` and all its subdirectories with `mask` on the fanotify `fd`.
     fn markDirTree(io: std.Io, fd: std.posix.fd_t, mask: std.os.linux.fanotify.MarkMask, dir_path: []const u8) void {
         const cwd = std.Io.Dir.cwd();
-        fanotify_mark(fd, mask, cwd, dir_path) catch return;
+        fanotify_mark(fd, mask, cwd, dir_path);
         var dir = cwd.openDir(io, dir_path, .{ .iterate = true }) catch return;
         defer dir.close(io);
         var iter = dir.iterate();
@@ -158,7 +158,7 @@ const Linux = struct {
         mask: std.os.linux.fanotify.MarkMask,
         cwd: std.Io.Dir,
         dir_path: []const u8,
-    ) !void {
+    ) void {
         var path_buf: [std.fs.max_path_bytes]u8 = undefined;
         const path_c = std.fmt.bufPrintZ(&path_buf, "{s}", .{dir_path}) catch return;
         const rc2 = std.os.linux.fanotify_mark(
@@ -168,11 +168,11 @@ const Linux = struct {
             cwd.handle,
             path_c,
         );
-        return switch (std.os.linux.errno(rc2)) {
+        switch (std.os.linux.errno(rc2)) {
             .SUCCESS => {},
             // markDirTree is best-effort: swallow all errnos.
-            else => return,
-        };
+            else => {},
+        }
     }
 };
 
