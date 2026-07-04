@@ -167,10 +167,7 @@ const Linux = struct {
         );
         return switch (std.os.linux.errno(rc2)) {
             .SUCCESS => {},
-            // All non-success errnos are swallowed: markDirTree is best-effort
-            // and silently skips dirs it can't mark (missing, permission-denied,
-            // cross-device, etc.). The caller treats an unmarked dir as "no
-            // events from here", which is acceptable for a file watcher.
+            // markDirTree is best-effort: swallow all errnos.
             else => return,
         };
     }
@@ -204,9 +201,10 @@ const MacOs = struct {
         const dispatch_queue = std.c.dispatch.queue_create("watcher-playground", .SERIAL()) orelse return error.SystemResources;
         errdefer dispatch_queue.as_object().release();
 
-        const watch_roots = try arena.allocator().alloc([:0]const u8, paths.len);
+        const allocator = arena.allocator();
+        const watch_roots = try allocator.alloc([:0]const u8, paths.len);
         for (paths, watch_roots) |path, *root| {
-            root.* = try arena.allocator().dupeZ(u8, path);
+            root.* = try allocator.dupeZ(u8, path);
         }
 
         var self: MacOs = .{
@@ -218,7 +216,7 @@ const MacOs = struct {
             .watch_roots = watch_roots,
         };
 
-        try self.startStream(arena.allocator());
+        try self.startStream(allocator);
         return self;
     }
 
@@ -279,11 +277,8 @@ const MacOs = struct {
         rs.FSEventStreamSetDispatchQueue(stream, self.dispatch_queue);
         if (!rs.FSEventStreamStart(stream)) return error.StreamStartFailed;
 
-        // FSEvents fires an initial burst of history_done / root-scan events
-        // immediately after Start. Drain them synchronously (up to ~2s) so the
-        // first real `wait` call doesn't see stale history as a "change".
-        // We poll the semaphore in 100ms windows until one window comes back
-        // empty, meaning the initial burst has been consumed.
+        // Drain the initial history_done/root-scan burst so the first
+        // real `wait` doesn't report stale history as a change.
         var attempts: u8 = 0;
         while (attempts < 20) : (attempts += 1) {
             const r = self.semaphore.wait(.time(.NOW, 100 * std.time.ns_per_ms));
