@@ -273,13 +273,12 @@ const MacOs = struct {
         const cf_paths_array = rs.CFArrayCreate(null, @ptrCast(cf_paths), @intCast(cf_paths.len), null);
         defer rs.CFRelease(cf_paths_array);
 
-        const callback_ctx: EventCallbackCtx = .{ .semaphore = self.semaphore };
         const stream = rs.FSEventStreamCreate(
             null,
             &eventCallback,
             &.{
                 .version = 0,
-                .info = @constCast(&callback_ctx),
+                .info = @ptrCast(self.semaphore),
                 .retain = null,
                 .release = null,
                 .copy_description = null,
@@ -304,10 +303,6 @@ const MacOs = struct {
         }
     }
 
-    const EventCallbackCtx = struct {
-        semaphore: std.c.dispatch.semaphore_t,
-    };
-
     fn eventCallback(
         _: ConstFSEventStreamRef,
         client_callback_info: ?*anyopaque,
@@ -316,11 +311,11 @@ const MacOs = struct {
         events_flags: [*]const FSEventStreamEventFlags,
         _: [*]const FSEventStreamEventId,
     ) callconv(.c) void {
-        const ctx: *const EventCallbackCtx = @ptrCast(@alignCast(client_callback_info));
+        const sem: std.c.dispatch.semaphore_t = @ptrCast(@alignCast(client_callback_info));
         var i: usize = 0;
         while (i < num_events) : (i += 1) {
             if (events_flags[i].history_done) continue;
-            _ = std.c.dispatch.semaphore_signal(ctx.semaphore);
+            _ = std.c.dispatch.semaphore_signal(sem);
             return;
         }
     }
