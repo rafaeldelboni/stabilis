@@ -54,3 +54,13 @@ jobs:
 
       - name: Show generated tree
         run: find tmp/site | sort
+
+      - name: Watcher smoke test
+        run: |
+          ./zig-out/bin/stabilis serve -S example -d tmp/site > tmp/watch.log 2>&1 &
+          WATCH_PID=$!
+          sleep 1
+          echo "smoke marker" >> example/content/posts/hello-world.md
+          sleep 1
+          kill $WATCH_PID
+          cat tmp/watch.log
