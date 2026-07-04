@@ -87,11 +87,19 @@ const Linux = struct {
             else => return err,
         };
 
-        return self.parseEvents(buf[0..len]);
+        try self.parseEvents(buf[0..len]);
+        // 50ms debounce: drain follow-up events (matching macOS latency)
+        while (true) {
+            const n2 = std.posix.poll(&pfds, 50) catch break;
+            if (n2 == 0) break;
+            const len2 = std.posix.read(self.fd, &buf) catch break;
+            self.parseEvents(buf[0..len2]) catch break;
+        }
+        return .changed;
     }
 
     /// Parse events to auto-mark newly created subdirectories.
-    fn parseEvents(self: *Linux, buf: []u8) !WaitResult {
+    fn parseEvents(self: *Linux, buf: []u8) !void {
         const fan = std.os.linux.fanotify;
         const M = fan.event_metadata;
         var meta: [*]align(1) M = @ptrCast(@alignCast(buf.ptr));
@@ -112,7 +120,6 @@ const Linux = struct {
             remaining -= meta[0].event_len;
             meta = @ptrCast(@as([*]u8, @ptrCast(meta)) + meta[0].event_len);
         }
-        return .changed;
     }
 
     /// Recursively marks `dir_path` and all its subdirectories with `mask` on the fanotify `fd`.
