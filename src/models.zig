@@ -112,10 +112,11 @@ pub const NewPageResult = struct {
 };
 
 pub const ServeResult = struct {
+    destination: ?[]const u8 = null,
+    no_drafts: bool = false,
     port: ?u16 = null,
     bind: ?[]const u8 = null,
     open: bool = false,
-    no_drafts: bool = false,
 };
 
 pub const BuildResult = struct {
@@ -160,10 +161,11 @@ pub const stabilis_cli = modelsCli.Cli{
                     .command = modelsCli.CommandOptions{
                         .Result = ServeResult,
                         .flags = &.{
-                            .{ .long = "--port", .short = "-p", .field = "port", .help = "Port to serve on" },
-                            .{ .long = "--bind", .short = "-b", .field = "bind", .help = "IP Address bind" },
-                            .{ .long = "--open", .short = "-o", .field = "open", .help = "Open browser after serving" },
+                            .{ .long = "--dest", .short = "-d", .field = "destination", .help = "Output directory" },
                             .{ .long = "--no-drafts", .short = "-n", .field = "no_drafts", .help = "Don't include draft content" },
+                            .{ .long = "--port", .short = "-p", .field = "port", .help = "Port to serve on" },
+                            .{ .long = "--bind", .short = "-b", .field = "bind", .help = "IP address to bind" },
+                            .{ .long = "--open", .short = "-o", .field = "open", .help = "Open browser after serving" },
                         },
                         .positionals = &.{},
                     },
@@ -176,7 +178,7 @@ pub const stabilis_cli = modelsCli.Cli{
                     .command = modelsCli.CommandOptions{
                         .Result = BuildResult,
                         .flags = &.{
-                            .{ .long = "--dest", .short = "-d", .field = "destination", .help = "Output directory destination" },
+                            .{ .long = "--dest", .short = "-d", .field = "destination", .help = "Output directory" },
                             .{ .long = "--build-drafts", .short = "-b", .field = "build_drafts", .help = "Include draft content" },
                             .{ .long = "--minify", .short = "-m", .field = "minify", .help = "Minify the output" },
                             .{ .long = "--clear-dir", .short = "-c", .field = "clear_dir", .help = "Clear destination directory" },
@@ -213,7 +215,7 @@ pub const stabilis_cli = modelsCli.Cli{
                                     .Result = NewPageResult,
                                     .flags = &.{
                                         .{ .long = "--slug", .short = "-s", .field = "slug", .help = "URL-friendly identifier (defaults to title)" },
-                                        .{ .long = "--menus", .short = "-m", .field = "menus", .help = "Comma-separated list of menus this page appears in" },
+                                        .{ .long = "--menus", .short = "-m", .field = "menus", .help = "Comma-separated menus" },
                                         .{ .long = "--draft", .short = "-D", .field = "draft", .help = "Mark as draft" },
                                     },
                                     .positionals = &.{"title"},
