@@ -2,6 +2,7 @@ const std = @import("std");
 const build_options = @import("build_options");
 
 const cli_adapter = @import("adapters/cli.zig");
+const config_adapter = @import("adapters/config.zig");
 const frontmatter = @import("adapters/frontmatter.zig");
 const page = @import("adapters/page.zig");
 const site = @import("adapters/site.zig");
@@ -93,14 +94,15 @@ fn build(arena: *std.heap.ArenaAllocator, io: std.Io, clear_dir: bool, build_dra
 
     if (clear_dir) try fs_writer.deleteDir(io, output_dir);
 
-    const files = try fs_reader.loadFiles(arena, io, source_dir);
-
-    const site_data = try site.parse(arena, files, build_drafts);
+    const yaml_file = try fs_reader.readFile(io, arena, source_dir, config.config_file);
+    const cfg = try config_adapter.parse(arena, yaml_file.contents);
+    const files = try fs_reader.loadFiles(arena, io, cfg, source_dir);
+    const site_data = try site.parse(arena, cfg, files, build_drafts);
     if (site_data.posts.len == 0 and site_data.pages.len == 0) return error.NoFilesFound;
 
     try renderSite(arena, io, output_dir, site_data);
 
-    const static_source = try std.Io.Dir.path.join(arena.allocator(), &.{ source_dir, config.static_dir });
+    const static_source = try std.Io.Dir.path.join(arena.allocator(), &.{ source_dir, cfg.static_dir });
 
     fs_writer.copyDir(io, arena, static_source, output_dir) catch |err| switch (err) {
         error.FileNotFound => {},
@@ -201,6 +203,7 @@ pub fn main(init: std.process.Init) !u8 {
 
 test {
     _ = @import("adapters/cli.zig");
+    _ = @import("adapters/config.zig");
     _ = @import("adapters/frontmatter.zig");
     _ = @import("adapters/markdown.zig");
     _ = @import("adapters/page.zig");
