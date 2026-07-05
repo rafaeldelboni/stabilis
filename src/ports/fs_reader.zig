@@ -1,7 +1,6 @@
 const std = @import("std");
 const Io = std.Io;
 
-const logicConfig = @import("../logic/config.zig");
 const models = @import("../models.zig");
 const Config = models.Config;
 const File = models.File;

@@ -1,8 +1,8 @@
 const std = @import("std");
 
 const time = @import("../adapters/time.zig");
+const config = @import("../logic/config.zig");
 const logic = @import("../logic/site.zig");
-const logicConfig = @import("../logic/config.zig");
 const models = @import("../models.zig");
 const Config = models.Config;
 const ContentEntry = models.ContentEntry;
@@ -173,7 +173,7 @@ test "parse with only config populates site metadata" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
 
-    var cfg = logicConfig.default;
+    var cfg = config.default;
     cfg.title = "My Site";
     cfg.base_url = "https://example.com";
     var about_ctx: Context = .{};
@@ -196,7 +196,7 @@ test "parse empty files returns defaults" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
 
-    const cfg = logicConfig.default;
+    const cfg = config.default;
     const files = [_]File{};
 
     const site = try parse(&arena, &cfg, &files, false);
@@ -211,7 +211,7 @@ test "parse post populates posts list with frontmatter in context" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
 
-    const cfg = logicConfig.default;
+    const cfg = config.default;
     const files = [_]File{
         testFile("content/posts/hello.md",
             \\---
@@ -245,7 +245,7 @@ test "parse page (non-post) goes to pages list" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
 
-    const cfg = logicConfig.default;
+    const cfg = config.default;
     const files = [_]File{
         testFile("content/about.md",
             \\---
@@ -272,7 +272,7 @@ test "parse loads templates into templates map" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
 
-    const cfg = logicConfig.default;
+    const cfg = config.default;
     const files = [_]File{
         testFile("templates/base.html", "<html>{{ body }}</html>"),
         testFile("templates/partials/nav.html", "<nav>{{ items }}</nav>"),
@@ -288,7 +288,7 @@ test "parse post with images builds image context list" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
 
-    const cfg = logicConfig.default;
+    const cfg = config.default;
     const files = [_]File{
         testFile("content/posts/gallery.md",
             \\---
@@ -314,7 +314,7 @@ test "smoke: full site with config, pages, posts, templates" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
 
-    var cfg = logicConfig.default;
+    var cfg = config.default;
     cfg.title = "Example Blog";
     cfg.base_url = "http://localhost:8000";
     var home_ctx: Context = .{};
