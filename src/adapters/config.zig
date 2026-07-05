@@ -32,12 +32,16 @@ pub fn parse(arena: *std.heap.ArenaAllocator, config_file: []const u8) !Config {
     const site_base_url =
         if (site_config.map.get("base_url")) |base_url| base_url.string else return error.NoConfigBaseUrl;
     var menu_main: std.ArrayList(Context) = .empty;
-    for (site_config.map.get("menu").?.map.map.get("main").?.list) |entry| {
-        try menu_main.append(allocator, try parseMenuEntryContext(
-            allocator,
-            entry.map.map.get("name").?.string,
-            entry.map.map.get("url").?.string,
-        ));
+    if (site_config.map.get("menu")) |menu| {
+        if (menu.map.map.get("main")) |main| {
+            for (main.list) |entry| {
+                try menu_main.append(allocator, try parseMenuEntryContext(
+                    allocator,
+                    entry.map.map.get("name").?.string,
+                    entry.map.map.get("url").?.string,
+                ));
+            }
+        }
     }
 
     const content_dir = strField(site_config, "content_dir", config.default.content_dir);

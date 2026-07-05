@@ -2,6 +2,7 @@ const std = @import("std");
 const Io = std.Io;
 
 const models = @import("../models.zig");
+const Config = models.Config;
 const Context = models.Context;
 const Page = models.Page;
 const Site = models.Site;
@@ -32,12 +33,13 @@ pub fn deleteDir(io: Io, path: []const u8) !void {
 pub fn writePage(
     arena: *std.heap.ArenaAllocator,
     io: std.Io,
+    cfg: *const Config,
     output_dir: []const u8,
     page_data: Page,
     post_list: []Context,
     site_data: Site,
 ) !void {
-    const file_path = try page.parseFilePath(arena, output_dir, page_data);
+    const file_path = try page.parseFilePath(arena, output_dir, cfg.output_index, page_data);
     const html = try page.parseHtml(arena, page_data, post_list, site_data);
     try writeFileDeep(io, html, file_path);
 }
