@@ -97,7 +97,7 @@ fn build(arena: *std.heap.ArenaAllocator, io: std.Io, clear_dir: bool, build_dra
     const yaml_file = try fs_reader.readFile(io, arena, source_dir, config.config_file);
     const cfg = try config_adapter.parse(arena, yaml_file.contents);
     const files = try fs_reader.loadFiles(arena, io, cfg, source_dir);
-    const site_data = try site.parse(arena, cfg, files, build_drafts);
+    const site_data = try site.parse(arena, &cfg, files, build_drafts);
     if (site_data.posts.len == 0 and site_data.pages.len == 0) return error.NoFilesFound;
 
     try renderSite(arena, io, output_dir, site_data);
