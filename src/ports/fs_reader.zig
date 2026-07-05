@@ -1,8 +1,8 @@
 const std = @import("std");
 const Io = std.Io;
 
-const config = @import("../logic/config.zig");
 const models = @import("../models.zig");
+const Config = models.Config;
 const File = models.File;
 
 /// Reads a single file relative to `base_path` and returns a populated `File`.
@@ -72,16 +72,15 @@ pub fn walkDir(io: Io, arena: *std.heap.ArenaAllocator, path: []const u8) ![]Fil
 }
 
 /// Loads the config, content, and template files from `source_dir` into one slice.
-pub fn loadFiles(arena: *std.heap.ArenaAllocator, io: std.Io, source_dir: []const u8) ![]models.File {
+pub fn loadFiles(arena: *std.heap.ArenaAllocator, io: std.Io, cfg: *const Config, source_dir: []const u8) ![]models.File {
     const allocator = arena.allocator();
     const cwd = std.Io.Dir.cwd();
     const base_path = try cwd.realPathFileAlloc(io, source_dir, allocator);
 
-    const config_file = try readFile(io, arena, source_dir, config.config_file);
-    const content_files = try walkDirImpl(io, arena, base_path, config.content_dir);
-    const template_files = try walkDirImpl(io, arena, base_path, config.templates_dir);
+    const content_files = try walkDirImpl(io, arena, base_path, cfg.content_dir);
+    const template_files = try walkDirImpl(io, arena, base_path, cfg.templates_dir);
 
-    return try std.mem.concat(allocator, models.File, &.{ &.{config_file}, content_files, template_files });
+    return try std.mem.concat(allocator, models.File, &.{ content_files, template_files });
 }
 
 // integration test: requires example/ directory

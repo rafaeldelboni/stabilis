@@ -12,11 +12,12 @@ const Templates = models.Templates;
 pub fn parseFilePath(
     arena: *std.heap.ArenaAllocator,
     output_dir: []const u8,
+    output_index: []const u8,
     page: Page,
 ) ![]const u8 {
     const allocator = arena.allocator();
     const url = page.context.map.get("url").?.string;
-    return try std.Io.Dir.path.join(allocator, &.{ output_dir, url, config.output_index });
+    return try std.Io.Dir.path.join(allocator, &.{ output_dir, url, output_index });
 }
 
 /// Renders a page into HTML by merging its context with posts and menu, then applying the matching template.
@@ -43,7 +44,7 @@ test "parseFilePath builds output_dir/url/index.html" {
     try context.map.put(allocator, "url", .{ .string = "/posts/hello" });
 
     const page: Page = .{ .kind = .post, .context = context };
-    const result = try parseFilePath(&arena, "public", page);
+    const result = try parseFilePath(&arena, "public", "index.html", page);
     try std.testing.expectEqualStrings("public/posts/hello/index.html", result);
 }
 
@@ -56,7 +57,7 @@ test "parseFilePath with root url" {
     try context.map.put(allocator, "url", .{ .string = "/" });
 
     const page: Page = .{ .kind = .home, .context = context };
-    const result = try parseFilePath(&arena, "public", page);
+    const result = try parseFilePath(&arena, "public", "index.html", page);
     try std.testing.expectEqualStrings("public/index.html", result);
 }
 

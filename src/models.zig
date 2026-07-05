@@ -1,5 +1,32 @@
 const std = @import("std");
 
+pub const Config = struct {
+    title: []const u8,
+    base_url: []const u8,
+    menu_main: []const Context,
+
+    content_dir: []const u8,
+    templates_dir: []const u8,
+    static_dir: []const u8,
+    posts_dir: []const u8,
+    content_ext: []const u8,
+    index_file_name: []const u8,
+    output_index: []const u8,
+    template_home_file_name: []const u8,
+    template_post_file_name: []const u8,
+    template_page_file_name: []const u8,
+    template_post_list_file_name: []const u8,
+    template_tag_post_list_file_name: []const u8,
+    post_url_prefix: []const u8,
+
+    home_page_path: []const u8,
+    post_list_path: []const u8,
+    posts_path_prefix: []const u8,
+    pages_path_prefix: []const u8,
+    templates_prefix: []const u8,
+    tag_post_list_url_prefix: []const u8,
+};
+
 const modelsCli = @import("./models/cli.zig");
 
 pub const SliceBetween = struct {

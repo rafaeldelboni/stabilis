@@ -4,6 +4,7 @@ const time = @import("../adapters/time.zig");
 const config = @import("../logic/config.zig");
 const logic = @import("../logic/site.zig");
 const models = @import("../models.zig");
+const Config = models.Config;
 const ContentEntry = models.ContentEntry;
 const Context = models.Context;
 const File = models.File;
@@ -28,14 +29,14 @@ fn parseSlug(arena: *std.heap.ArenaAllocator, file: File, page: ContentEntry) ![
     return file_name.first();
 }
 
-fn buildUrl(arena: *std.heap.ArenaAllocator, page_kind: PageKind, slug: []const u8) ![]const u8 {
+fn buildUrl(arena: *std.heap.ArenaAllocator, cfg: *const Config, page_kind: PageKind, slug: []const u8) ![]const u8 {
     const allocator = arena.allocator();
     switch (page_kind) {
-        .post => return try std.Io.Dir.path.join(allocator, &.{ config.post_url_prefix, slug }),
+        .post => return try std.Io.Dir.path.join(allocator, &.{ cfg.post_url_prefix, slug }),
         .page => return try std.Io.Dir.path.join(allocator, &.{ "/", slug }),
         .home => return "/",
-        .post_list => return config.post_url_prefix,
-        .tag_post_list => return try std.Io.Dir.path.join(allocator, &.{ config.tag_post_list_url_prefix, slug }),
+        .post_list => return cfg.post_url_prefix,
+        .tag_post_list => return try std.Io.Dir.path.join(allocator, &.{ cfg.tag_post_list_url_prefix, slug }),
     }
 }
 
@@ -61,7 +62,7 @@ fn parseMenuEntryContext(allocator: std.mem.Allocator, name: []const u8, url: []
 
 /// Records post `index` under `tag`, creating the tag's page on first sight.
 /// Returns the tag's context so the post's tag-link list can reuse it.
-fn upsertTag(arena: *std.heap.ArenaAllocator, tags: *Tags, tag: []const u8, index: usize) !Context {
+fn upsertTag(arena: *std.heap.ArenaAllocator, cfg: *const Config, tags: *Tags, tag: []const u8, index: usize) !Context {
     const allocator = arena.allocator();
     const tag_slug = try string.parseSlug(arena, tag);
     const tag_entry = try tags.map.getOrPut(allocator, tag_slug);
@@ -69,7 +70,7 @@ fn upsertTag(arena: *std.heap.ArenaAllocator, tags: *Tags, tag: []const u8, inde
         var tag_context: Context = .{};
         try tag_context.map.put(allocator, "title", .{ .string = tag });
         try tag_context.map.put(allocator, "slug", .{ .string = tag_slug });
-        try tag_context.map.put(allocator, "url", .{ .string = try buildUrl(arena, .tag_post_list, tag_slug) });
+        try tag_context.map.put(allocator, "url", .{ .string = try buildUrl(arena, cfg, .tag_post_list, tag_slug) });
         tag_entry.value_ptr.* = .{ .page = .{ .kind = .tag_post_list, .context = tag_context }, .indexes = .empty };
     }
     try tag_entry.value_ptr.indexes.append(allocator, index);
@@ -79,21 +80,19 @@ fn upsertTag(arena: *std.heap.ArenaAllocator, tags: *Tags, tag: []const u8, inde
 /// Parses loaded files into a `Site` (config, templates, pages, posts, menu).
 pub fn parse(
     arena: *std.heap.ArenaAllocator,
+    cfg: *const Config,
     files: []const File,
     keep_drafts: bool,
 ) !Site {
     const allocator = arena.allocator();
-    var site_config: MapEntries = .{};
     var templates: Templates = .{};
-    var site_title: []const u8 = "";
-    var site_base_url: []const u8 = "";
     var pages: std.ArrayList(Page) = .empty;
     var posts: std.ArrayList(Page) = .empty;
     var tags: Tags = .{};
     var page_main_menu: std.ArrayList(Context) = .empty;
 
     for (files) |file| {
-        if (logic.parsePageKind(file)) |page_kind| {
+        if (logic.parsePageKind(cfg, file)) |page_kind| {
             const page = try frontmatter.parse(arena, file.contents);
             const html = try markdown.toHtml(arena, page.source);
             var context: Context = .{};
@@ -105,7 +104,7 @@ pub fn parse(
             if (page.frontmatter.title) |title| try context.map.put(allocator, "title", .{ .string = title });
             const slug = try parseSlug(arena, file, page);
             try context.map.put(allocator, "slug", .{ .string = slug });
-            try context.map.put(allocator, "url", .{ .string = try buildUrl(arena, page_kind, slug) });
+            try context.map.put(allocator, "url", .{ .string = try buildUrl(arena, cfg, page_kind, slug) });
             if (page.frontmatter.menus.len > 0) {
                 for (page.frontmatter.menus) |menu| {
                     if (std.mem.eql(u8, menu, "main")) {
@@ -127,7 +126,7 @@ pub fn parse(
                     if (page.frontmatter.tags.len > 0) {
                         var tag_outer_context = try std.ArrayList(Context).initCapacity(allocator, page.frontmatter.tags.len);
                         for (page.frontmatter.tags) |tag|
-                            tag_outer_context.appendAssumeCapacity(try upsertTag(arena, &tags, tag, posts.items.len));
+                            tag_outer_context.appendAssumeCapacity(try upsertTag(arena, cfg, &tags, tag, posts.items.len));
                         try context.map.put(allocator, "tags", .{ .list = tag_outer_context.items });
                     }
                     if (page.frontmatter.images.len > 0)
@@ -137,31 +136,20 @@ pub fn parse(
                 else => try pages.append(allocator, Page{ .kind = page_kind, .context = context }),
             }
         }
-        if (logic.isTemplate(file))
-            if (std.mem.cutPrefix(u8, file.rel_path, config.templates_prefix)) |template_key|
+        if (logic.isTemplate(cfg, file))
+            if (std.mem.cutPrefix(u8, file.rel_path, cfg.templates_prefix)) |template_key|
                 try templates.map.put(allocator, template_key, file.contents);
-        if (logic.isConfig(file))
-            site_config = try yaml_lexer.parse(arena, file.contents);
     }
 
-    var main_menu: std.ArrayList(Context) = .empty;
-    if (site_config.map.count() > 0) {
-        site_title = site_config.map.get("title").?.string;
-        site_base_url = site_config.map.get("base_url").?.string;
-        for (site_config.map.get("menu").?.map.map.get("main").?.list) |entry| {
-            try main_menu.append(allocator, try parseMenuEntryContext(
-                allocator,
-                entry.map.map.get("name").?.string,
-                entry.map.map.get("url").?.string,
-            ));
-        }
-    }
-    try main_menu.appendSlice(allocator, page_main_menu.items);
+    const main_menu = try std.mem.concat(allocator, Context, &.{
+        cfg.menu_main,
+        page_main_menu.items,
+    });
 
     return Site{
-        .title = site_title,
-        .base_url = site_base_url,
-        .menu_main = main_menu.items,
+        .title = cfg.title,
+        .base_url = cfg.base_url,
+        .menu_main = main_menu,
         .templates = templates,
         .pages = pages.items,
         .posts = posts.items,
@@ -185,17 +173,15 @@ test "parse with only config populates site metadata" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
 
-    const files = [_]File{
-        testFile("site.yaml",
-            \\title: My Site
-            \\base_url: https://example.com
-            \\menu:
-            \\  main:
-            \\    - { name: About, url: /about }
-        ),
-    };
+    var cfg = config.default;
+    cfg.title = "My Site";
+    cfg.base_url = "https://example.com";
+    var about_ctx: Context = .{};
+    try about_ctx.map.put(arena.allocator(), "name", .{ .string = "About" });
+    try about_ctx.map.put(arena.allocator(), "url", .{ .string = "/about" });
+    cfg.menu_main = &.{about_ctx};
 
-    const site = try parse(&arena, &files, false);
+    const site = try parse(&arena, &cfg, &.{}, false);
     try std.testing.expectEqualStrings("My Site", site.title);
     try std.testing.expectEqualStrings("https://example.com", site.base_url);
     try std.testing.expectEqual(@as(usize, 1), site.menu_main.len);
@@ -210,8 +196,10 @@ test "parse empty files returns defaults" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
 
+    const cfg = config.default;
     const files = [_]File{};
-    const site = try parse(&arena, &files, false);
+
+    const site = try parse(&arena, &cfg, &files, false);
     try std.testing.expectEqualStrings("", site.title);
     try std.testing.expectEqualStrings("", site.base_url);
     try std.testing.expectEqual(@as(usize, 0), site.menu_main.len);
@@ -223,6 +211,7 @@ test "parse post populates posts list with frontmatter in context" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
 
+    const cfg = config.default;
     const files = [_]File{
         testFile("content/posts/hello.md",
             \\---
@@ -236,7 +225,7 @@ test "parse post populates posts list with frontmatter in context" {
         ),
     };
 
-    const site = try parse(&arena, &files, true);
+    const site = try parse(&arena, &cfg, &files, true);
     try std.testing.expectEqual(@as(usize, 1), site.posts.len);
     try std.testing.expectEqual(@as(usize, 0), site.pages.len);
 
@@ -256,6 +245,7 @@ test "parse page (non-post) goes to pages list" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
 
+    const cfg = config.default;
     const files = [_]File{
         testFile("content/about.md",
             \\---
@@ -267,7 +257,7 @@ test "parse page (non-post) goes to pages list" {
         ),
     };
 
-    const site = try parse(&arena, &files, false);
+    const site = try parse(&arena, &cfg, &files, false);
     try std.testing.expectEqual(@as(usize, 0), site.posts.len);
     try std.testing.expectEqual(@as(usize, 1), site.pages.len);
     try std.testing.expectEqual(PageKind.page, site.pages[0].kind);
@@ -282,12 +272,13 @@ test "parse loads templates into templates map" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
 
+    const cfg = config.default;
     const files = [_]File{
         testFile("templates/base.html", "<html>{{ body }}</html>"),
         testFile("templates/partials/nav.html", "<nav>{{ items }}</nav>"),
     };
 
-    const site = try parse(&arena, &files, false);
+    const site = try parse(&arena, &cfg, &files, false);
     try std.testing.expectEqual(@as(usize, 2), site.templates.map.count());
     try std.testing.expectEqualStrings("<html>{{ body }}</html>", site.templates.map.get("base.html").?);
     try std.testing.expectEqualStrings("<nav>{{ items }}</nav>", site.templates.map.get("partials/nav.html").?);
@@ -297,6 +288,7 @@ test "parse post with images builds image context list" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
 
+    const cfg = config.default;
     const files = [_]File{
         testFile("content/posts/gallery.md",
             \\---
@@ -309,7 +301,7 @@ test "parse post with images builds image context list" {
         ),
     };
 
-    const site = try parse(&arena, &files, false);
+    const site = try parse(&arena, &cfg, &files, false);
     const images = site.posts[0].context.map.get("images").?.list;
     try std.testing.expectEqual(@as(usize, 2), images.len);
     try std.testing.expectEqualStrings("a.jpg", images[0].map.get("file").?.string);
@@ -322,15 +314,18 @@ test "smoke: full site with config, pages, posts, templates" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
 
+    var cfg = config.default;
+    cfg.title = "Example Blog";
+    cfg.base_url = "http://localhost:8000";
+    var home_ctx: Context = .{};
+    try home_ctx.map.put(arena.allocator(), "name", .{ .string = "Home" });
+    try home_ctx.map.put(arena.allocator(), "url", .{ .string = "/" });
+    var posts_ctx: Context = .{};
+    try posts_ctx.map.put(arena.allocator(), "name", .{ .string = "Posts" });
+    try posts_ctx.map.put(arena.allocator(), "url", .{ .string = "/posts/" });
+    cfg.menu_main = &.{ home_ctx, posts_ctx };
+
     const files = [_]File{
-        testFile("site.yaml",
-            \\title: Example Blog
-            \\base_url: http://localhost:8000
-            \\menu:
-            \\  main:
-            \\    - { name: Home, url: / }
-            \\    - { name: Posts, url: /posts/ }
-        ),
         testFile("content/_index.md",
             \\---
             \\title: Welcome
@@ -380,7 +375,7 @@ test "smoke: full site with config, pages, posts, templates" {
         testFile("templates/post-list.html", "{{> partials/header.html }}\n<h1>{{ title }}</h1>\n{{{ body }}}\n<ul>{{# posts }}<li><a href=\"{{ url }}\">{{ title }}</a></li>{{/ posts }}</ul>\n</body></html>\n"),
     };
 
-    const site = try parse(&arena, &files, false);
+    const site = try parse(&arena, &cfg, &files, false);
 
     // site metadata
     try std.testing.expectEqualStrings("Example Blog", site.title);

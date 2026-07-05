@@ -47,6 +47,37 @@ Global options:
     -v, --version      Print version [boolean]
 ```
 
+## Configuration
+
+Stabilis reads a `site.yaml` at the root of your source directory. `title` and `base_url` are required; everything else falls back to built-in defaults shown below.
+
+```yaml
+# Required
+title: Example Blog
+base_url: https://example.com
+
+# Optional menu
+menu:
+  main:
+    - { name: Home, url: / }
+    - { name: Posts, url: /posts/ }
+
+# Optional layout overrides (defaults shown)
+content_dir: content
+templates_dir: templates
+static_dir: static
+posts_dir: posts
+content_ext: .md
+index_file_name: _index.md
+output_index: index.html
+post_url_prefix: /posts
+template_home_file_name: home.html
+template_post_file_name: post.html
+template_page_file_name: page.html
+template_post_list_file_name: post-list.html
+template_tag_post_list_file_name: tag-post-list.html
+```
+
 ## Contributing
 
 ```bash

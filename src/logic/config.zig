@@ -1,5 +1,7 @@
 const std = @import("std");
+
 const models = @import("../models.zig");
+const Config = models.Config;
 const PageKind = models.PageKind;
 
 pub const config_file = "site.yaml";
@@ -9,26 +11,49 @@ pub const static_dir = "static";
 pub const posts_dir = "posts";
 pub const content_ext = ".md";
 pub const index_file_name = "_index.md";
-
-pub const home_page_path = "content/_index.md";
-pub const post_list_path = "content/posts/_index.md";
-pub const posts_path_prefix = "content/posts/";
-pub const pages_path_prefix = "content/";
-pub const templates_prefix = "templates/";
-
 pub const output_index = "index.html";
+pub const template_home_file_name = "home.html";
+pub const template_post_file_name = "post.html";
+pub const template_page_file_name = "page.html";
+pub const template_post_list_file_name = "post-list.html";
+pub const template_tag_post_list_file_name = "tag-post-list.html";
 
-pub const post_url_prefix = "/posts";
-pub const tag_post_list_url_prefix = "/posts/tags";
+/// All defaults as a `Config` value. Used as fallback by `adapters/config.zig`
+pub const default = Config{
+    .title = "",
+    .base_url = "",
+    .menu_main = &.{},
+
+    .content_dir = content_dir,
+    .templates_dir = templates_dir,
+    .static_dir = static_dir,
+    .posts_dir = posts_dir,
+    .content_ext = content_ext,
+    .index_file_name = index_file_name,
+    .output_index = output_index,
+    .template_home_file_name = template_home_file_name,
+    .template_post_file_name = template_post_file_name,
+    .template_page_file_name = template_page_file_name,
+    .template_post_list_file_name = template_post_list_file_name,
+    .template_tag_post_list_file_name = template_tag_post_list_file_name,
+
+    .home_page_path = content_dir ++ "/" ++ index_file_name,
+    .post_list_path = content_dir ++ "/" ++ posts_dir ++ "/" ++ index_file_name,
+    .posts_path_prefix = content_dir ++ "/" ++ posts_dir ++ "/",
+    .pages_path_prefix = content_dir ++ "/",
+    .templates_prefix = templates_dir ++ "/",
+    .post_url_prefix = "/" ++ posts_dir,
+    .tag_post_list_url_prefix = "/" ++ posts_dir ++ "/tags",
+};
 
 /// Returns the template filename for the given page kind.
 pub fn templateNameFor(kind: PageKind) []const u8 {
     return switch (kind) {
-        .home => "home.html",
-        .post => "post.html",
-        .page => "page.html",
-        .post_list => "post-list.html",
-        .tag_post_list => "tag-post-list.html",
+        .home => template_home_file_name,
+        .post => template_post_file_name,
+        .page => template_page_file_name,
+        .post_list => template_post_list_file_name,
+        .tag_post_list => template_tag_post_list_file_name,
     };
 }
 
