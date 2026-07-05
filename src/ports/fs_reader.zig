@@ -72,7 +72,7 @@ pub fn walkDir(io: Io, arena: *std.heap.ArenaAllocator, path: []const u8) ![]Fil
 }
 
 /// Loads the config, content, and template files from `source_dir` into one slice.
-pub fn loadFiles(arena: *std.heap.ArenaAllocator, io: std.Io, cfg: Config, source_dir: []const u8) ![]models.File {
+pub fn loadFiles(arena: *std.heap.ArenaAllocator, io: std.Io, cfg: *const Config, source_dir: []const u8) ![]models.File {
     const allocator = arena.allocator();
     const cwd = std.Io.Dir.cwd();
     const base_path = try cwd.realPathFileAlloc(io, source_dir, allocator);
