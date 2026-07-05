@@ -1,11 +1,11 @@
 const std = @import("std");
 
-const yaml_lexer = @import("yaml_lexer.zig");
+const config = @import("../logic/config.zig");
 const models = @import("../models.zig");
 const Context = models.Context;
 const Config = models.Config;
 const MapEntries = models.MapEntries;
-const config = @import("../logic/config.zig");
+const yaml_lexer = @import("yaml_lexer.zig");
 
 fn strField(entries: MapEntries, key: []const u8, fallback: []const u8) []const u8 {
     if (entries.map.get(key)) |node| {
