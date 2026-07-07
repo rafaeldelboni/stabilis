@@ -43,7 +43,7 @@ pub fn startsLikeFlag(token: []const u8) bool {
 /// Splits a `--flag=value` token into `(flag, value)`, or null when there is
 /// no `=` separator.
 pub fn splitFlagAssignment(arg: []const u8) ?struct { head: []const u8, value: []const u8 } {
-    const eq = std.mem.indexOfScalar(u8, arg, '=') orelse return null;
+    const eq = std.mem.findScalar(u8, arg, '=') orelse return null;
     return .{ .head = arg[0..eq], .value = arg[eq + 1 ..] };
 }
 

@@ -54,12 +54,13 @@ jobs:
           ./zig-out/bin/stabilis build -S example -d tmp/site -c
           find tmp/site | sort
 
-      - name: Run watcher and verify rebuild on file change
+      - name: Serve site, verify HTTP responses and watcher rebuild
         run: |
-          ./zig-out/bin/stabilis serve -S example -d tmp/site > tmp/watch.log 2>&1 &
-          WATCH_PID=$!
+          ./zig-out/bin/stabilis serve -S example -d tmp/site > tmp/serve.log 2>&1 &
+          SERVE_PID=$!
           sleep 1
           echo "smoke marker" >> example/content/posts/hello-world.md
           sleep 1
-          kill $WATCH_PID 2>/dev/null
-          cat tmp/watch.log
+          curl -sS http://127.0.0.1:8000/posts/hello-world | grep -q 'smoke marker'
+          kill $SERVE_PID 2>/dev/null
+          cat tmp/serve.log

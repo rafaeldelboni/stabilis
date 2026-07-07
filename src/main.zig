@@ -26,6 +26,9 @@ const fs_watcher = @import("ports/fs_watcher.zig");
 const fs_writer = @import("ports/fs_writer.zig");
 const printer = @import("ports/printer.zig");
 const time = @import("ports/time.zig");
+const webserver = @import("ports/webserver.zig");
+
+const log = std.log.scoped(.watcher);
 
 fn readConfig(arena: *std.heap.ArenaAllocator, io: std.Io, source_dir: []const u8) !Config {
     const yaml_file = try fs_reader.readFile(io, arena, source_dir, config.config_file);
@@ -132,39 +135,62 @@ fn buildHandler(arena: *std.heap.ArenaAllocator, io: std.Io, args: BuildResult, 
     }) catch {};
 }
 
-fn watcherLoop(watcher: *fs_watcher.Watcher, arena: *std.heap.ArenaAllocator, io: std.Io, args: ServeResult, source_dir: []const u8) void {
-    std.debug.print("Watching: {s}\n", .{source_dir});
-    std.debug.print("Press Ctrl+C to stop\n", .{});
+fn watcherStart(watcher: *fs_watcher.Watcher, arena: *std.heap.ArenaAllocator, io: std.Io, args: ServeResult, source_dir: []const u8) void {
+    log.info("Watching changes on {s}", .{source_dir});
 
     while (true) {
         const result = watcher.wait(100) catch |err| {
-            printer.errPrint(io, "Watch error: {s}\n", .{@errorName(err)}) catch {};
+            log.err("Watch error: {s}", .{@errorName(err)});
             return;
         };
         if (result == .changed) {
             const start = std.Io.Clock.Timestamp.now(io, .awake);
             const output_dir = build(arena, io, !args.no_drafts, false, args.destination, source_dir) catch |err| {
-                printer.errPrint(io, "Build error: {s}\n", .{@errorName(err)}) catch {};
+                log.err("Build error: {s}", .{@errorName(err)});
                 return;
             };
             const elapsed = start.untilNow(io);
 
-            printer.print(io, "Rebuilt {s} -> {s} in {d}ms\n", .{
+            log.info("Rebuilt {s} -> {s} in {d}ms", .{
                 source_dir,
                 output_dir,
                 elapsed.raw.toMilliseconds(),
-            }) catch {};
+            });
         }
     }
 }
 
 fn serveHandler(arena: *std.heap.ArenaAllocator, io: std.Io, args: ServeResult, source_dir: []const u8) !void {
+    const allocator = arena.allocator();
+    const output_dir = args.destination orelse models.default_output_dir;
+    const listen_ip = args.bind orelse models.default_listen_ip;
+    const listen_port = args.port orelse models.default_listen_port;
+
+    try printer.print(io, "Press Ctrl+C to stop\n", .{});
+
+    _ = try build(arena, io, !args.no_drafts, false, args.destination, source_dir);
+
     var watcher = try fs_watcher.Watcher.init(io, arena, &.{source_dir});
     defer watcher.deinit();
 
-    const watcher_thread = try std.Thread.spawn(.{}, watcherLoop, .{ &watcher, arena, io, args, source_dir });
+    var server = try webserver.init(io, listen_ip, listen_port);
+    defer server.deinit(io);
+
+    var arena_watcher: std.heap.ArenaAllocator = std.heap.ArenaAllocator.init(arena.child_allocator);
+    defer arena_watcher.deinit();
+    const watcher_thread = try std.Thread.spawn(.{}, watcherStart, .{ &watcher, &arena_watcher, io, args, source_dir });
+
+    var arena_webserver: std.heap.ArenaAllocator = std.heap.ArenaAllocator.init(arena.child_allocator);
+    defer arena_webserver.deinit();
+    const webserver_thread = try std.Thread.spawn(.{}, webserver.start, .{ &arena_webserver, io, &server, output_dir });
+
+    if (args.open) {
+        const address = try std.fmt.allocPrint(allocator, "http://{s}:{d}", .{ listen_ip, listen_port });
+        try webserver.openBrowser(io, address);
+    }
 
     watcher_thread.join();
+    webserver_thread.join();
 }
 
 pub fn main(init: std.process.Init) !u8 {
@@ -224,6 +250,7 @@ test {
     _ = @import("logic/frontmatter.zig");
     _ = @import("logic/site.zig");
     _ = @import("logic/template.zig");
+    _ = @import("logic/webserver.zig");
     _ = @import("logic/yaml_lexer.zig");
     _ = @import("ports/cli.zig");
     _ = @import("ports/fs_reader.zig");
@@ -231,5 +258,6 @@ test {
     _ = @import("ports/fs_writer.zig");
     _ = @import("ports/printer.zig");
     _ = @import("ports/time.zig");
+    _ = @import("ports/webserver.zig");
     _ = @import("models.zig");
 }

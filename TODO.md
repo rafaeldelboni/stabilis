@@ -29,7 +29,8 @@
 - [x] Tag pages (per-tag post list at /posts/tags/<slug> + tag links on posts)
 - [x] Static asset handling (copy static/ → output for images and other files)
 - [x] File watcher for dev mode (used by serve)
-- [ ] Dev server + SSE live reload (used by serve)
+- [x] Dev server (used by serve)
+- [ ] SSE live reload (used by serve)
 - [ ] RSS/Atom feed generation
 - [ ] Shortcode system
 - [ ] Minification outputs

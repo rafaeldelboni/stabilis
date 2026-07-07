@@ -133,7 +133,7 @@ pub fn parse(arena: *std.heap.ArenaAllocator, source: []const u8) error{OutOfMem
     var lines = std.mem.splitScalar(u8, source, '\n');
     while (lines.next()) |raw_line| {
         const line = std.mem.trimEnd(u8, raw_line, "\r");
-        const colon_pos = std.mem.indexOfScalar(u8, line, ':') orelse continue;
+        const colon_pos = std.mem.findScalar(u8, line, ':') orelse continue;
 
         const key = line[0..colon_pos];
         const raw_value = std.mem.trim(u8, line[colon_pos + 1 ..], " ");
