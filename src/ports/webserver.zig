@@ -39,7 +39,7 @@ pub fn openBrowser(io: std.Io, url: []const u8) !void {
 /// Creates and binds a TCP server socket, returning the ready-to-accept server.
 pub fn init(io: std.Io, ip: []const u8, port: u16) !std.Io.net.Server {
     log.info("Listening on http://{s}:{d}", .{ ip, port });
-    const addr = std.Io.net.IpAddress.parseIp4(ip, port) catch unreachable;
+    const addr = try std.Io.net.IpAddress.parseIp4(ip, port);
     return try addr.listen(io, .{ .reuse_address = true });
 }
 
@@ -59,7 +59,11 @@ pub fn start(arena: *std.heap.ArenaAllocator, io: std.Io, server: *std.Io.net.Se
         log.info("{s} {s}", .{ @tagName(req.head.method), req.head.target });
 
         if (try staticFileReader(arena, io, output_dir, req.head.target)) |contents| {
-            try req.respond(contents, .{ .status = .ok });
+            const content_type = logic.contentTypeForPath(req.head.target);
+            try req.respond(contents, .{
+                .status = .ok,
+                .extra_headers = &.{.{ .name = "content-type", .value = content_type }},
+            });
         } else {
             try req.respond("Not Found!", .{ .status = .not_found });
         }

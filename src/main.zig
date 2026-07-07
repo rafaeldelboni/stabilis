@@ -168,6 +168,8 @@ fn serveHandler(arena: *std.heap.ArenaAllocator, io: std.Io, args: ServeResult, 
 
     try printer.print(io, "Press Ctrl+C to stop\n", .{});
 
+    _ = try build(arena, io, !args.no_drafts, false, args.destination, source_dir);
+
     var watcher = try fs_watcher.Watcher.init(io, arena, &.{source_dir});
     defer watcher.deinit();
 
@@ -248,6 +250,7 @@ test {
     _ = @import("logic/frontmatter.zig");
     _ = @import("logic/site.zig");
     _ = @import("logic/template.zig");
+    _ = @import("logic/webserver.zig");
     _ = @import("logic/yaml_lexer.zig");
     _ = @import("ports/cli.zig");
     _ = @import("ports/fs_reader.zig");
@@ -255,5 +258,6 @@ test {
     _ = @import("ports/fs_writer.zig");
     _ = @import("ports/printer.zig");
     _ = @import("ports/time.zig");
+    _ = @import("ports/webserver.zig");
     _ = @import("models.zig");
 }
