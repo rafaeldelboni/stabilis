@@ -161,16 +161,18 @@ fn watcherStart(watcher: *fs_watcher.Watcher, arena: *std.heap.ArenaAllocator, i
 }
 
 fn serveHandler(arena: *std.heap.ArenaAllocator, io: std.Io, args: ServeResult, source_dir: []const u8) !void {
+    const allocator = arena.allocator();
     const output_dir = args.destination orelse models.default_output_dir;
+    const listen_ip = args.bind orelse models.default_listen_ip;
+    const listen_port = args.port orelse models.default_listen_port;
+
+    try printer.print(io, "Press Ctrl+C to stop\n", .{});
+
     var watcher = try fs_watcher.Watcher.init(io, arena, &.{source_dir});
     defer watcher.deinit();
 
-    // TODO use args & move this to ports/webserver?
-    const addr = std.Io.net.IpAddress.parseIp4("127.0.0.1", 8000) catch unreachable;
-    var server = try addr.listen(io, .{ .reuse_address = true });
+    var server = try webserver.init(io, listen_ip, listen_port);
     defer server.deinit(io);
-
-    try printer.print(io, "Press Ctrl+C to stop\n", .{});
 
     var arena_watcher: std.heap.ArenaAllocator = std.heap.ArenaAllocator.init(arena.child_allocator);
     defer arena_watcher.deinit();
@@ -179,6 +181,11 @@ fn serveHandler(arena: *std.heap.ArenaAllocator, io: std.Io, args: ServeResult, 
     var arena_webserver: std.heap.ArenaAllocator = std.heap.ArenaAllocator.init(arena.child_allocator);
     defer arena_webserver.deinit();
     const webserver_thread = try std.Thread.spawn(.{}, webserver.start, .{ &arena_webserver, io, &server, output_dir });
+
+    if (args.open) {
+        const address = try std.fmt.allocPrint(allocator, "http://{s}:{d}", .{ listen_ip, listen_port });
+        try webserver.openBrowser(io, address);
+    }
 
     watcher_thread.join();
     webserver_thread.join();

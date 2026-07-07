@@ -153,13 +153,15 @@ pub const BuildResult = struct {
     clear_dir: bool = false,
 };
 
-pub const default_output_dir = "public";
-
 pub const FlagsResult = struct {
     source_dir: ?[]const u8 = null,
     version: bool = false,
     help: bool = false,
 };
+
+pub const default_output_dir = "public";
+pub const default_listen_ip = "127.0.0.1";
+pub const default_listen_port = 8000;
 
 pub const CommandsResult = union(enum) {
     build: BuildResult,
