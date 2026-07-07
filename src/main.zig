@@ -171,8 +171,14 @@ fn serveHandler(arena: *std.heap.ArenaAllocator, io: std.Io, args: ServeResult, 
     defer server.deinit(io);
 
     try printer.print(io, "Press Ctrl+C to stop\n", .{});
-    const watcher_thread = try std.Thread.spawn(.{}, watcherStart, .{ &watcher, arena, io, args, source_dir });
-    const webserver_thread = try std.Thread.spawn(.{}, webserver.start, .{ arena, io, &server, output_dir });
+
+    var arena_watcher: std.heap.ArenaAllocator = std.heap.ArenaAllocator.init(arena.child_allocator);
+    defer arena_watcher.deinit();
+    const watcher_thread = try std.Thread.spawn(.{}, watcherStart, .{ &watcher, &arena_watcher, io, args, source_dir });
+
+    var arena_webserver: std.heap.ArenaAllocator = std.heap.ArenaAllocator.init(arena.child_allocator);
+    defer arena_webserver.deinit();
+    const webserver_thread = try std.Thread.spawn(.{}, webserver.start, .{ &arena_webserver, io, &server, output_dir });
 
     watcher_thread.join();
     webserver_thread.join();

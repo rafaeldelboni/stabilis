@@ -37,7 +37,6 @@ pub fn start(arena: *std.heap.ArenaAllocator, io: std.Io, server: *std.Io.net.Se
 
     while (true) {
         var stream = try server.accept(io);
-        defer stream.close(io);
 
         // Wrap the raw stream in buffered Io.Reader / Io.Writer
         var read_buffer: [1024]u8 = undefined;
@@ -57,5 +56,6 @@ pub fn start(arena: *std.heap.ArenaAllocator, io: std.Io, server: *std.Io.net.Se
         } else {
             try req.respond("Not Found!", .{ .status = .not_found });
         }
+        stream.close(io);
     }
 }
