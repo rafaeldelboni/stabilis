@@ -26,6 +26,9 @@ const fs_watcher = @import("ports/fs_watcher.zig");
 const fs_writer = @import("ports/fs_writer.zig");
 const printer = @import("ports/printer.zig");
 const time = @import("ports/time.zig");
+const webserver = @import("ports/webserver.zig");
+
+const log = std.log.scoped(.watcher);
 
 fn readConfig(arena: *std.heap.ArenaAllocator, io: std.Io, source_dir: []const u8) !Config {
     const yaml_file = try fs_reader.readFile(io, arena, source_dir, config.config_file);
@@ -132,39 +135,47 @@ fn buildHandler(arena: *std.heap.ArenaAllocator, io: std.Io, args: BuildResult, 
     }) catch {};
 }
 
-fn watcherLoop(watcher: *fs_watcher.Watcher, arena: *std.heap.ArenaAllocator, io: std.Io, args: ServeResult, source_dir: []const u8) void {
-    std.debug.print("Watching: {s}\n", .{source_dir});
-    std.debug.print("Press Ctrl+C to stop\n", .{});
+fn watcherStart(watcher: *fs_watcher.Watcher, arena: *std.heap.ArenaAllocator, io: std.Io, args: ServeResult, source_dir: []const u8) void {
+    log.info("Watching changes on {s}", .{source_dir});
 
     while (true) {
         const result = watcher.wait(100) catch |err| {
-            printer.errPrint(io, "Watch error: {s}\n", .{@errorName(err)}) catch {};
+            log.err("Watch error: {s}", .{@errorName(err)});
             return;
         };
         if (result == .changed) {
             const start = std.Io.Clock.Timestamp.now(io, .awake);
             const output_dir = build(arena, io, !args.no_drafts, false, args.destination, source_dir) catch |err| {
-                printer.errPrint(io, "Build error: {s}\n", .{@errorName(err)}) catch {};
+                log.err("Build error: {s}", .{@errorName(err)});
                 return;
             };
             const elapsed = start.untilNow(io);
 
-            printer.print(io, "Rebuilt {s} -> {s} in {d}ms\n", .{
+            log.info("Rebuilt {s} -> {s} in {d}ms", .{
                 source_dir,
                 output_dir,
                 elapsed.raw.toMilliseconds(),
-            }) catch {};
+            });
         }
     }
 }
 
 fn serveHandler(arena: *std.heap.ArenaAllocator, io: std.Io, args: ServeResult, source_dir: []const u8) !void {
+    const output_dir = args.destination orelse models.default_output_dir;
     var watcher = try fs_watcher.Watcher.init(io, arena, &.{source_dir});
     defer watcher.deinit();
 
-    const watcher_thread = try std.Thread.spawn(.{}, watcherLoop, .{ &watcher, arena, io, args, source_dir });
+    // TODO use args & move this to ports/webserver?
+    const addr = std.Io.net.IpAddress.parseIp4("127.0.0.1", 8000) catch unreachable;
+    var server = try addr.listen(io, .{ .reuse_address = true });
+    defer server.deinit(io);
+
+    try printer.print(io, "Press Ctrl+C to stop\n", .{});
+    const watcher_thread = try std.Thread.spawn(.{}, watcherStart, .{ &watcher, arena, io, args, source_dir });
+    const webserver_thread = try std.Thread.spawn(.{}, webserver.start, .{ arena, io, &server, output_dir });
 
     watcher_thread.join();
+    webserver_thread.join();
 }
 
 pub fn main(init: std.process.Init) !u8 {

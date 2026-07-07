@@ -5,6 +5,20 @@ const models = @import("../models.zig");
 const Config = models.Config;
 const File = models.File;
 
+pub fn readFileKind(io: Io, path: []const u8) !std.Io.File.Kind {
+    const cwd = std.Io.Dir.cwd();
+    const stats = cwd.statFile(io, path, .{}) catch |err| {
+        if (err == error.FileNotFound) return .unknown;
+        return err;
+    };
+    return stats.kind;
+}
+
+pub fn readFileContents(io: Io, arena: *std.heap.ArenaAllocator, path: []const u8) ![]const u8 {
+    const cwd = std.Io.Dir.cwd();
+    return try std.Io.Dir.readFileAlloc(cwd, io, path, arena.allocator(), .unlimited);
+}
+
 /// Reads a single file relative to `base_path` and returns a populated `File`.
 pub fn readFile(io: Io, arena: *std.heap.ArenaAllocator, base_path: []const u8, path: []const u8) !File {
     const allocator = arena.allocator();
