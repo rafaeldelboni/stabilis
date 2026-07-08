@@ -22,11 +22,13 @@ curl -fsSL https://raw.githubusercontent.com/rafaeldelboni/stabilis/main/install
 ## Usage
 
 ```bash
-zig build run -- [command] [options]            # run with args
-zig build run -- build -h                       # command with help option
-zig build run -- build example -d public        # command with explicit options
-zig build run                                   # general commands help
-./zig-out/bin/stabilis build example -d public  # run compiled binary
+# run installed binary
+stabilis [command] [options]
+stabilis build example -d public
+
+# compile and run command
+zig build run -- [command] [options]
+zig build run -- build example -d public
 ```
 
 ### Current supported command
@@ -36,6 +38,7 @@ stabilis - A static site generator
 stabilis <command>
 
 Commands:
+  serve      Build and serve the site locally
   build      Build the site
   new        Scaffold new content
     post       Scaffold new post
