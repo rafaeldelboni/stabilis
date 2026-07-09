@@ -71,6 +71,7 @@ body {
   font-variation-settings: "MONO" 1, "CASL" 0, "slnt" 0;
   font-size: 1.0625rem;                  /* ~17px — a notch above default for comfort */
   line-height: 1.7;
+  overflow-wrap: break-word;             /* long URLs/words wrap instead of overflowing */
   color: var(--text);
   background: var(--bg);
 }
