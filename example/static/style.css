@@ -60,6 +60,10 @@ html { -webkit-text-size-adjust: 100%; }
 body {
   max-width: var(--measure);
   margin-inline: auto;
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
   padding: 1.5rem 1.25rem 3rem;
   font-family: var(--font);
   /* MONO 1 = monospaced glyphs; CASL 0 = linear (technical, not casual).
@@ -89,7 +93,8 @@ nav {
 }
 nav > a { font-weight: 700; font-size: 1.1rem; }             /* the "stabilis" wordmark */
 nav > div { display: flex; flex-wrap: wrap; gap: 1.5rem; }   /* the menu links */
-nav + * { margin-top: 0; }               /* no double gap under the nav */
+main { flex: 1 0 auto; }                 /* fill height so the footer sits at the bottom */
+main > :first-child { margin-top: 0; }   /* no double gap under the nav */
 
 /* ---------- Footer (ready for when a <footer> is added) ---------- */
 footer {
@@ -98,6 +103,7 @@ footer {
   border-top: 1px solid var(--border);
   color: var(--muted);
   font-size: 0.85em;
+  text-align: center;
 }
 
 /* ---------- Headings ---------- */
