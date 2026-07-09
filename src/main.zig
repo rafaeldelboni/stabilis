@@ -25,6 +25,7 @@ const fs_reader = @import("ports/fs_reader.zig");
 const fs_watcher = @import("ports/fs_watcher.zig");
 const fs_writer = @import("ports/fs_writer.zig");
 const printer = @import("ports/printer.zig");
+const sse = @import("ports/sse.zig");
 const time = @import("ports/time.zig");
 const webserver = @import("ports/webserver.zig");
 
@@ -135,7 +136,14 @@ fn buildHandler(arena: *std.heap.ArenaAllocator, io: std.Io, args: BuildResult, 
     }) catch {};
 }
 
-fn watcherStart(watcher: *fs_watcher.Watcher, arena: *std.heap.ArenaAllocator, io: std.Io, args: ServeResult, source_dir: []const u8) void {
+fn watcherStart(
+    arena: *std.heap.ArenaAllocator,
+    sig: *sse.ReloadSignal,
+    watcher: *fs_watcher.Watcher,
+    io: std.Io,
+    args: ServeResult,
+    source_dir: []const u8,
+) void {
     log.info("Watching changes on {s}", .{source_dir});
 
     while (true) {
@@ -150,6 +158,8 @@ fn watcherStart(watcher: *fs_watcher.Watcher, arena: *std.heap.ArenaAllocator, i
                 return;
             };
             const elapsed = start.untilNow(io);
+
+            sig.notify(io);
 
             log.info("Rebuilt {s} -> {s} in {d}ms", .{
                 source_dir,
@@ -170,6 +180,8 @@ fn serveHandler(arena: *std.heap.ArenaAllocator, io: std.Io, args: ServeResult, 
 
     _ = try build(arena, io, !args.no_drafts, false, args.destination, source_dir);
 
+    var sig: sse.ReloadSignal = .{}; // .init fields default to .init
+
     var watcher = try fs_watcher.Watcher.init(io, arena, &.{source_dir});
     defer watcher.deinit();
 
@@ -178,11 +190,11 @@ fn serveHandler(arena: *std.heap.ArenaAllocator, io: std.Io, args: ServeResult, 
 
     var arena_watcher: std.heap.ArenaAllocator = std.heap.ArenaAllocator.init(arena.child_allocator);
     defer arena_watcher.deinit();
-    const watcher_thread = try std.Thread.spawn(.{}, watcherStart, .{ &watcher, &arena_watcher, io, args, source_dir });
+    const watcher_thread = try std.Thread.spawn(.{}, watcherStart, .{ &arena_watcher, &sig, &watcher, io, args, source_dir });
 
     var arena_webserver: std.heap.ArenaAllocator = std.heap.ArenaAllocator.init(arena.child_allocator);
     defer arena_webserver.deinit();
-    const webserver_thread = try std.Thread.spawn(.{}, webserver.start, .{ &arena_webserver, io, &server, output_dir });
+    const webserver_thread = try std.Thread.spawn(.{}, webserver.start, .{ &arena_webserver, io, &sig, &server, output_dir });
 
     if (args.open) {
         const address = try std.fmt.allocPrint(allocator, "http://{s}:{d}", .{ listen_ip, listen_port });

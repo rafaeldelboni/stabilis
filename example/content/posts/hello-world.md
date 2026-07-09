@@ -6,7 +6,6 @@ description: First post on the new SSG.
 ---
 
 ## Getting started
-
 This is the **first post**. It has:
 
 - Frontmatter with tags
