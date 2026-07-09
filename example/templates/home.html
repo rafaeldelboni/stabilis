@@ -6,9 +6,11 @@
   <h2>Recent posts</h2>
   <ul>
     {{# posts }}
-    <li><a href="{{ url }}">{{ title }}</a> — {{ date }}</li>
+    <li>
+      <a href="{{ url }}">{{ title }}</a>
+      <time datetime="{{ date }}">{{ date_human }}</time>
+    </li>
     {{/ posts }}
   </ul>
 
-</body>
-</html>
+{{> partials/footer.html }}

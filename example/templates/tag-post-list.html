@@ -1,7 +1,9 @@
 {{> partials/header.html }}
 
   <section>
-    <h1>{{ title }}</h1>
+    <a href="/posts/">← All posts</a>
+    <p class="eyebrow">Tagged</p>
+    <h1>#{{ title }}</h1>
     <ul>
       {{# posts }}
       <li>
@@ -12,5 +14,4 @@
     </ul>
   </section>
 
-</body>
-</html>
+{{> partials/footer.html }}
