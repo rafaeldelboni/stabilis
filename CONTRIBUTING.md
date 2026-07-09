@@ -20,15 +20,17 @@ zig build run -- build -S example    # build example/ into ./public
 zig build run -- serve -S example    # build and serve locally
 ```
 
-## A note on style
+## A note on style and disclaimer
 
-Fair warning: this codebase is written by someone coming from Clojure and functional programming, learning Zig along the way. **It shouldn't be read as idiomatic-Zig reference** — it's one developer trying to find their footing in a very different paradigm. A few habits carried over from that world:
+This was built to learn the language while converting my blog.
 
-- **Bottom-up file layout.** Functions with no local dependencies sit near the top of a file; the public entry points sit at the bottom — so a file reads like a Clojure namespace, definitions before use.
+Fair warning: this codebase is written by someone coming from Clojure and functional programming, learning Zig along the way. **It shouldn't be read as idiomatic-Zig reference** it's one developer trying to find their footing in a very different paradigm. A few habits carried over from that world:
+
+- **Bottom-up file layout.** Functions with no local dependencies sit near the top of a file; the public entry points sit at the bottom, so a file reads like a Clojure namespace, definitions before use.
 - **Free functions over methods.** The code leans on plain functions and avoids structs that mimic classes (structs carrying methods and behaviour). Data is data; behaviour is functions over it.
 - **Functional ports & adapters.** A pure domain core wrapped in a thin, impure I/O shell (detailed below).
 
-Take these as one person's translation of functional instincts into Zig — not as The Way to write Zig.
+Take these as one person's translation of functional instincts into Zig not as The Way to write Zig.
 
 ## Architecture: Functional Ports and Adapters
 
@@ -40,7 +42,7 @@ This project follows the **Ports and Adapters** architecture (also known as hexa
 
 - **Adapters** — pure translation layers between a port and the domain model. They take data from ports (e.g., raw file paths and bytes) and produce domain types (e.g., `Site`, `Template`, `Page`), or vice versa. Adapters do *not* orchestrate or wire layers together. In this project, `src/adapters/` contains these translation layers.
 
-- **Logic** — pure domain functions with no I/O. They operate only on domain types and have no side effects. In this project, `src/logic/` contains pure functions (e.g., YAML lexing, template tag parsing, frontmatter parsing) and `src/logic/config.zig` — the project's filesystem contract in one place: input layout (`content/`, `templates/`, `site.yaml`, …), output layout (`index.html`), URL routing prefixes, and template-name mapping per `PageKind`. `config.zig` depends only on `models.zig` and is imported by every layer. Add new path/layout literals there, not inline.
+- **Logic** — pure domain functions with no I/O. They operate only on domain types and have no side effects. In this project, `src/logic/` contains pure functions (e.g., YAML lexing, template tag parsing, frontmatter parsing) and `src/logic/config.zig` the project's filesystem contract in one place: input layout (`content/`, `templates/`, `site.yaml`, …), output layout (`index.html`), URL routing prefixes, and template-name mapping per `PageKind`. `config.zig` depends only on `models.zig` and is imported by every layer. Add new path/layout literals there, not inline.
 
 - **Models** — domain types shared across all layers. In this project, `src/models.zig` defines `Site`, `Page`, `Post`, `Template`, `Frontmatter`, etc.
 

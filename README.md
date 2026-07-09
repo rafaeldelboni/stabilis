@@ -2,9 +2,7 @@
 
 > stabilis: steady, firm, stable.
 
-A static site generator written in Zig — Markdown in, static HTML out, no backend. Built to learn the language while converting my blog.
-
-Progress is tracked in [TODO.md](TODO.md).
+A static site generator written in Zig Markdown in, static HTML out, no backend.
 
 ## Prerequisites
 
@@ -94,19 +92,25 @@ One external library does the heavy lifting:
 
 - [md4c](https://github.com/mity/md4c) — fast C Markdown parser (CommonMark + GFM), used to render post bodies to HTML.
 
-Everything else is written from scratch in Zig — a few of these may graduate into standalone libraries later:
+Everything else is written from scratch in Zig, a few of these may graduate into standalone libraries later:
 
 - **CLI** — a comptime-driven command/flag parser with generated help *(planned to move into its own library)*.
 - **YAML lexer** — a small reader for `site.yaml` and Markdown frontmatter.
 - **Template engine** — Mustache-style rendering: variables, sections, partials, and HTML escaping.
 - **Frontmatter parser** — pulls per-file metadata out of Markdown.
 
-It's wired together with a functional ports & adapters architecture — see [CONTRIBUTING.md](CONTRIBUTING.md).
+It's wired together with a functional ports & adapters architecture.
+
+## TODO
+
+Progress is tracked in [TODO.md](TODO.md).
 
 ## Contributing
 
-Development commands, the architecture, and code conventions live in [CONTRIBUTING.md](CONTRIBUTING.md). Issues and PRs are highly encouraged.
+Development commands, the architecture, and code conventions live in [CONTRIBUTING.md](CONTRIBUTING.md).  
+Issues and PRs are highly encouraged.
 
 ## License
 
-This is free and unencumbered software released into the public domain. See [LICENSE](LICENSE) or <https://unlicense.org>.
+This is free and unencumbered software released into the public domain.  
+See [LICENSE](LICENSE) or <https://unlicense.org>.
