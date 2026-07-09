@@ -45,13 +45,16 @@ pub fn init(io: std.Io, ip: []const u8, port: u16) !std.Io.net.Server {
 }
 
 fn handleConnection(
-    arena: *std.heap.ArenaAllocator,
+    parent_arena: *std.heap.ArenaAllocator,
     io: std.Io,
     sig: *sse.ReloadSignal,
     stream: std.Io.net.Stream,
     output_dir: []const u8,
 ) void {
     defer stream.close(io);
+
+    var arena: std.heap.ArenaAllocator = std.heap.ArenaAllocator.init(parent_arena.child_allocator);
+    defer arena.deinit();
 
     var read_buffer: [1024]u8 = undefined;
     var write_buffer: [1024]u8 = undefined;
@@ -63,15 +66,16 @@ fn handleConnection(
 
     log.info("{s} {s}", .{ @tagName(req.head.method), req.head.target });
 
-    if (std.mem.containsAtLeast(u8, req.head.target, 1, "__stabilis_sse")) {
+    const path = logic.stripUrlQueryAndFragment(req.head.target);
+    if (std.mem.eql(u8, path, "/__stabilis_sse")) {
         sse.handler(io, &req, sig) catch return;
         return;
     }
 
-    if (staticFileReader(arena, io, output_dir, req.head.target) catch null) |contents| {
+    if (staticFileReader(&arena, io, output_dir, req.head.target) catch null) |contents| {
         const content_type = logic.contentTypeForPath(req.head.target);
 
-        req.respond(logic.injectSseScript(arena, contents, content_type), .{
+        req.respond(logic.injectSseScript(&arena, contents, content_type), .{
             .status = .ok,
             .extra_headers = &.{.{ .name = "content-type", .value = content_type }},
         }) catch return;
