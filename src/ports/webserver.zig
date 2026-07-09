@@ -3,6 +3,7 @@ const builtin = @import("builtin");
 
 const logic = @import("../logic/webserver.zig");
 const fs_reader = @import("fs_reader.zig");
+const sse = @import("sse.zig");
 
 const log = std.log.scoped(.server);
 
@@ -43,30 +44,60 @@ pub fn init(io: std.Io, ip: []const u8, port: u16) !std.Io.net.Server {
     return try addr.listen(io, .{ .reuse_address = true });
 }
 
-/// Accepts connections in a loop and serves static files from `output_dir`.
-pub fn start(arena: *std.heap.ArenaAllocator, io: std.Io, server: *std.Io.net.Server, output_dir: []const u8) !void {
+fn handleConnection(
+    parent_arena: *std.heap.ArenaAllocator,
+    io: std.Io,
+    sig: *sse.ReloadSignal,
+    stream: std.Io.net.Stream,
+    output_dir: []const u8,
+) void {
+    defer stream.close(io);
+
+    var arena: std.heap.ArenaAllocator = std.heap.ArenaAllocator.init(parent_arena.child_allocator);
+    defer arena.deinit();
+
+    var read_buffer: [1024]u8 = undefined;
+    var write_buffer: [1024]u8 = undefined;
+    var reader = stream.reader(io, &read_buffer);
+    var writer = stream.writer(io, &write_buffer);
+
+    var http_server = std.http.Server.init(&reader.interface, &writer.interface);
+    var req = http_server.receiveHead() catch return;
+
+    log.info("{s} {s}", .{ @tagName(req.head.method), req.head.target });
+
+    const path = logic.stripUrlQueryAndFragment(req.head.target);
+    if (std.mem.eql(u8, path, "/__stabilis_sse")) {
+        sse.handler(io, &req, sig) catch return;
+        return;
+    }
+
+    if (staticFileReader(&arena, io, output_dir, req.head.target) catch null) |contents| {
+        const content_type = logic.contentTypeForPath(req.head.target);
+
+        req.respond(logic.injectSseScript(&arena, contents, content_type), .{
+            .status = .ok,
+            .extra_headers = &.{.{ .name = "content-type", .value = content_type }},
+        }) catch return;
+    } else {
+        req.respond("Not Found!", .{ .status = .not_found }) catch return;
+    }
+}
+
+/// Accepts connections in a loop, spawning a thread per connection to serve static files from `output_dir`.
+pub fn start(
+    arena: *std.heap.ArenaAllocator,
+    io: std.Io,
+    sig: *sse.ReloadSignal,
+    server: *std.Io.net.Server,
+    output_dir: []const u8,
+) !void {
     while (true) {
-        var stream = try server.accept(io);
-
-        var read_buffer: [1024]u8 = undefined;
-        var write_buffer: [1024]u8 = undefined;
-        var reader = stream.reader(io, &read_buffer);
-        var writer = stream.writer(io, &write_buffer);
-
-        var http_server = std.http.Server.init(&reader.interface, &writer.interface);
-        var req = try http_server.receiveHead();
-
-        log.info("{s} {s}", .{ @tagName(req.head.method), req.head.target });
-
-        if (try staticFileReader(arena, io, output_dir, req.head.target)) |contents| {
-            const content_type = logic.contentTypeForPath(req.head.target);
-            try req.respond(contents, .{
-                .status = .ok,
-                .extra_headers = &.{.{ .name = "content-type", .value = content_type }},
-            });
-        } else {
-            try req.respond("Not Found!", .{ .status = .not_found });
-        }
-        stream.close(io);
+        const stream = try server.accept(io);
+        const t = std.Thread.spawn(.{}, handleConnection, .{ arena, io, sig, stream, output_dir }) catch {
+            stream.close(io);
+            continue;
+        };
+        t.detach();
     }
 }
