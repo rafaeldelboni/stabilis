@@ -66,5 +66,5 @@ You can drop images right in:
 
 ### Links
 
-A bare URL like https://github.com/rafaeldelboni/stabilis is **not** auto-linked,
-but this is: [stabilis](https://github.com/rafaeldelboni/stabilis).
+A bare URL like https://github.com/rafaeldelboni/stabilis is auto-linked,
+and you can also write an explicit one: [stabilis](https://github.com/rafaeldelboni/stabilis).
