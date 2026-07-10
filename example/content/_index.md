@@ -37,6 +37,16 @@ menu:
     - { name: Posts, url: /posts/ }
 ```
 
+## Init
+
+Scaffold a new site from the bundled example:
+
+```bash
+stabilis init -d my-blog    # → ./my-blog with a working example site
+```
+
+When run from a release binary it downloads the matching example tarball; when run from source it copies the local `example/` directory. Refuses to init into a directory that already exists.
+
 ## Build
 
 ```bash
@@ -59,4 +69,4 @@ stabilis new post "Hello World"     # → content/posts/hello-world.md
 stabilis new page "About"           # → content/about.md
 ```
 
-Add `-h` to any command for its options, or run `stabilis --version`.
+Both refuse to overwrite an existing file. Add `-h` to any command for its options, or run `stabilis --version`.

@@ -43,6 +43,7 @@ stabilis - A static site generator
 stabilis <command>
 
 Commands:
+  init       Scaffold a new site from the example
   serve      Build and serve the site locally
   build      Build the site
   new        Scaffold new content
@@ -54,6 +55,18 @@ Global options:
     -h, --help         Show help [boolean]
     -v, --version      Print version [boolean]
 ```
+
+Run `stabilis <command> --help` for per-command options.
+
+## Init
+
+Scaffold a new site from the bundled example:
+
+```bash
+stabilis init -d my-blog    # → ./my-blog with a working example site
+```
+
+When run from a release binary it downloads the matching example tarball; when run from source (`zig build run -- init`) it copies the local `example/` directory. Refuses to init into a directory that already exists.
 
 ## Configuration
 
