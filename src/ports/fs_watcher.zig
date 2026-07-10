@@ -322,7 +322,7 @@ const MacOs = struct {
             cf_paths_array,
             .since_now,
             0.05,
-            .{ .watch_root = true, .file_events = true, .ignore_self = true },
+            .{ .watch_root = true, .file_events = true, .ignore_self = self.excludes.len > 0 },
         );
         if (stream == null) return error.StreamCreateFailed;
         self.stream = stream;
