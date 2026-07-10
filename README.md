@@ -43,6 +43,7 @@ stabilis - A static site generator
 stabilis <command>
 
 Commands:
+  init       Scaffold a new site from the example
   serve      Build and serve the site locally
   build      Build the site
   new        Scaffold new content
@@ -54,6 +55,8 @@ Global options:
     -h, --help         Show help [boolean]
     -v, --version      Print version [boolean]
 ```
+
+Run `stabilis <command> --help` for per-command options.
 
 ## Configuration
 

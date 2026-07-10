@@ -42,6 +42,15 @@ pub fn readFile(io: Io, arena: *std.heap.ArenaAllocator, base_path: []const u8, 
     };
 }
 
+/// Reads the config file relative to `source_dir`.
+/// Returns `error.ConfigNotFound` when the file is missing.
+pub fn readConfigFile(io: Io, arena: *std.heap.ArenaAllocator, source_dir: []const u8, config_file_name: []const u8) !File {
+    return readFile(io, arena, source_dir, config_file_name) catch |err| switch (err) {
+        error.FileNotFound => error.ConfigNotFound,
+        else => err,
+    };
+}
+
 fn walkDirImpl(io: Io, arena: *std.heap.ArenaAllocator, base_path: []const u8, path: []const u8) ![]File {
     const allocator = arena.allocator();
     var output: std.ArrayList(File) = .empty;
@@ -86,15 +95,41 @@ pub fn walkDir(io: Io, arena: *std.heap.ArenaAllocator, path: []const u8) ![]Fil
 }
 
 /// Loads the config, content, and template files from `source_dir` into one slice.
+/// Returns `error.ContentDirNotFound` or `error.TemplatesDirNotFound` when those
+/// directories are missing.
 pub fn loadFiles(arena: *std.heap.ArenaAllocator, io: std.Io, cfg: *const Config, source_dir: []const u8) ![]models.File {
     const allocator = arena.allocator();
     const cwd = std.Io.Dir.cwd();
     const base_path = try cwd.realPathFileAlloc(io, source_dir, allocator);
 
-    const content_files = try walkDirImpl(io, arena, base_path, cfg.content_dir);
-    const template_files = try walkDirImpl(io, arena, base_path, cfg.templates_dir);
+    const content_files = walkDirImpl(io, arena, base_path, cfg.content_dir) catch |err| switch (err) {
+        error.FileNotFound => return error.ContentDirNotFound,
+        else => return err,
+    };
+    const template_files = walkDirImpl(io, arena, base_path, cfg.templates_dir) catch |err| switch (err) {
+        error.FileNotFound => return error.TemplatesDirNotFound,
+        else => return err,
+    };
 
     return try std.mem.concat(allocator, models.File, &.{ content_files, template_files });
+}
+
+/// Walks up from the executable's directory looking for a directory named `name`.
+/// Returns its path (owned by allocator) if found, else null.
+/// Propagates non-FileNotFound errors (e.g. permission denied).
+pub fn findLocalDir(allocator: std.mem.Allocator, io: std.Io, name: []const u8) !?[]const u8 {
+    var buf: [std.fs.max_path_bytes]u8 = undefined;
+    const exe_len = std.process.executablePath(io, &buf) catch return null;
+    var dir = std.fs.path.dirname(buf[0..exe_len]) orelse return null;
+    while (true) {
+        const candidate = try std.Io.Dir.path.join(allocator, &.{ dir, name });
+        const kind = try readFileKind(io, candidate);
+        if (kind == .directory) {
+            return candidate;
+        }
+        allocator.free(candidate);
+        dir = std.fs.path.dirname(dir) orelse return null;
+    }
 }
 
 // integration test: requires example/ directory
@@ -139,4 +174,45 @@ test "walkDir reads example directory" {
             return error.TestUnexpectedResult;
         }
     }
+}
+
+test "readConfigFile returns ConfigNotFound for missing file" {
+    const allocator = std.testing.allocator;
+    var arena = std.heap.ArenaAllocator.init(allocator);
+    defer arena.deinit();
+
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+
+    const io = std.testing.io;
+    const cwd = std.Io.Dir.cwd();
+    const tmp_path = try cwd.realPathFileAlloc(io, ".zig-cache/tmp", arena.allocator());
+    const source_dir = try std.Io.Dir.path.join(arena.allocator(), &.{ tmp_path, &tmp.sub_path });
+
+    try std.testing.expectError(
+        error.ConfigNotFound,
+        readConfigFile(io, &arena, source_dir, "site.yaml"),
+    );
+}
+
+test "readConfigFile reads existing file" {
+    const allocator = std.testing.allocator;
+    var arena = std.heap.ArenaAllocator.init(allocator);
+    defer arena.deinit();
+
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+
+    const io = std.testing.io;
+    const cwd = std.Io.Dir.cwd();
+    const tmp_path = try cwd.realPathFileAlloc(io, ".zig-cache/tmp", arena.allocator());
+    const source_dir = try std.Io.Dir.path.join(arena.allocator(), &.{ tmp_path, &tmp.sub_path });
+
+    try std.Io.Dir.writeFile(cwd, io, .{
+        .sub_path = try std.Io.Dir.path.join(arena.allocator(), &.{ source_dir, "site.yaml" }),
+        .data = "title: Test\nbase_url: http://localhost\n",
+    });
+
+    const file = try readConfigFile(io, &arena, source_dir, "site.yaml");
+    try std.testing.expect(std.mem.indexOf(u8, file.contents, "title: Test") != null);
 }
