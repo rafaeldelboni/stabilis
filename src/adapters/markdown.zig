@@ -20,7 +20,7 @@ const MdCtx = struct {
     }
 };
 
-pub fn toHtml(arena: *std.heap.ArenaAllocator, base_path: []const u8 ,md: []const u8) ![]const u8 {
+pub fn toHtml(arena: *std.heap.ArenaAllocator, base_path: []const u8, md: []const u8) ![]const u8 {
     const allocator = arena.allocator();
     var ctx = MdCtx{ .allocator = allocator };
     const rc = md4c.md_html(md.ptr, @intCast(md.len), MdCtx.callback, &ctx, md4c.MD_DIALECT_GITHUB, 0);
