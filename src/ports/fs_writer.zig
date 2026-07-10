@@ -79,6 +79,17 @@ pub fn copyDir(
     }
 }
 
+pub fn extractTarToDirPath(io: Io, cwd: std.Io.Dir, tar_path: []const u8, dest_path: []const u8, extract_options: std.tar.ExtractOptions,) !void {
+    var tar_file = try cwd.openFile(io, tar_path, .{});
+    defer tar_file.close(io);
+    var rbuf: [4096]u8 = undefined;
+    var tar_reader = tar_file.reader(io, &rbuf);
+
+    try cwd.createDirPath(io, dest_path);
+    const dest_dir = try cwd.openDir(io, dest_path, .{});
+    try std.tar.extract(io, dest_dir, &tar_reader.interface, extract_options);
+}
+
 // integration test: requires example/ directory
 test "copyDir mirrors example directory" {
     const allocator = std.testing.allocator;

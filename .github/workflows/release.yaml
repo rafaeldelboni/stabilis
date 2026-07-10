@@ -61,6 +61,7 @@ jobs:
           mkdir -p release
           find artifacts -name '*.zip' -exec cp {} release/ \;
           cp install.sh release/
+          tar -czf release/stabilis-${{ github.ref_name }}-example.tar.gz example
 
       - uses: softprops/action-gh-release@v3
         with:

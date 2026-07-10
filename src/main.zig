@@ -19,8 +19,10 @@ const BuildResult = models.BuildResult;
 const NewPostResult = models.NewPostResult;
 const NewPageResult = models.NewPageResult;
 const ServeResult = models.ServeResult;
+const InitResult = models.InitResult;
 const modelsCli = @import("models/cli.zig");
 const cli_help = @import("ports/cli.zig");
+const http = @import("ports/http.zig");
 const fs_reader = @import("ports/fs_reader.zig");
 const fs_watcher = @import("ports/fs_watcher.zig");
 const fs_writer = @import("ports/fs_writer.zig");
@@ -36,7 +38,12 @@ fn readConfig(arena: *std.heap.ArenaAllocator, io: std.Io, source_dir: []const u
     return try config_adapter.parse(arena, yaml_file.contents);
 }
 
-fn newPageHandler(arena: *std.heap.ArenaAllocator, io: std.Io, args: NewPageResult, source_dir: []const u8) !void {
+fn newPageHandler(
+    arena: *std.heap.ArenaAllocator,
+    io: std.Io,
+    args: NewPageResult,
+    source_dir: []const u8,
+) !u8 {
     const allocator = arena.allocator();
     const cfg = try readConfig(arena, io, source_dir);
     const slug = args.slug orelse try str.parseSlug(arena, args.title);
@@ -55,9 +62,16 @@ fn newPageHandler(arena: *std.heap.ArenaAllocator, io: std.Io, args: NewPageResu
     });
     try fs_writer.writeFileDeep(io, file, file_path);
     try printer.print(io, "Created page: {s}\n", .{file_path});
+
+    return 0;
 }
 
-fn newPostHandler(arena: *std.heap.ArenaAllocator, io: std.Io, args: NewPostResult, source_dir: []const u8) !void {
+fn newPostHandler(
+    arena: *std.heap.ArenaAllocator,
+    io: std.Io,
+    args: NewPostResult,
+    source_dir: []const u8,
+) !u8 {
     const allocator = arena.allocator();
     const cfg = try readConfig(arena, io, source_dir);
     const slug = try str.parseSlug(arena, args.title);
@@ -77,6 +91,8 @@ fn newPostHandler(arena: *std.heap.ArenaAllocator, io: std.Io, args: NewPostResu
     });
     try fs_writer.writeFileDeep(io, file, file_path);
     try printer.print(io, "Created post: {s}\n", .{file_path});
+
+    return 0;
 }
 
 fn renderSite(
@@ -102,7 +118,14 @@ fn renderSite(
     }
 }
 
-fn build(arena: *std.heap.ArenaAllocator, io: std.Io, clear_dir: bool, build_drafts: bool, destination: ?[]const u8, source_dir: []const u8) ![]const u8 {
+fn build(
+    arena: *std.heap.ArenaAllocator,
+    io: std.Io,
+    clear_dir: bool,
+    build_drafts: bool,
+    destination: ?[]const u8,
+    source_dir: []const u8,
+) ![]const u8 {
     const output_dir = destination orelse models.default_output_dir;
 
     if (clear_dir) try fs_writer.deleteDir(io, output_dir);
@@ -124,7 +147,12 @@ fn build(arena: *std.heap.ArenaAllocator, io: std.Io, clear_dir: bool, build_dra
     return output_dir;
 }
 
-fn buildHandler(arena: *std.heap.ArenaAllocator, io: std.Io, args: BuildResult, source_dir: []const u8) !void {
+fn buildHandler(
+    arena: *std.heap.ArenaAllocator,
+    io: std.Io,
+    args: BuildResult,
+    source_dir: []const u8,
+) !u8 {
     const start = std.Io.Clock.Timestamp.now(io, .awake);
     const output_dir = try build(arena, io, args.build_drafts, args.clear_dir, args.destination, source_dir);
     const elapsed = start.untilNow(io);
@@ -134,6 +162,8 @@ fn buildHandler(arena: *std.heap.ArenaAllocator, io: std.Io, args: BuildResult, 
         output_dir,
         elapsed.raw.toMilliseconds(),
     }) catch {};
+
+    return 0;
 }
 
 fn watcherStart(
@@ -170,7 +200,12 @@ fn watcherStart(
     }
 }
 
-fn serveHandler(arena: *std.heap.ArenaAllocator, io: std.Io, args: ServeResult, source_dir: []const u8) !void {
+fn serveHandler(
+    arena: *std.heap.ArenaAllocator,
+    io: std.Io,
+    args: ServeResult,
+    source_dir: []const u8,
+) !u8 {
     const allocator = arena.allocator();
     const output_dir = args.destination orelse models.default_output_dir;
     const listen_ip = args.bind orelse models.default_listen_ip;
@@ -203,6 +238,61 @@ fn serveHandler(arena: *std.heap.ArenaAllocator, io: std.Io, args: ServeResult, 
 
     watcher_thread.join();
     webserver_thread.join();
+
+    return 0;
+}
+
+fn initHandler(
+    arena: *std.heap.ArenaAllocator,
+    io: std.Io,
+    args: InitResult,
+    source_dir: []const u8,
+) !u8 {
+    const allocator = arena.allocator();
+
+    const dest = args.destination orelse "./";
+    const source = if (std.mem.eql(u8, source_dir, "./")) "example" else source_dir;
+
+    if (try fs_reader.readFileKind(io, dest) != .unknown) {
+        try printer.errPrint(io, "error: '{s}' already exists\n", .{dest});
+        return 2;
+    }
+
+    if (fs_reader.findLocalDir(allocator, io, source)) |example_path| {
+        try fs_writer.copyDir(io, arena, example_path, dest);
+        try printer.print(io, "Initialized {s} from local {s}\n", .{dest, source});
+        return 0;
+    }
+
+    const version = build_options.version;
+    if (std.mem.eql(u8, version, "dev")) {
+        try printer.errPrint(io, "error: 'init' needs a release binary, or run from the repo root\n", .{});
+        return 2;
+    }
+
+    const url = try std.fmt.allocPrint(
+        allocator,
+        "https://github.com/rafaeldelboni/stabilis/releases/download/{s}/stabilis-{s}-example.tar.gz",
+        .{ version, version },
+    );
+
+    var client: std.http.Client = .{ .allocator = allocator, .io = io };
+    defer client.deinit();
+
+    const cwd = std.Io.Dir.cwd();
+    const tmp = "stabilis-example.tar.gz";
+    defer cwd.deleteFile(io, tmp) catch {};
+
+    try printer.print(io, "Downloading {s}\n", .{url});
+    try http.downloadUrlToFilePath(arena, io, cwd, url, tmp);
+
+    try printer.print(io, "Extracting {s} on {s}\n", .{ tmp, dest });
+    try fs_writer.extractTarToDirPath(io, cwd, tmp, dest, .{
+        .strip_components = 1,
+    });
+
+    try printer.print(io, "Initialized {s} from {s}\n", .{ dest, version });
+    return 0;
 }
 
 pub fn main(init: std.process.Init) !u8 {
@@ -230,7 +320,8 @@ pub fn main(init: std.process.Init) !u8 {
 
     const source_dir = out.flags.source_dir orelse "./";
 
-    _ = switch (out.commands orelse return 0) {
+    return switch (out.commands orelse return 0) {
+        .init => |init_args| initHandler(&arena, io, init_args, source_dir),
         .serve => |serve_args| serveHandler(&arena, io, serve_args, source_dir),
         .build => |build_args| buildHandler(&arena, io, build_args, source_dir),
         .new => |new_args| switch (new_args) {
@@ -240,11 +331,12 @@ pub fn main(init: std.process.Init) !u8 {
     } catch |err| {
         if (err == error.NoFilesFound or err == error.FileNotFound)
             try printer.errPrint(io, "No {s} files found on: {s}\n", .{ cli.name, source_dir })
-        else
+        else {
             try printer.errPrint(io, "error: {}\n", .{err});
+            if (@errorReturnTrace()) |trace| std.debug.dumpErrorReturnTrace(trace);
+        }
         return 2;
     };
-    return 0;
 }
 
 test {
@@ -268,6 +360,7 @@ test {
     _ = @import("ports/fs_reader.zig");
     _ = @import("ports/fs_watcher.zig");
     _ = @import("ports/fs_writer.zig");
+    _ = @import("ports/http.zig");
     _ = @import("ports/printer.zig");
     _ = @import("ports/time.zig");
     _ = @import("ports/webserver.zig");
