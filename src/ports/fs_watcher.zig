@@ -3,6 +3,34 @@ const builtin = @import("builtin");
 
 pub const WaitResult = enum { changed, timeout };
 
+/// Strips a leading `./` so that prefix comparisons like `startsWith("public/")`
+/// work whether the caller passed `./public/` or `public/`.
+fn stripDotSlash(path: []const u8) []const u8 {
+    if (path.len >= 2 and path[0] == '.' and path[1] == '/') return path[2..];
+    return path;
+}
+
+/// Returns true when `dir_path` is equal to or nested under any of `excludes`.
+/// Comparison is byte-wise on slash-stripped forms, so `./public/` and
+/// `public/` are treated identically.
+fn isPathExcluded(dir_path: []const u8, excludes: []const []const u8) bool {
+    if (excludes.len == 0) return false;
+    const stripped = stripDotSlash(dir_path);
+    for (excludes) |ex| {
+        const ex_stripped = stripDotSlash(ex);
+        if (std.mem.eql(u8, stripped, ex_stripped)) return true;
+        // dir is nested under ex: check "ex/" prefix
+        const prefix_len = ex_stripped.len + 1;
+        if (stripped.len > prefix_len and
+            std.mem.eql(u8, stripped[0..ex_stripped.len], ex_stripped) and
+            stripped[ex_stripped.len] == '/')
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
 pub const Watcher = struct {
     impl: Impl,
 
@@ -12,9 +40,15 @@ pub const Watcher = struct {
         else => @compileError("fs_watcher: unsupported OS, only Linux and macOS"),
     };
 
-    /// Creates a watcher monitoring the given `paths` for filesystem changes.
-    pub fn init(io: std.Io, arena: *std.heap.ArenaAllocator, paths: []const []const u8) !Watcher {
-        return .{ .impl = try Impl.init(io, arena, paths) };
+    /// Creates a watcher monitoring the given `paths` for filesystem changes,
+    /// ignoring any changes inside `excludes` (e.g. the build output directory).
+    pub fn init(
+        io: std.Io,
+        arena: *std.heap.ArenaAllocator,
+        paths: []const []const u8,
+        excludes: []const []const u8,
+    ) !Watcher {
+        return .{ .impl = try Impl.init(io, arena, paths, excludes) };
     }
 
     /// Releases OS resources held by the watcher (does not free arena memory).
@@ -42,8 +76,9 @@ const Linux = struct {
     io: std.Io,
     mask: std.os.linux.fanotify.MarkMask,
     watch_dir: []const u8,
+    excludes: []const []const u8,
 
-    fn init(io: std.Io, arena: *std.heap.ArenaAllocator, paths: []const []const u8) !Linux {
+    fn init(io: std.Io, arena: *std.heap.ArenaAllocator, paths: []const []const u8, excludes: []const []const u8) !Linux {
         const fan = std.os.linux.fanotify;
         const fd = try fanotify_init();
         errdefer closeFd(fd);
@@ -61,10 +96,11 @@ const Linux = struct {
         };
 
         for (paths) |path| {
-            markDirTree(io, fd, mask, path);
+            markDirTree(io, fd, mask, path, excludes);
         }
         const watch_dir = try arena.allocator().dupe(u8, paths[0]);
-        return .{ .fd = fd, .io = io, .mask = mask, .watch_dir = watch_dir };
+        const ex = try arena.allocator().dupe([]const u8, excludes);
+        return .{ .fd = fd, .io = io, .mask = mask, .watch_dir = watch_dir, .excludes = ex };
     }
 
     fn deinit(self: *Linux) void {
@@ -113,7 +149,9 @@ const Linux = struct {
                     const name = std.mem.span(name_ptr);
                     var path_buf: [std.fs.max_path_bytes]u8 = undefined;
                     if (std.fmt.bufPrint(&path_buf, "{s}/{s}", .{ self.watch_dir, name })) |new_dir| {
-                        markDirTree(self.io, self.fd, self.mask, new_dir);
+                        if (!isPathExcluded(new_dir, self.excludes)) {
+                            markDirTree(self.io, self.fd, self.mask, new_dir, self.excludes);
+                        }
                     } else |_| {}
                 }
             }
@@ -123,7 +161,9 @@ const Linux = struct {
     }
 
     /// Recursively marks `dir_path` and all its subdirectories with `mask` on the fanotify `fd`.
-    fn markDirTree(io: std.Io, fd: std.posix.fd_t, mask: std.os.linux.fanotify.MarkMask, dir_path: []const u8) void {
+    /// Skips any `dir_path` (or subdirectory) that is equal to or nested under `excludes`.
+    fn markDirTree(io: std.Io, fd: std.posix.fd_t, mask: std.os.linux.fanotify.MarkMask, dir_path: []const u8, excludes: []const []const u8) void {
+        if (isPathExcluded(dir_path, excludes)) return;
         const cwd = std.Io.Dir.cwd();
         fanotify_mark(fd, mask, cwd, dir_path);
         var dir = cwd.openDir(io, dir_path, .{ .iterate = true }) catch return;
@@ -133,7 +173,7 @@ const Linux = struct {
             if (entry.kind != .directory) continue;
             var buf: [std.fs.max_path_bytes]u8 = undefined;
             const sub = std.fmt.bufPrint(&buf, "{s}/{s}", .{ dir_path, entry.name }) catch continue;
-            markDirTree(io, fd, mask, sub);
+            markDirTree(io, fd, mask, sub, excludes);
         }
     }
 
@@ -190,8 +230,9 @@ const MacOs = struct {
     dispatch_queue: std.c.dispatch.queue_t,
     stream: ?FSEventStreamRef = null,
     watch_roots: [][:0]const u8,
+    excludes: []const []const u8,
 
-    fn init(_: std.Io, arena: *std.heap.ArenaAllocator, paths: []const []const u8) !MacOs {
+    fn init(_: std.Io, arena: *std.heap.ArenaAllocator, paths: []const []const u8, excludes: []const []const u8) !MacOs {
         var core_services = std.DynLib.open(
             "/System/Library/Frameworks/CoreServices.framework/CoreServices",
         ) catch return error.OpenFrameworkFailed;
@@ -216,6 +257,7 @@ const MacOs = struct {
         for (paths, watch_roots) |path, *root| {
             root.* = try allocator.dupeZ(u8, path);
         }
+        const ex = try allocator.dupe([]const u8, excludes);
 
         var self: MacOs = .{
             .core_services = core_services,
@@ -224,6 +266,7 @@ const MacOs = struct {
             .dispatch_queue = dispatch_queue,
             .stream = null,
             .watch_roots = watch_roots,
+            .excludes = ex,
         };
 
         try self.startStream(allocator);
@@ -279,7 +322,7 @@ const MacOs = struct {
             cf_paths_array,
             .since_now,
             0.05,
-            .{ .watch_root = true, .file_events = true },
+            .{ .watch_root = true, .file_events = true, .ignore_self = true },
         );
         if (stream == null) return error.StreamCreateFailed;
         self.stream = stream;
@@ -297,6 +340,9 @@ const MacOs = struct {
     }
 
     /// FSEvents callback: signals the semaphore on the first non-history event.
+    /// Path-based exclusion filtering is not needed here because
+    /// `ignore_self = true` suppresses events from the current process (the
+    /// build writing into the output directory).
     fn eventCallback(
         _: ConstFSEventStreamRef,
         client_callback_info: ?*anyopaque,
@@ -420,7 +466,7 @@ test "watcher detects file modification" {
 
     const dir_path = try tmp_dir.dir.realPathFileAlloc(io, ".", arena.allocator());
 
-    var watcher = try Watcher.init(io, &arena, &.{dir_path});
+    var watcher = try Watcher.init(io, &arena, &.{dir_path}, &.{});
     defer watcher.deinit();
 
     const initial = try watcher.wait(200);
@@ -443,7 +489,7 @@ test "watcher returns timeout when nothing changes" {
 
     const dir_path = try tmp_dir.dir.realPathFileAlloc(io, ".", arena.allocator());
 
-    var watcher = try Watcher.init(io, &arena, &.{dir_path});
+    var watcher = try Watcher.init(io, &arena, &.{dir_path}, &.{});
     defer watcher.deinit();
 
     const result = try watcher.wait(300);
@@ -461,7 +507,7 @@ test "watcher detects changes in subdirectory" {
 
     const dir_path = try tmp_dir.dir.realPathFileAlloc(io, ".", arena.allocator());
 
-    var watcher = try Watcher.init(io, &arena, &.{dir_path});
+    var watcher = try Watcher.init(io, &arena, &.{dir_path}, &.{});
     defer watcher.deinit();
 
     const initial = try watcher.wait(200);
