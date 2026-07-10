@@ -45,8 +45,8 @@
 /* ---------- Recursive (self-hosted variable font, OFL) ---------- */
 @font-face {
   font-family: "Recursive";
-  src: url("/fonts/recursive.woff2") format("woff2");
-  font-weight: 300 900;                  /* variable weight range */
+  src: url("/fonts/recursive-wght-slnt.woff2") format("woff2");
+  font-weight: 300 1000;                 /* variable weight range */
   font-display: swap;
 }
 
@@ -136,7 +136,7 @@ nav a:hover { color: var(--accent); }
 
 /* ---------- Inline text ---------- */
 strong { font-weight: 700; }
-em { font-style: italic; }
+em { font-style: italic; font-variation-settings: "MONO" 1, "CASL" 0, "slnt" -15; }
 small, sub, sup { font-size: 0.8em; }
 hr { border: none; border-top: 1px solid var(--border); margin-block: 2.5rem; }
 

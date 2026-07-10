@@ -149,7 +149,7 @@ test "walkDir reads example directory" {
         "content/posts/github-flavored-markdown-syntax-guide.md",
         "content/posts/hello-world.md",
         "site.yaml",
-        "static/fonts/recursive.woff2",
+        "static/fonts/recursive-wght-slnt.woff2",
         "static/images/manly-palmer-hall-alchemical-manuscript.jpg",
         "static/style.css",
         "templates/home.html",
