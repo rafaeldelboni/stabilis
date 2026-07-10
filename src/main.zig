@@ -34,7 +34,7 @@ const webserver = @import("ports/webserver.zig");
 const log = std.log.scoped(.watcher);
 
 fn readConfig(arena: *std.heap.ArenaAllocator, io: std.Io, source_dir: []const u8) !Config {
-    const yaml_file = try fs_reader.readFile(io, arena, source_dir, config.config_file);
+    const yaml_file = try fs_reader.readConfigFile(io, arena, source_dir, config.config_file);
     return try config_adapter.parse(arena, yaml_file.contents);
 }
 
@@ -60,6 +60,10 @@ fn newPageHandler(
     const file_path = try std.Io.Dir.path.join(allocator, &.{
         source_dir, cfg.content_dir, try std.mem.concat(allocator, u8, &.{ slug, cfg.content_ext }),
     });
+    if (try fs_reader.readFileKind(io, file_path) != .unknown) {
+        try printer.errPrint(io, "error: '{s}' already exists\n", .{file_path});
+        return 2;
+    }
     try fs_writer.writeFileDeep(io, file, file_path);
     try printer.print(io, "Created page: {s}\n", .{file_path});
 
@@ -89,6 +93,10 @@ fn newPostHandler(
     const file_path = try std.Io.Dir.path.join(allocator, &.{
         source_dir, cfg.content_dir, cfg.posts_dir, try std.mem.concat(allocator, u8, &.{ slug, cfg.content_ext }),
     });
+    if (try fs_reader.readFileKind(io, file_path) != .unknown) {
+        try printer.errPrint(io, "error: '{s}' already exists\n", .{file_path});
+        return 2;
+    }
     try fs_writer.writeFileDeep(io, file, file_path);
     try printer.print(io, "Created post: {s}\n", .{file_path});
 
@@ -329,11 +337,19 @@ pub fn main(init: std.process.Init) !u8 {
             .page => newPageHandler(&arena, io, new_args.page, source_dir),
         },
     } catch |err| {
-        if (err == error.NoFilesFound or err == error.FileNotFound)
-            try printer.errPrint(io, "No {s} files found on: {s}\n", .{ cli.name, source_dir })
-        else {
-            try printer.errPrint(io, "error: {}\n", .{err});
-            if (@errorReturnTrace()) |trace| std.debug.dumpErrorReturnTrace(trace);
+        switch (err) {
+            error.ConfigNotFound => try printer.errPrint(io,
+                "Config file not found: {s}/{s}\n", .{ source_dir, config.config_file }),
+            error.ContentDirNotFound => try printer.errPrint(io,
+                "Content directory not found: {s}/{s}\n", .{ source_dir, config.content_dir }),
+            error.TemplatesDirNotFound => try printer.errPrint(io,
+                "Templates directory not found: {s}/{s}\n", .{ source_dir, config.templates_dir }),
+            error.NoFilesFound => try printer.errPrint(io,
+                "No content found to build in: {s}\n", .{source_dir}),
+            else => {
+                try printer.errPrint(io, "error: {}\n", .{err});
+                if (@errorReturnTrace()) |trace| std.debug.dumpErrorReturnTrace(trace);
+            },
         }
         return 2;
     };

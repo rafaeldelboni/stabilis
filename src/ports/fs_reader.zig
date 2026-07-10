@@ -42,6 +42,15 @@ pub fn readFile(io: Io, arena: *std.heap.ArenaAllocator, base_path: []const u8, 
     };
 }
 
+/// Reads the config file relative to `source_dir`.
+/// Returns `error.ConfigNotFound` when the file is missing.
+pub fn readConfigFile(io: Io, arena: *std.heap.ArenaAllocator, source_dir: []const u8, config_file_name: []const u8) !File {
+    return readFile(io, arena, source_dir, config_file_name) catch |err| switch (err) {
+        error.FileNotFound => error.ConfigNotFound,
+        else => err,
+    };
+}
+
 fn walkDirImpl(io: Io, arena: *std.heap.ArenaAllocator, base_path: []const u8, path: []const u8) ![]File {
     const allocator = arena.allocator();
     var output: std.ArrayList(File) = .empty;
@@ -86,13 +95,21 @@ pub fn walkDir(io: Io, arena: *std.heap.ArenaAllocator, path: []const u8) ![]Fil
 }
 
 /// Loads the config, content, and template files from `source_dir` into one slice.
+/// Returns `error.ContentDirNotFound` or `error.TemplatesDirNotFound` when those
+/// directories are missing.
 pub fn loadFiles(arena: *std.heap.ArenaAllocator, io: std.Io, cfg: *const Config, source_dir: []const u8) ![]models.File {
     const allocator = arena.allocator();
     const cwd = std.Io.Dir.cwd();
     const base_path = try cwd.realPathFileAlloc(io, source_dir, allocator);
 
-    const content_files = try walkDirImpl(io, arena, base_path, cfg.content_dir);
-    const template_files = try walkDirImpl(io, arena, base_path, cfg.templates_dir);
+    const content_files = walkDirImpl(io, arena, base_path, cfg.content_dir) catch |err| switch (err) {
+        error.FileNotFound => return error.ContentDirNotFound,
+        else => return err,
+    };
+    const template_files = walkDirImpl(io, arena, base_path, cfg.templates_dir) catch |err| switch (err) {
+        error.FileNotFound => return error.TemplatesDirNotFound,
+        else => return err,
+    };
 
     return try std.mem.concat(allocator, models.File, &.{ content_files, template_files });
 }
