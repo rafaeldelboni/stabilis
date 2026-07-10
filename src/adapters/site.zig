@@ -86,6 +86,8 @@ pub fn parse(
     keep_drafts: bool,
 ) !Site {
     const allocator = arena.allocator();
+    const base_path = try config_adapter.basePath(allocator, cfg.base_uri);
+
     var templates: Templates = .{};
     var pages: std.ArrayList(Page) = .empty;
     var posts: std.ArrayList(Page) = .empty;
@@ -94,7 +96,6 @@ pub fn parse(
 
     for (files) |file| {
         if (logic.parsePageKind(cfg, file)) |page_kind| {
-            const base_path = try config_adapter.basePath(allocator, cfg.base_uri);
             const page = try frontmatter.parse(arena, file.contents);
             const html = try markdown.toHtml(arena, base_path, page.source);
             var context: Context = .{};

@@ -292,7 +292,7 @@ test "escapeDoubleQuote leaves other special chars unchanged" {
     try std.testing.expectEqualStrings("a:b#c{d}[e],f@g%h", result);
 }
 
-test "appendBasePathOnUrl: empty base_path returns html unchanged" {
+test "prefixRootRelativeUrls: empty base_path returns html unchanged" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
     const html = "<a href=\"/posts/\">link</a><img src=\"/img.jpg\">";
@@ -300,7 +300,7 @@ test "appendBasePathOnUrl: empty base_path returns html unchanged" {
     try std.testing.expectEqualStrings(html, result);
 }
 
-test "appendBasePathOnUrl: prefixes href and src with base_path" {
+test "prefixRootRelativeUrls: prefixes href and src with base_path" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
     const html = "<a href=\"/posts/\">link</a><img src=\"/img.jpg\">";
@@ -308,7 +308,7 @@ test "appendBasePathOnUrl: prefixes href and src with base_path" {
     try std.testing.expectEqualStrings("<a href=\"/stabilis/posts/\">link</a><img src=\"/stabilis/img.jpg\">", result);
 }
 
-test "appendBasePathOnUrl: skips protocol-relative URLs" {
+test "prefixRootRelativeUrls: skips protocol-relative URLs" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
     const html = "<a href=\"//cdn.example.com/foo\">link</a>";
@@ -316,7 +316,7 @@ test "appendBasePathOnUrl: skips protocol-relative URLs" {
     try std.testing.expectEqualStrings(html, result);
 }
 
-test "appendBasePathOnUrl: skips absolute http(s) URLs" {
+test "prefixRootRelativeUrls: skips absolute http(s) URLs" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
     const html = "<a href=\"https://example.com/foo\">link</a>";
@@ -324,7 +324,7 @@ test "appendBasePathOnUrl: skips absolute http(s) URLs" {
     try std.testing.expectEqualStrings(html, result);
 }
 
-test "appendBasePathOnUrl: handles multiple href and src in any order" {
+test "prefixRootRelativeUrls: handles multiple href and src in any order" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
     const html = "<img src=\"/a.jpg\"><a href=\"/b\">b</a><img src=\"/c.jpg\">";
@@ -332,7 +332,7 @@ test "appendBasePathOnUrl: handles multiple href and src in any order" {
     try std.testing.expectEqualStrings("<img src=\"/stabilis/a.jpg\"><a href=\"/stabilis/b\">b</a><img src=\"/stabilis/c.jpg\">", result);
 }
 
-test "appendBasePathOnUrl: leaves relative URLs (no leading slash) unchanged" {
+test "prefixRootRelativeUrls: leaves relative URLs (no leading slash) unchanged" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
     const html = "<a href=\"posts/hello\">link</a>";
@@ -340,7 +340,7 @@ test "appendBasePathOnUrl: leaves relative URLs (no leading slash) unchanged" {
     try std.testing.expectEqualStrings(html, result);
 }
 
-test "appendBasePathOnUrl: no href or src returns html unchanged" {
+test "prefixRootRelativeUrls: no href or src returns html unchanged" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
     const html = "<p>just text</p>";
