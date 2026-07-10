@@ -91,6 +91,40 @@ pub fn escapeDoubleQuote(allocator: std.mem.Allocator, input: []const u8) ![]con
     return out.items;
 }
 
+/// Prepends `base_path` to root-relative `href="/"` and `src="/"` URLs in rendered HTML.
+pub fn prefixRootRelativeUrls(
+    arena: *std.heap.ArenaAllocator,
+    html: []const u8,
+    base_path: []const u8,
+) ![]const u8 {
+    const allocator = arena.allocator();
+    var output: std.ArrayList(u8) = .empty;
+    var pos: usize = 0;
+    while (pos < html.len) {
+        const href_pos = std.mem.indexOfPos(u8, html, pos, "href=\"/");
+        const src_pos = std.mem.indexOfPos(u8, html, pos, "src=\"/");
+        const next = if (href_pos != null and src_pos != null)
+            @min(href_pos.?, src_pos.?)
+        else if (href_pos != null) href_pos.? else if (src_pos != null) src_pos.? else break;
+
+        const prefix_len: usize = if (href_pos != null and href_pos.? == next) 6 else 5;
+        const slash_pos = next + prefix_len;
+
+        // skip protocol-relative URLs (//cdn.example.com)
+        if (slash_pos + 1 < html.len and html[slash_pos + 1] == '/') {
+            try output.appendSlice(allocator, html[pos .. slash_pos + 1]);
+            pos = slash_pos + 1;
+            continue;
+        }
+
+        try output.appendSlice(allocator, html[pos .. next + prefix_len]);
+        try output.appendSlice(allocator, base_path);
+        pos = slash_pos;
+    }
+    try output.appendSlice(allocator, html[pos..]);
+    return output.items;
+}
+
 test "parseSlug creates valid slug from chaotic title string" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
@@ -256,4 +290,60 @@ test "escapeDoubleQuote leaves other special chars unchanged" {
     defer arena.deinit();
     const result = try escapeDoubleQuote(arena.allocator(), "a:b#c{d}[e],f@g%h");
     try std.testing.expectEqualStrings("a:b#c{d}[e],f@g%h", result);
+}
+
+test "prefixRootRelativeUrls: empty base_path returns html unchanged" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const html = "<a href=\"/posts/\">link</a><img src=\"/img.jpg\">";
+    const result = try prefixRootRelativeUrls(&arena, html, "");
+    try std.testing.expectEqualStrings(html, result);
+}
+
+test "prefixRootRelativeUrls: prefixes href and src with base_path" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const html = "<a href=\"/posts/\">link</a><img src=\"/img.jpg\">";
+    const result = try prefixRootRelativeUrls(&arena, html, "/stabilis");
+    try std.testing.expectEqualStrings("<a href=\"/stabilis/posts/\">link</a><img src=\"/stabilis/img.jpg\">", result);
+}
+
+test "prefixRootRelativeUrls: skips protocol-relative URLs" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const html = "<a href=\"//cdn.example.com/foo\">link</a>";
+    const result = try prefixRootRelativeUrls(&arena, html, "/stabilis");
+    try std.testing.expectEqualStrings(html, result);
+}
+
+test "prefixRootRelativeUrls: skips absolute http(s) URLs" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const html = "<a href=\"https://example.com/foo\">link</a>";
+    const result = try prefixRootRelativeUrls(&arena, html, "/stabilis");
+    try std.testing.expectEqualStrings(html, result);
+}
+
+test "prefixRootRelativeUrls: handles multiple href and src in any order" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const html = "<img src=\"/a.jpg\"><a href=\"/b\">b</a><img src=\"/c.jpg\">";
+    const result = try prefixRootRelativeUrls(&arena, html, "/stabilis");
+    try std.testing.expectEqualStrings("<img src=\"/stabilis/a.jpg\"><a href=\"/stabilis/b\">b</a><img src=\"/stabilis/c.jpg\">", result);
+}
+
+test "prefixRootRelativeUrls: leaves relative URLs (no leading slash) unchanged" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const html = "<a href=\"posts/hello\">link</a>";
+    const result = try prefixRootRelativeUrls(&arena, html, "/stabilis");
+    try std.testing.expectEqualStrings(html, result);
+}
+
+test "prefixRootRelativeUrls: no href or src returns html unchanged" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const html = "<p>just text</p>";
+    const result = try prefixRootRelativeUrls(&arena, html, "/stabilis");
+    try std.testing.expectEqualStrings(html, result);
 }
