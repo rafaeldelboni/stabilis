@@ -153,7 +153,6 @@ pub const InitResult = struct {
 pub const BuildResult = struct {
     destination: ?[]const u8 = null,
     build_drafts: bool = false,
-    minify: bool = false,
     clear_dir: bool = false,
 };
 
@@ -227,7 +226,6 @@ pub const stabilis_cli = modelsCli.Cli{
                         .flags = &.{
                             .{ .long = "--dest", .short = "-d", .field = "destination", .help = "Output directory" },
                             .{ .long = "--build-drafts", .short = "-b", .field = "build_drafts", .help = "Include draft content" },
-                            .{ .long = "--minify", .short = "-m", .field = "minify", .help = "Minify the output" },
                             .{ .long = "--clear-dir", .short = "-c", .field = "clear_dir", .help = "Clear destination directory" },
                         },
                         .positionals = &.{},
