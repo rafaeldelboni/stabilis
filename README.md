@@ -58,16 +58,6 @@ Global options:
 
 Run `stabilis <command> --help` for per-command options.
 
-## Init
-
-Scaffold a new site from the bundled example:
-
-```bash
-stabilis init -d my-blog    # → ./my-blog with a working example site
-```
-
-When run from a release binary it downloads the matching example tarball; when run from source (`zig build run -- init`) it copies the local `example/` directory. Refuses to init into a directory that already exists.
-
 ## Configuration
 
 Stabilis reads a `site.yaml` at the root of your source directory. `title` and `base_url` are required; everything else falls back to the built-in defaults shown below.
