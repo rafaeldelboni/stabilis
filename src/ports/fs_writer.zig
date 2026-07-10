@@ -79,6 +79,7 @@ pub fn copyDir(
     }
 }
 
+/// Extracts a tar archive at `tar_path` into `dest_path`, creating it if needed.
 pub fn extractTarToDirPath(io: Io, cwd: std.Io.Dir, tar_path: []const u8, dest_path: []const u8, extract_options: std.tar.ExtractOptions,) !void {
     var tar_file = try cwd.openFile(io, tar_path, .{});
     defer tar_file.close(io);
@@ -133,4 +134,42 @@ test "copyDir mirrors example directory" {
     }
 
     try std.testing.expectEqual(expected.len, 10);
+}
+
+test "extractTarToDirPath extracts a tar into a destination dir" {
+    const allocator = std.testing.allocator;
+    var arena = std.heap.ArenaAllocator.init(allocator);
+    defer arena.deinit();
+
+    var tmp = std.testing.tmpDir(.{ .iterate = true });
+    defer tmp.cleanup();
+
+    const io = std.testing.io;
+    const cwd = std.Io.Dir.cwd();
+    const tmp_path = try cwd.realPathFileAlloc(io, ".zig-cache/tmp", arena.allocator());
+    const work_dir = try std.Io.Dir.path.join(arena.allocator(), &.{ tmp_path, &tmp.sub_path });
+
+    // Build a tar with a wrapping dir "example/" containing one file.
+    const tar_path = try std.Io.Dir.path.join(arena.allocator(), &.{ work_dir, "test.tar" });
+    var tar_file = try cwd.createFile(io, tar_path, .{});
+    var tar_wbuf: [4096]u8 = undefined;
+    var tw = tar_file.writer(io, &tar_wbuf);
+    var tar_writer = std.tar.Writer{ .underlying_writer = &tw.interface };
+    try tar_writer.writeDir("example", .{});
+    tar_writer.prefix = "example";
+    try tar_writer.writeFileBytes("hello.txt", "hello world\n", .{});
+    try tar_writer.finishPedantically();
+    try tw.interface.flush();
+    tar_file.close(io);
+
+    // Extract with strip_components: 1 so "example/" is dropped.
+    const dest_path = try std.Io.Dir.path.join(arena.allocator(), &.{ work_dir, "out" });
+    try extractTarToDirPath(io, cwd, tar_path, dest_path, .{
+        .strip_components = 1,
+    });
+
+    // Verify the file landed at out/hello.txt.
+    const extracted_path = try std.Io.Dir.path.join(arena.allocator(), &.{ dest_path, "hello.txt" });
+    const contents = try std.Io.Dir.readFileAlloc(cwd, io, extracted_path, arena.allocator(), .unlimited);
+    try std.testing.expectEqualStrings("hello world\n", contents);
 }

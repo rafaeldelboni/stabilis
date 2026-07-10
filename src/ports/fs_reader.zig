@@ -174,3 +174,44 @@ test "walkDir reads example directory" {
         }
     }
 }
+
+test "readConfigFile returns ConfigNotFound for missing file" {
+    const allocator = std.testing.allocator;
+    var arena = std.heap.ArenaAllocator.init(allocator);
+    defer arena.deinit();
+
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+
+    const io = std.testing.io;
+    const cwd = std.Io.Dir.cwd();
+    const tmp_path = try cwd.realPathFileAlloc(io, ".zig-cache/tmp", arena.allocator());
+    const source_dir = try std.Io.Dir.path.join(arena.allocator(), &.{ tmp_path, &tmp.sub_path });
+
+    try std.testing.expectError(
+        error.ConfigNotFound,
+        readConfigFile(io, &arena, source_dir, "site.yaml"),
+    );
+}
+
+test "readConfigFile reads existing file" {
+    const allocator = std.testing.allocator;
+    var arena = std.heap.ArenaAllocator.init(allocator);
+    defer arena.deinit();
+
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+
+    const io = std.testing.io;
+    const cwd = std.Io.Dir.cwd();
+    const tmp_path = try cwd.realPathFileAlloc(io, ".zig-cache/tmp", arena.allocator());
+    const source_dir = try std.Io.Dir.path.join(arena.allocator(), &.{ tmp_path, &tmp.sub_path });
+
+    try std.Io.Dir.writeFile(cwd, io, .{
+        .sub_path = try std.Io.Dir.path.join(arena.allocator(), &.{ source_dir, "site.yaml" }),
+        .data = "title: Test\nbase_url: http://localhost\n",
+    });
+
+    const file = try readConfigFile(io, &arena, source_dir, "site.yaml");
+    try std.testing.expect(std.mem.indexOf(u8, file.contents, "title: Test") != null);
+}

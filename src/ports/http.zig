@@ -1,5 +1,6 @@
 const std = @import("std");
 
+/// Downloads `url` and writes the response body to `file_path` in `cwd`.
 pub fn downloadUrlToFilePath(
     arena: *std.heap.ArenaAllocator,
     io: std.Io,
