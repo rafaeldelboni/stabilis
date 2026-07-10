@@ -108,7 +108,7 @@ pub fn prefixRootRelativeUrls(
         else if (href_pos != null) href_pos.? else if (src_pos != null) src_pos.? else break;
 
         const prefix_len: usize = if (href_pos != null and href_pos.? == next) 6 else 5;
-        const slash_pos = next + prefix_len; // position of the '/'
+        const slash_pos = next + prefix_len;
 
         // skip protocol-relative URLs (//cdn.example.com)
         if (slash_pos + 1 < html.len and html[slash_pos + 1] == '/') {
