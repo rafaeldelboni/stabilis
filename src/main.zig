@@ -139,7 +139,17 @@ fn build(
     if (clear_dir) try fs_writer.deleteDir(io, output_dir);
 
     const cfg = try readConfig(arena, io, source_dir);
-    const files = try fs_reader.loadFiles(arena, io, &cfg, source_dir);
+    const files = fs_reader.loadFiles(arena, io, &cfg, source_dir) catch |err| switch (err) {
+        error.ContentDirNotFound => {
+            try printer.errPrint(io, "Content directory not found: {s}/{s}\n", .{ source_dir, cfg.content_dir });
+            return error.Handled;
+        },
+        error.TemplatesDirNotFound => {
+            try printer.errPrint(io, "Templates directory not found: {s}/{s}\n", .{ source_dir, cfg.templates_dir });
+            return error.Handled;
+        },
+        else => return err,
+    };
     const site_data = try site.parse(arena, &cfg, files, build_drafts);
     if (site_data.posts.len == 0 and site_data.pages.len == 0) return error.NoFilesFound;
 
@@ -266,7 +276,7 @@ fn initHandler(
         return 2;
     }
 
-    if (fs_reader.findLocalDir(allocator, io, source)) |example_path| {
+    if (try fs_reader.findLocalDir(allocator, io, source)) |example_path| {
         try fs_writer.copyDir(io, arena, example_path, dest);
         try printer.print(io, "Initialized {s} from local {s}\n", .{ dest, source });
         return 0;
@@ -280,15 +290,12 @@ fn initHandler(
 
     const url = try std.fmt.allocPrint(
         allocator,
-        "https://github.com/rafaeldelboni/stabilis/releases/download/{s}/stabilis-{s}-example.tar.gz",
+        "https://github.com/rafaeldelboni/stabilis/releases/download/{s}/stabilis-{s}-example.tar",
         .{ version, version },
     );
 
-    var client: std.http.Client = .{ .allocator = allocator, .io = io };
-    defer client.deinit();
-
     const cwd = std.Io.Dir.cwd();
-    const tmp = "stabilis-example.tar.gz";
+    const tmp = "stabilis-example.tar";
     defer cwd.deleteFile(io, tmp) catch {};
 
     try printer.print(io, "Downloading {s}\n", .{url});
@@ -338,10 +345,10 @@ pub fn main(init: std.process.Init) !u8 {
         },
     } catch |err| {
         switch (err) {
+            error.Handled => {},
             error.ConfigNotFound => try printer.errPrint(io, "Config file not found: {s}/{s}\n", .{ source_dir, config.config_file }),
-            error.ContentDirNotFound => try printer.errPrint(io, "Content directory not found: {s}/{s}\n", .{ source_dir, config.content_dir }),
-            error.TemplatesDirNotFound => try printer.errPrint(io, "Templates directory not found: {s}/{s}\n", .{ source_dir, config.templates_dir }),
             error.NoFilesFound => try printer.errPrint(io, "No content found to build in: {s}\n", .{source_dir}),
+            error.DownloadFailed => try printer.errPrint(io, "Failed to download example archive\n", .{}),
             else => {
                 try printer.errPrint(io, "error: {}\n", .{err});
                 if (@errorReturnTrace()) |trace| std.debug.dumpErrorReturnTrace(trace);

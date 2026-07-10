@@ -114,15 +114,16 @@ pub fn loadFiles(arena: *std.heap.ArenaAllocator, io: std.Io, cfg: *const Config
     return try std.mem.concat(allocator, models.File, &.{ content_files, template_files });
 }
 
-/// Walks up from the executable's directory looking for an name argument dir.
+/// Walks up from the executable's directory looking for a directory named `name`.
 /// Returns its path (owned by allocator) if found, else null.
-pub fn findLocalDir(allocator: std.mem.Allocator, io: std.Io, name: []const u8) ?[]const u8 {
+/// Propagates non-FileNotFound errors (e.g. permission denied).
+pub fn findLocalDir(allocator: std.mem.Allocator, io: std.Io, name: []const u8) !?[]const u8 {
     var buf: [std.fs.max_path_bytes]u8 = undefined;
     const exe_len = std.process.executablePath(io, &buf) catch return null;
     var dir = std.fs.path.dirname(buf[0..exe_len]) orelse return null;
     while (true) {
-        const candidate = std.Io.Dir.path.join(allocator, &.{ dir, name }) catch return null;
-        const kind = readFileKind(io, candidate) catch return null;
+        const candidate = try std.Io.Dir.path.join(allocator, &.{ dir, name });
+        const kind = try readFileKind(io, candidate);
         if (kind == .directory) {
             return candidate;
         }
