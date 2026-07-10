@@ -1,6 +1,7 @@
 const std = @import("std");
 
 const time = @import("../adapters/time.zig");
+const config_adapter = @import("../adapters/config.zig");
 const config = @import("../logic/config.zig");
 const logic = @import("../logic/site.zig");
 const models = @import("../models.zig");
@@ -93,8 +94,9 @@ pub fn parse(
 
     for (files) |file| {
         if (logic.parsePageKind(cfg, file)) |page_kind| {
+            const base_path = try config_adapter.basePath(allocator, cfg.base_uri);
             const page = try frontmatter.parse(arena, file.contents);
-            const html = try markdown.toHtml(arena, page.source);
+            const html = try markdown.toHtml(arena, base_path, page.source);
             var context: Context = .{};
             try context.map.put(allocator, "body", .{ .string = html });
             if (page.frontmatter.draft) {

@@ -1,5 +1,7 @@
 const std = @import("std");
 
+const string = @import("../adapters/string.zig");
+
 const md4c = @cImport({
     @cInclude("md4c.h");
     @cInclude("md4c-html.h");
@@ -18,11 +20,11 @@ const MdCtx = struct {
     }
 };
 
-pub fn toHtml(arena: *std.heap.ArenaAllocator, md: []const u8) ![]u8 {
+pub fn toHtml(arena: *std.heap.ArenaAllocator, base_path: []const u8 ,md: []const u8) ![]const u8 {
     const allocator = arena.allocator();
     var ctx = MdCtx{ .allocator = allocator };
     const rc = md4c.md_html(md.ptr, @intCast(md.len), MdCtx.callback, &ctx, md4c.MD_DIALECT_GITHUB, 0);
     if (rc != 0) return error.Md4cParseError;
     if (ctx.failed) return error.Md4cParseError;
-    return ctx.list.items;
+    return try string.prefixRootRelativeUrls(arena, ctx.list.items, base_path);
 }

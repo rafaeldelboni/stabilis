@@ -50,9 +50,9 @@ http://github.com - automatic!
 
 ## Blockquotes
 
-As Kanye West said:
-> We're living the future so
-> the present is our past.
+As Carl Sagan said:
+> If you wish to make an apple pie from scratch,
+> you must first invent the universe.
 
 ## Inline code
 
@@ -73,7 +73,6 @@ function fancyAlert(arg) {
   }
 }
 ```
-*(syntax is hilighted using [PrismJs](https://prismjs.com/))*
 
 You can also simply indent your code by four spaces:
 
