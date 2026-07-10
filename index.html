@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>stabilis</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <nav>
+    <a href="/">stabilis</a>
+    <div>
+      
+      <a href="/">Home</a>
+      
+      <a href="/posts/">Posts</a>
+      
+      <a href="/about">About</a>
+      
+    </div>
+  </nav>
+  <main>
+
+
+  <h1>stabilis</h1>
+  <p>A static site generator written in Zig — Markdown in, static HTML out, no backend.</p>
+<h2>Prerequisites</h2>
+<p>To build from source you need <a href="https://ziglang.org/download/">Zig</a> <code>0.16.0</code> or newer. Prefer a prebuilt binary? Skip straight to Install — no toolchain required.</p>
+<h2>Install</h2>
+<p>Installs to <code>/usr/local/bin</code> by default (prefix with <code>sudo</code>, or pass <code>--dir ~/.local/bin</code>):</p>
+<pre><code class="language-bash">curl -fsSL https://raw.githubusercontent.com/rafaeldelboni/stabilis/main/install.sh | bash
+</code></pre>
+<p>With options:</p>
+<pre><code class="language-bash">curl -fsSL .../install.sh | bash -s -- --dir ~/.local/bin
+curl -fsSL .../install.sh | bash -s -- --version v0.1.0
+</code></pre>
+<h2>Configure</h2>
+<p>Stabilis reads a <code>site.yaml</code> at the root of your source directory. Only <code>title</code> and <code>base_url</code> are required; everything else falls back to sensible defaults.</p>
+<pre><code class="language-yaml">title: Example Blog
+base_url: https://example.com
+
+menu:
+  main:
+    - { name: Home, url: / }
+    - { name: Posts, url: /posts/ }
+</code></pre>
+<h2>Init</h2>
+<p>Scaffold a new site from the bundled example:</p>
+<pre><code class="language-bash">stabilis init -d my-blog    # → ./my-blog with a working example site
+</code></pre>
+<p>When run from a release binary it downloads the matching example tarball; when run from source it copies the local <code>example/</code> directory. Refuses to init into a directory that already exists.</p>
+<h2>Build</h2>
+<pre><code class="language-bash">stabilis build example -d public    # build ./example into ./public
+zig build run -- build -S example   # or straight from source
+</code></pre>
+<h2>Serve</h2>
+<p>Build and serve locally while you write:</p>
+<pre><code class="language-bash">stabilis serve -S example
+</code></pre>
+<h2>Scaffold content</h2>
+<pre><code class="language-bash">stabilis new post &quot;Hello World&quot;     # → content/posts/hello-world.md
+stabilis new page &quot;About&quot;           # → content/about.md
+</code></pre>
+<p>Both refuse to overwrite an existing file. Add <code>-h</code> to any command for its options, or run <code>stabilis --version</code>.</p>
+
+
+  <h2>Recent posts</h2>
+  <ul>
+    
+    <li>
+      <a href="/posts/github-flavored-markdown-syntax-guide">Github Flavored Markdown - Syntax guide</a>
+      <time datetime="2026-07-02T23:11:38Z">July 2, 2026 · 23:11</time>
+    </li>
+    
+    <li>
+      <a href="/posts/hello-world">Hello, World</a>
+      <time datetime="2026-06-01T10:00:00Z">June 1, 2026 · 10:00</time>
+    </li>
+    
+  </ul>
+
+  </main>
+  <footer>
+    Made with <a href="https://ziglang.org">Zig</a> and ♥
+  </footer>
+</body>
+</html>
+

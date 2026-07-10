@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>About</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <nav>
+    <a href="/">stabilis</a>
+    <div>
+      
+      <a href="/">Home</a>
+      
+      <a href="/posts/">Posts</a>
+      
+      <a href="/about">About</a>
+      
+    </div>
+  </nav>
+  <main>
+
+
+  <h1>About</h1>
+  <div class="content">
+    <blockquote>
+<p>stabilis: steady, firm, stable.</p>
+</blockquote>
+<h2>Built with</h2>
+<p>One external library does the heavy lifting:</p>
+<ul>
+<li><a href="https://github.com/mity/md4c">md4c</a> — fast C Markdown parser (CommonMark + GFM), used to render post bodies to HTML.</li>
+</ul>
+<p>Everything else is written from scratch in Zig — a few of these may graduate into standalone libraries later:</p>
+<ul>
+<li><strong>CLI</strong> — a comptime-driven command/flag parser with generated help <em>(planned to move into its own library)</em>.</li>
+<li><strong>YAML lexer</strong> — a small reader for <code>site.yaml</code> and Markdown frontmatter.</li>
+<li><strong>Template engine</strong> — Mustache-style rendering: variables, sections, partials, and HTML escaping.</li>
+<li><strong>Frontmatter parser</strong> — pulls per-file metadata out of Markdown.</li>
+</ul>
+<p>It's all wired together with a functional <a href="https://blog.ploeh.dk/2016/03/18/functional-architecture-is-ports-and-adapters/">ports &amp; adapters</a> architecture: a pure domain core wrapped in a thin I/O shell.</p>
+<h2>Contributing</h2>
+<p>Found a dead link, a mistake, or an improvement? <a href="https://github.com/rafaeldelboni/stabilis/issues">Issues</a> and <a href="https://github.com/rafaeldelboni/stabilis/pulls">PRs</a> are highly encouraged.</p>
+<h2>License</h2>
+<p>This is free and unencumbered software released into the public domain.
+For more information, please refer to <a href="http://unlicense.org">http://unlicense.org</a></p>
+
+  </div>
+
+  </main>
+  <footer>
+    Made with <a href="https://ziglang.org">Zig</a> and ♥
+  </footer>
+</body>
+</html>
+

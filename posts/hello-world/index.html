@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Hello, World</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <nav>
+    <a href="/">stabilis</a>
+    <div>
+      
+      <a href="/">Home</a>
+      
+      <a href="/posts/">Posts</a>
+      
+      <a href="/about">About</a>
+      
+    </div>
+  </nav>
+  <main>
+
+
+  <article>
+    <h1>Hello, World</h1>
+    <time datetime="2026-06-01T10:00:00Z">June 1, 2026 · 10:00</time>
+    
+    <span class="tag">
+      <a href="/posts/tags/zig">zig</a>
+    </span>
+    
+    <span class="tag">
+      <a href="/posts/tags/blogging">blogging</a>
+    </span>
+    
+    <div class="content">
+      <h2>Getting started</h2>
+<p>This is the <strong>first post</strong>. It has:</p>
+<ul>
+<li>Frontmatter with tags</li>
+<li>A date</li>
+<li>Markdown body</li>
+</ul>
+<pre><code class="language-zig">const std = @import(&quot;std&quot;);
+
+pub fn main() !void {
+    std.debug.print(&quot;Hello from Zig!\n&quot;, .{});
+}
+</code></pre>
+<h2>Text and emphasis</h2>
+<p>Such hello much world, <em>consectetur adipisicing elit</em>, sed do eiusmod tempor
+incididunt ut <strong>labore et dolore magna aliqua</strong>. <em><strong>Duis aute irure dolor</strong></em> in
+reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.
+<del>Excepteur sint occaecat</del> cupidatat non proident.</p>
+<hr>
+<h3>Lists</h3>
+<p>Unordered, with nesting:</p>
+<ul>
+<li>item-1<ul>
+<li>sub-item-1</li>
+<li>sub-item-2</li>
+</ul>
+</li>
+<li>item-2<ul>
+<li>sub-item-3</li>
+<li>sub-item-4</li>
+</ul>
+</li>
+<li>item-3</li>
+</ul>
+<p>Ordered, with nesting:</p>
+<ol>
+<li>item-1<ol>
+<li>sub-item-1</li>
+<li>sub-item-2</li>
+</ol>
+</li>
+<li>item-2<ol>
+<li>sub-item-3</li>
+<li>sub-item-4</li>
+</ol>
+</li>
+<li>item-3</li>
+</ol>
+<h3>Tables</h3>
+<table>
+<thead>
+<tr>
+<th align="left">Table Header-1</th>
+<th align="center">Table Header-2</th>
+<th align="right">Table Header-3</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left">Table Data-1</td>
+<td align="center">Table Data-2</td>
+<td align="right">Table Data-3</td>
+</tr>
+<tr>
+<td align="left">TD-4</td>
+<td align="center">Td-5</td>
+<td align="right">TD-6</td>
+</tr>
+</tbody>
+</table>
+<h3>Images</h3>
+<p>You can drop images right in:</p>
+<p><img src="https://cloud.githubusercontent.com/assets/5456665/13322882/e74f6626-dc00-11e5-921d-f6d024a01eaa.png" alt="GitHub Logo" title="GitHub"></p>
+<h3>Links</h3>
+<p>A bare URL like <a href="https://github.com/rafaeldelboni/stabilis">https://github.com/rafaeldelboni/stabilis</a> is auto-linked,
+and you can also write an explicit one: <a href="https://github.com/rafaeldelboni/stabilis">stabilis</a>.</p>
+
+    </div>
+  </article>
+
+  </main>
+  <footer>
+    Made with <a href="https://ziglang.org">Zig</a> and ♥
+  </footer>
+</body>
+</html>
+
