@@ -80,7 +80,7 @@ jobs:
 
       - run: zig build -Dversion=${{ github.ref_name }} --summary all
 
-      - run: ./zig-out/bin/stabilis build -S example -c -u https://rafaeldelboni.cc/stabilis
+      - run: ./zig-out/bin/stabilis build -S example -c -u https://rafael.delboni.cc/stabilis
 
       - uses: peaceiris/actions-gh-pages@v4
         with:
