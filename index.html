@@ -4,18 +4,18 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>stabilis</title>
-  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/stabilis/style.css">
 </head>
 <body>
   <nav>
-    <a href="/">stabilis</a>
+    <a href="/stabilis/">stabilis</a>
     <div>
       
-      <a href="/">Home</a>
+      <a href="/stabilis/">Home</a>
       
-      <a href="/posts/">Posts</a>
+      <a href="/stabilis/posts/">Posts</a>
       
-      <a href="/about">About</a>
+      <a href="/stabilis/about">About</a>
       
     </div>
   </nav>
@@ -50,12 +50,15 @@ menu:
 </code></pre>
 <p>When run from a release binary it downloads the matching example tarball; when run from source it copies the local <code>example/</code> directory. Refuses to init into a directory that already exists.</p>
 <h2>Build</h2>
-<pre><code class="language-bash">stabilis build example -d public    # build ./example into ./public
+<pre><code class="language-bash">stabilis build -S example -d public    # build ./example into ./public
+stabilis build -S example -u https://example.com/blog    # override base_url
 zig build run -- build -S example   # or straight from source
 </code></pre>
+<p><code>-u</code>/<code>--base-url</code> overrides the <code>base_url</code> from <code>site.yaml</code> — useful when deploying to a subdirectory (e.g. GitHub Pages). The path component becomes the prefix for all generated links.</p>
 <h2>Serve</h2>
 <p>Build and serve locally while you write:</p>
 <pre><code class="language-bash">stabilis serve -S example
+stabilis serve -S example -p 3000 -b 0.0.0.0    # custom port and bind
 </code></pre>
 <h2>Scaffold content</h2>
 <pre><code class="language-bash">stabilis new post &quot;Hello World&quot;     # → content/posts/hello-world.md
@@ -68,12 +71,12 @@ stabilis new page &quot;About&quot;           # → content/about.md
   <ul>
     
     <li>
-      <a href="/posts/github-flavored-markdown-syntax-guide">Github Flavored Markdown - Syntax guide</a>
+      <a href="/stabilis/posts/github-flavored-markdown-syntax-guide">Github Flavored Markdown - Syntax guide</a>
       <time datetime="2026-07-02T23:11:38Z">July 2, 2026 · 23:11</time>
     </li>
     
     <li>
-      <a href="/posts/hello-world">Hello, World</a>
+      <a href="/stabilis/posts/hello-world">Hello, World</a>
       <time datetime="2026-06-01T10:00:00Z">June 1, 2026 · 10:00</time>
     </li>
     
