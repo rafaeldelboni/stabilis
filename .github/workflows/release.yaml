@@ -67,3 +67,22 @@ jobs:
         with:
           files: release/*
           generate_release_notes: true
+
+  pages:
+    needs: release
+    runs-on: ubuntu-latest
+    name: Deploy example site to GitHub Pages
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: mlugg/setup-zig@v2
+
+      - run: zig build -Dversion=${{ github.ref_name }} --summary all
+
+      - run: ./zig-out/bin/stabilis build -S example -c
+
+      - uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./public
