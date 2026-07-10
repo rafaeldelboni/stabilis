@@ -22,6 +22,7 @@ pub const template_tag_post_list_file_name = "tag-post-list.html";
 pub const default = Config{
     .title = "",
     .base_url = "",
+    .base_uri = .{ .scheme = "" },
     .menu_main = &.{},
 
     .content_dir = content_dir,

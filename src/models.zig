@@ -3,6 +3,7 @@ const std = @import("std");
 pub const Config = struct {
     title: []const u8,
     base_url: []const u8,
+    base_uri: std.Uri,
     menu_main: []const Context,
 
     content_dir: []const u8,
@@ -111,6 +112,7 @@ pub const Tags = std.json.ArrayHashMap(Tag);
 pub const Site = struct {
     title: []const u8,
     base_url: []const u8,
+    base_uri: std.Uri,
     templates: Templates,
     pages: []const Page,
     posts: []const Page,
@@ -143,6 +145,7 @@ pub const ServeResult = struct {
     no_drafts: bool = false,
     port: ?u16 = null,
     bind: ?[]const u8 = null,
+    base_url: ?[]const u8 = null,
     open: bool = false,
 };
 
@@ -154,6 +157,7 @@ pub const BuildResult = struct {
     destination: ?[]const u8 = null,
     build_drafts: bool = false,
     clear_dir: bool = false,
+    base_url: ?[]const u8 = null,
 };
 
 pub const FlagsResult = struct {
@@ -211,6 +215,7 @@ pub const stabilis_cli = modelsCli.Cli{
                             .{ .long = "--no-drafts", .short = "-n", .field = "no_drafts", .help = "Don't include draft content" },
                             .{ .long = "--port", .short = "-p", .field = "port", .help = "Port to serve on" },
                             .{ .long = "--bind", .short = "-b", .field = "bind", .help = "IP address to bind" },
+                            .{ .long = "--base-url", .short = "-u", .field = "base_url", .help = "Override base_url from site.yaml" },
                             .{ .long = "--open", .short = "-o", .field = "open", .help = "Open browser after serving" },
                         },
                         .positionals = &.{},
@@ -227,6 +232,7 @@ pub const stabilis_cli = modelsCli.Cli{
                             .{ .long = "--dest", .short = "-d", .field = "destination", .help = "Output directory" },
                             .{ .long = "--build-drafts", .short = "-b", .field = "build_drafts", .help = "Include draft content" },
                             .{ .long = "--clear-dir", .short = "-c", .field = "clear_dir", .help = "Clear destination directory" },
+                            .{ .long = "--base-url", .short = "-u", .field = "base_url", .help = "Override base_url from site.yaml" },
                         },
                         .positionals = &.{},
                     },

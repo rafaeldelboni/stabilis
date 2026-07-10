@@ -4,14 +4,14 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{ title }}</title>
-  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="{{ base_path }}/style.css">
 </head>
 <body>
   <nav>
-    <a href="/">stabilis</a>
+    <a href="{{ base_path }}/">stabilis</a>
     <div>
       {{# menu_main }}
-      <a href="{{ url }}">{{ name }}</a>
+      <a href="{{ base_path }}/{{ url }}">{{ name }}</a>
       {{/ menu_main }}
     </div>
   </nav>

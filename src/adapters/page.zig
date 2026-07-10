@@ -1,6 +1,7 @@
 const std = @import("std");
 
 const config = @import("../logic/config.zig");
+const config_adapter = @import("config.zig");
 const template = @import("template.zig");
 const models = @import("../models.zig");
 const Context = models.Context;
@@ -31,6 +32,7 @@ pub fn parseHtml(
     var context: Context = .{ .map = try page.context.map.clone(allocator) };
     try context.map.put(allocator, "posts", .{ .list = posts_list });
     try context.map.put(allocator, "menu_main", .{ .list = site_data.menu_main });
+    try context.map.put(allocator, "base_path", .{ .string = try config_adapter.basePath(allocator, site_data.base_uri) });
     const post_template = try template.pageKindToTemplate(page.kind, site_data.templates);
     return try template.render(arena, post_template, site_data.templates, context);
 }
@@ -41,7 +43,7 @@ test "parseFilePath builds output_dir/url/index.html" {
     const allocator = arena.allocator();
 
     var context: Context = .{};
-    try context.map.put(allocator, "url", .{ .string = "/posts/hello" });
+    try context.map.put(allocator, "url", .{ .string = "posts/hello" });
 
     const page: Page = .{ .kind = .post, .context = context };
     const result = try parseFilePath(&arena, "public", "index.html", page);
@@ -54,7 +56,7 @@ test "parseFilePath with root url" {
     const allocator = arena.allocator();
 
     var context: Context = .{};
-    try context.map.put(allocator, "url", .{ .string = "/" });
+    try context.map.put(allocator, "url", .{ .string = "" });
 
     const page: Page = .{ .kind = .home, .context = context };
     const result = try parseFilePath(&arena, "public", "index.html", page);
@@ -78,6 +80,7 @@ test "parseHtml renders page with template and context" {
     const site: Site = .{
         .title = "Test",
         .base_url = "",
+        .base_uri = .{ .scheme = "" },
         .templates = templates,
         .pages = &.{},
         .posts = &.{},
