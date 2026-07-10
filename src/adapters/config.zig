@@ -14,11 +14,56 @@ fn strField(entries: MapEntries, key: []const u8, fallback: []const u8) []const 
     return fallback;
 }
 
+/// Normalized path prefix from `uri` (no trailing slash).
+/// `http://localhost:8000` → `""`, `https://example.com/sub` → `"/sub"`.
+pub fn basePath(allocator: std.mem.Allocator, base_uri: std.Uri) ![]const u8 {
+    const path = switch (base_uri.path) {
+        .raw, .percent_encoded => |s| s,
+    };
+    if (path.len == 0) return "";
+    var trimmed = path;
+    while (trimmed.len > 1 and trimmed[trimmed.len - 1] == '/') trimmed.len -= 1;
+    if (trimmed.len == 0 or std.mem.eql(u8, trimmed, "/")) return "";
+    return try allocator.dupe(u8, trimmed);
+}
+
 fn parseMenuEntryContext(allocator: std.mem.Allocator, name: []const u8, url: []const u8) !Context {
     var ctx: Context = .{};
     try ctx.map.put(allocator, "name", .{ .string = name });
-    try ctx.map.put(allocator, "url", .{ .string = url });
+    const stripped = if (std.mem.startsWith(u8, url, "/")) url[1..] else url;
+    try ctx.map.put(allocator, "url", .{ .string = stripped });
     return ctx;
+}
+
+test "basePath: empty for host-only url" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    try std.testing.expectEqualStrings("", try basePath(a, try std.Uri.parse("http://localhost:8000")));
+    try std.testing.expectEqualStrings("", try basePath(a, try std.Uri.parse("https://example.com")));
+}
+
+test "basePath: empty for root url" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    try std.testing.expectEqualStrings("", try basePath(a, try std.Uri.parse("https://example.com/")));
+}
+
+test "basePath: single-segment path" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    try std.testing.expectEqualStrings("/stabilis", try basePath(a, try std.Uri.parse("https://example.com/stabilis")));
+    try std.testing.expectEqualStrings("/stabilis", try basePath(a, try std.Uri.parse("https://example.com/stabilis/")));
+}
+
+test "basePath: multi-segment path" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    try std.testing.expectEqualStrings("/blog/sub", try basePath(a, try std.Uri.parse("https://example.com/blog/sub")));
+    try std.testing.expectEqualStrings("/blog/sub", try basePath(a, try std.Uri.parse("https://example.com/blog/sub/")));
 }
 
 pub fn parse(arena: *std.heap.ArenaAllocator, config_file: []const u8) !Config {
@@ -31,6 +76,7 @@ pub fn parse(arena: *std.heap.ArenaAllocator, config_file: []const u8) !Config {
         if (site_config.map.get("title")) |title| title.string else return error.NoConfigTitle;
     const site_base_url =
         if (site_config.map.get("base_url")) |base_url| base_url.string else return error.NoConfigBaseUrl;
+    const site_base_uri = std.Uri.parse(site_base_url) catch std.Uri{ .scheme = "" };
     var menu_main: std.ArrayList(Context) = .empty;
     if (site_config.map.get("menu")) |menu| {
         if (menu.map.map.get("main")) |main| {
@@ -79,6 +125,7 @@ pub fn parse(arena: *std.heap.ArenaAllocator, config_file: []const u8) !Config {
     return Config{
         .title = site_title,
         .base_url = site_base_url,
+        .base_uri = site_base_uri,
         .menu_main = menu_main.items,
 
         .content_dir = content_dir,
@@ -124,9 +171,9 @@ test "parse: site metadata and default layout" {
     try std.testing.expectEqualStrings("http://localhost:8000", cfg.base_url);
     try std.testing.expectEqual(@as(usize, 2), cfg.menu_main.len);
     try std.testing.expectEqualStrings("Home", cfg.menu_main[0].map.get("name").?.string);
-    try std.testing.expectEqualStrings("/", cfg.menu_main[0].map.get("url").?.string);
+    try std.testing.expectEqualStrings("", cfg.menu_main[0].map.get("url").?.string);
     try std.testing.expectEqualStrings("Posts", cfg.menu_main[1].map.get("name").?.string);
-    try std.testing.expectEqualStrings("/posts/", cfg.menu_main[1].map.get("url").?.string);
+    try std.testing.expectEqualStrings("posts/", cfg.menu_main[1].map.get("url").?.string);
 
     // layout primitives fall back to static defaults (not in yaml)
     try std.testing.expectEqualStrings("content", cfg.content_dir);

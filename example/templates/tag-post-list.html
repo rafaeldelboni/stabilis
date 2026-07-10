@@ -1,13 +1,13 @@
 {{> partials/header.html }}
 
   <section>
-    <a href="/posts/">← All posts</a>
+    <a href="{{ base_path }}/posts/">← All posts</a>
     <p class="eyebrow">Tagged</p>
     <h1>#{{ title }}</h1>
     <ul>
       {{# posts }}
       <li>
-        <a href="{{ url }}">{{ title }}</a>
+        <a href="{{ base_path }}/{{ url }}">{{ title }}</a>
         <time datetime="{{ date }}">{{ date_human }}</time>
       </li>
       {{/ posts }}

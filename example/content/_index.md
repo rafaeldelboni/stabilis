@@ -50,9 +50,12 @@ When run from a release binary it downloads the matching example tarball; when r
 ## Build
 
 ```bash
-stabilis build example -d public    # build ./example into ./public
+stabilis build -S example -d public    # build ./example into ./public
+stabilis build -S example -u https://example.com/blog    # override base_url
 zig build run -- build -S example   # or straight from source
 ```
+
+`-u`/`--base-url` overrides the `base_url` from `site.yaml` — useful when deploying to a subdirectory (e.g. GitHub Pages). The path component becomes the prefix for all generated links.
 
 ## Serve
 
@@ -60,6 +63,7 @@ Build and serve locally while you write:
 
 ```bash
 stabilis serve -S example
+stabilis serve -S example -p 3000 -b 0.0.0.0    # custom port and bind
 ```
 
 ## Scaffold content

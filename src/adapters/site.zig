@@ -31,13 +31,13 @@ fn parseSlug(arena: *std.heap.ArenaAllocator, file: File, page: ContentEntry) ![
 
 fn buildUrl(arena: *std.heap.ArenaAllocator, cfg: *const Config, page_kind: PageKind, slug: []const u8) ![]const u8 {
     const allocator = arena.allocator();
-    switch (page_kind) {
-        .post => return try std.Io.Dir.path.join(allocator, &.{ cfg.post_url_prefix, slug }),
-        .page => return try std.Io.Dir.path.join(allocator, &.{ "/", slug }),
-        .home => return "/",
-        .post_list => return cfg.post_url_prefix,
-        .tag_post_list => return try std.Io.Dir.path.join(allocator, &.{ cfg.tag_post_list_url_prefix, slug }),
-    }
+    return switch (page_kind) {
+        .post => try std.Io.Dir.path.join(allocator, &.{ cfg.post_url_prefix[1..], slug }),
+        .page => slug,
+        .home => "",
+        .post_list => cfg.post_url_prefix[1..],
+        .tag_post_list => try std.Io.Dir.path.join(allocator, &.{ cfg.tag_post_list_url_prefix[1..], slug }),
+    };
 }
 
 fn parseImageList(allocator: std.mem.Allocator, images: []const ImageSpec) ![]Context {
@@ -149,6 +149,7 @@ pub fn parse(
     return Site{
         .title = cfg.title,
         .base_url = cfg.base_url,
+        .base_uri = cfg.base_uri,
         .menu_main = main_menu,
         .templates = templates,
         .pages = pages.items,
@@ -238,7 +239,7 @@ test "parse post populates posts list with frontmatter in context" {
     try std.testing.expectEqual(true, post.context.map.get("draft").?.bool);
     try std.testing.expect(std.mem.containsAtLeast(u8, post.context.map.get("body").?.string, 1, "<h2>"));
     try std.testing.expectEqualStrings("hello-world", post.context.map.get("slug").?.string);
-    try std.testing.expectEqualStrings("/posts/hello-world", post.context.map.get("url").?.string);
+    try std.testing.expectEqualStrings("posts/hello-world", post.context.map.get("url").?.string);
 }
 
 test "parse page (non-post) goes to pages list" {
@@ -263,7 +264,7 @@ test "parse page (non-post) goes to pages list" {
     try std.testing.expectEqual(PageKind.page, site.pages[0].kind);
     try std.testing.expectEqualStrings("About Us", site.pages[0].context.map.get("title").?.string);
     try std.testing.expect(std.mem.containsAtLeast(u8, site.pages[0].context.map.get("body").?.string, 1, "<h1>"));
-    try std.testing.expectEqualStrings("/about-us", site.pages[0].context.map.get("url").?.string);
+    try std.testing.expectEqualStrings("about-us", site.pages[0].context.map.get("url").?.string);
 
     try std.testing.expectEqual(@as(usize, 1), site.menu_main.len);
 }
@@ -319,10 +320,10 @@ test "smoke: full site with config, pages, posts, templates" {
     cfg.base_url = "http://localhost:8000";
     var home_ctx: Context = .{};
     try home_ctx.map.put(arena.allocator(), "name", .{ .string = "Home" });
-    try home_ctx.map.put(arena.allocator(), "url", .{ .string = "/" });
+    try home_ctx.map.put(arena.allocator(), "url", .{ .string = "" });
     var posts_ctx: Context = .{};
     try posts_ctx.map.put(arena.allocator(), "name", .{ .string = "Posts" });
-    try posts_ctx.map.put(arena.allocator(), "url", .{ .string = "/posts/" });
+    try posts_ctx.map.put(arena.allocator(), "url", .{ .string = "posts/" });
     cfg.menu_main = &.{ home_ctx, posts_ctx };
 
     const files = [_]File{
@@ -384,11 +385,11 @@ test "smoke: full site with config, pages, posts, templates" {
     // menu
     try std.testing.expectEqual(@as(usize, 3), site.menu_main.len);
     try std.testing.expectEqualStrings("Home", site.menu_main[0].map.get("name").?.string);
-    try std.testing.expectEqualStrings("/", site.menu_main[0].map.get("url").?.string);
+    try std.testing.expectEqualStrings("", site.menu_main[0].map.get("url").?.string);
     try std.testing.expectEqualStrings("Posts", site.menu_main[1].map.get("name").?.string);
-    try std.testing.expectEqualStrings("/posts/", site.menu_main[1].map.get("url").?.string);
+    try std.testing.expectEqualStrings("posts/", site.menu_main[1].map.get("url").?.string);
     try std.testing.expectEqualStrings("About Us", site.menu_main[2].map.get("name").?.string);
-    try std.testing.expectEqualStrings("/about-us", site.menu_main[2].map.get("url").?.string);
+    try std.testing.expectEqualStrings("about-us", site.menu_main[2].map.get("url").?.string);
 
     // pages: home + post_list + about (both under content/ but not content/posts/)
     try std.testing.expectEqual(@as(usize, 3), site.pages.len);
@@ -396,13 +397,13 @@ test "smoke: full site with config, pages, posts, templates" {
     const home_page = site.pages[0];
     try std.testing.expectEqual(PageKind.home, home_page.kind);
     try std.testing.expectEqualStrings("Welcome", home_page.context.map.get("title").?.string);
-    try std.testing.expectEqualStrings("/", home_page.context.map.get("url").?.string);
+    try std.testing.expectEqualStrings("", home_page.context.map.get("url").?.string);
     try std.testing.expect(std.mem.containsAtLeast(u8, home_page.context.map.get("body").?.string, 1, "<h1>"));
 
     const about_page = site.pages[2];
     try std.testing.expectEqual(PageKind.page, about_page.kind);
     try std.testing.expectEqualStrings("About Us", about_page.context.map.get("title").?.string);
-    try std.testing.expectEqualStrings("/about-us", about_page.context.map.get("url").?.string);
+    try std.testing.expectEqualStrings("about-us", about_page.context.map.get("url").?.string);
     try std.testing.expect(std.mem.containsAtLeast(u8, about_page.context.map.get("body").?.string, 1, "<h1>"));
 
     // posts
@@ -413,7 +414,7 @@ test "smoke: full site with config, pages, posts, templates" {
     try std.testing.expectEqualStrings("Hello, World", post.context.map.get("title").?.string);
     try std.testing.expectEqualStrings("2026-06-01T10:00:00Z", post.context.map.get("date").?.string);
     try std.testing.expectEqualStrings("First post on the new SSG.", post.context.map.get("description").?.string);
-    try std.testing.expectEqualStrings("/posts/hello-world", post.context.map.get("url").?.string);
+    try std.testing.expectEqualStrings("posts/hello-world", post.context.map.get("url").?.string);
     try std.testing.expect(std.mem.containsAtLeast(u8, post.context.map.get("body").?.string, 1, "<h2>"));
 
     const tags = post.context.map.get("tags").?.list;
@@ -425,7 +426,7 @@ test "smoke: full site with config, pages, posts, templates" {
     try std.testing.expectEqual(@as(usize, 2), site.tags.map.count());
     const zig_tag = site.tags.map.get("zig").?;
     try std.testing.expectEqualStrings("zig", zig_tag.page.context.map.get("title").?.string);
-    try std.testing.expectEqualStrings("/posts/tags/zig", zig_tag.page.context.map.get("url").?.string);
+    try std.testing.expectEqualStrings("posts/tags/zig", zig_tag.page.context.map.get("url").?.string);
     try std.testing.expectEqual(PageKind.tag_post_list, zig_tag.page.kind);
     try std.testing.expectEqual(@as(usize, 1), zig_tag.indexes.items.len);
     try std.testing.expectEqual(@as(usize, 0), zig_tag.indexes.items[0]);
