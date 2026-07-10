@@ -51,7 +51,7 @@ http://github.com - automatic!
 ## Blockquotes
 
 As Carl Sagan said:
-> If you wish to make an apple pie from scratch,
+> If you wish to make an apple pie from scratch,  
 > you must first invent the universe.
 
 ## Inline code
