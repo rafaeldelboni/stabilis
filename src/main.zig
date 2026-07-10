@@ -268,7 +268,7 @@ fn initHandler(
 
     if (fs_reader.findLocalDir(allocator, io, source)) |example_path| {
         try fs_writer.copyDir(io, arena, example_path, dest);
-        try printer.print(io, "Initialized {s} from local {s}\n", .{dest, source});
+        try printer.print(io, "Initialized {s} from local {s}\n", .{ dest, source });
         return 0;
     }
 
@@ -338,14 +338,10 @@ pub fn main(init: std.process.Init) !u8 {
         },
     } catch |err| {
         switch (err) {
-            error.ConfigNotFound => try printer.errPrint(io,
-                "Config file not found: {s}/{s}\n", .{ source_dir, config.config_file }),
-            error.ContentDirNotFound => try printer.errPrint(io,
-                "Content directory not found: {s}/{s}\n", .{ source_dir, config.content_dir }),
-            error.TemplatesDirNotFound => try printer.errPrint(io,
-                "Templates directory not found: {s}/{s}\n", .{ source_dir, config.templates_dir }),
-            error.NoFilesFound => try printer.errPrint(io,
-                "No content found to build in: {s}\n", .{source_dir}),
+            error.ConfigNotFound => try printer.errPrint(io, "Config file not found: {s}/{s}\n", .{ source_dir, config.config_file }),
+            error.ContentDirNotFound => try printer.errPrint(io, "Content directory not found: {s}/{s}\n", .{ source_dir, config.content_dir }),
+            error.TemplatesDirNotFound => try printer.errPrint(io, "Templates directory not found: {s}/{s}\n", .{ source_dir, config.templates_dir }),
+            error.NoFilesFound => try printer.errPrint(io, "No content found to build in: {s}\n", .{source_dir}),
             else => {
                 try printer.errPrint(io, "error: {}\n", .{err});
                 if (@errorReturnTrace()) |trace| std.debug.dumpErrorReturnTrace(trace);

@@ -80,7 +80,13 @@ pub fn copyDir(
 }
 
 /// Extracts a tar archive at `tar_path` into `dest_path`, creating it if needed.
-pub fn extractTarToDirPath(io: Io, cwd: std.Io.Dir, tar_path: []const u8, dest_path: []const u8, extract_options: std.tar.ExtractOptions,) !void {
+pub fn extractTarToDirPath(
+    io: Io,
+    cwd: std.Io.Dir,
+    tar_path: []const u8,
+    dest_path: []const u8,
+    extract_options: std.tar.ExtractOptions,
+) !void {
     var tar_file = try cwd.openFile(io, tar_path, .{});
     defer tar_file.close(io);
     var rbuf: [4096]u8 = undefined;
