@@ -150,7 +150,7 @@ test "walkDir reads example directory" {
         "content/posts/hello-world.md",
         "site.yaml",
         "static/fonts/recursive-wght-slnt.woff2",
-        "static/images/manly-palmer-hall-alchemical-manuscript.jpg",
+        "static/images/vangogh-skull-1887.jpg",
         "static/style.css",
         "templates/home.html",
         "templates/page.html",

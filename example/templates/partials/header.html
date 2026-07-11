@@ -5,6 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{ title }}</title>
   <link rel="stylesheet" href="{{ base_path }}/style.css">
+  <link rel="preload" href="{{ base_path }}/fonts/recursive-wght-slnt.woff2" as="font" type="font/woff2" crossorigin>
+  <style>
+    @font-face {
+      font-family: "Recursive";
+      src: url("{{ base_path }}/fonts/recursive-wght-slnt.woff2") format("woff2");
+      font-weight: 300 1000;
+      font-display: swap;
+    }
+  </style>
 </head>
 <body>
   <nav>

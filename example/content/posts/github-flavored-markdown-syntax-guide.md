@@ -41,7 +41,7 @@ _You **can** combine them_
 
 ## Images
 
-![From: Manly Palmer Hall collection of alchemical manuscripts, 1500-1825](/images/manly-palmer-hall-alchemical-manuscript.jpg)
+![Vincent van Gogh (1853 - 1890), Paris, May 1887](/images/vangogh-skull-1887.jpg)
 
 ## Links
 
@@ -51,7 +51,7 @@ http://github.com - automatic!
 ## Blockquotes
 
 As Carl Sagan said:
-> If you wish to make an apple pie from scratch,  
+> If you wish to make an apple pie from scratch,
 > you must first invent the universe.
 
 ## Inline code

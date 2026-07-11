@@ -42,14 +42,6 @@
   }
 }
 
-/* ---------- Recursive (self-hosted variable font, OFL) ---------- */
-@font-face {
-  font-family: "Recursive";
-  src: url("/fonts/recursive-wght-slnt.woff2") format("woff2");
-  font-weight: 300 1000;                 /* variable weight range */
-  font-display: swap;
-}
-
 /* ---------- Reset ---------- */
 *, *::before, *::after { box-sizing: border-box; }
 * { margin: 0; }
@@ -69,6 +61,7 @@ body {
   /* MONO 1 = monospaced glyphs; CASL 0 = linear (technical, not casual).
      Inherited by everything, so the whole page is mono. */
   font-variation-settings: "MONO" 1, "CASL" 0, "slnt" 0;
+  word-spacing: normal;
   font-size: 1.0625rem;                  /* ~17px — a notch above default for comfort */
   line-height: 1.7;
   overflow-wrap: break-word;             /* long URLs/words wrap instead of overflowing */

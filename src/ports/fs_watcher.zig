@@ -9,6 +9,13 @@ fn stripDotSlash(path: []const u8) []const u8 {
     return path;
 }
 
+/// Joins two path segments into `buf`, avoiding double slashes (e.g. `./` + `public` → `./public`).
+fn joinPath(buf: []u8, base: []const u8, child: []const u8) ?[]const u8 {
+    const trimmed = std.mem.trimEnd(u8, base, "/");
+    if (trimmed.len == 0) return std.fmt.bufPrint(buf, "{s}", .{child}) catch null;
+    return std.fmt.bufPrint(buf, "{s}/{s}", .{ trimmed, child }) catch null;
+}
+
 /// Returns true when `dir_path` is equal to or nested under any of `excludes`.
 fn isPathExcluded(dir_path: []const u8, excludes: []const []const u8) bool {
     if (excludes.len == 0) return false;
@@ -26,6 +33,31 @@ fn isPathExcluded(dir_path: []const u8, excludes: []const []const u8) bool {
         }
     }
     return false;
+}
+
+test "joinPath avoids double slash when base ends with /" {
+    var buf: [std.fs.max_path_bytes]u8 = undefined;
+    try std.testing.expectEqualStrings("./public", joinPath(&buf, "./", "public").?);
+    try std.testing.expectEqualStrings("example/public", joinPath(&buf, "example/", "public").?);
+    try std.testing.expectEqualStrings("example/public", joinPath(&buf, "example", "public").?);
+    try std.testing.expectEqualStrings("public", joinPath(&buf, "", "public").?);
+}
+
+test "isPathExcluded matches exact and nested paths" {
+    try std.testing.expect(isPathExcluded("public", &.{"public"}));
+    try std.testing.expect(isPathExcluded("./public", &.{"public"}));
+    try std.testing.expect(isPathExcluded("public/sub", &.{"public"}));
+    try std.testing.expect(isPathExcluded("./public/sub", &.{"public"}));
+    try std.testing.expect(!isPathExcluded("content", &.{"public"}));
+    try std.testing.expect(!isPathExcluded("./content", &.{"public"}));
+    try std.testing.expect(!isPathExcluded("publics", &.{"public"}));
+    try std.testing.expect(!isPathExcluded("./publics", &.{"public"}));
+}
+
+test "isPathExcluded with joinPath reproduces the ./ + public bug" {
+    var buf: [std.fs.max_path_bytes]u8 = undefined;
+    const joined = joinPath(&buf, "./", "public").?;
+    try std.testing.expect(isPathExcluded(joined, &.{"public"}));
 }
 
 pub const Watcher = struct {
@@ -119,41 +151,51 @@ const Linux = struct {
             else => return err,
         };
 
-        try self.parseEvents(buf[0..len]);
+        var saw_real = try self.parseEvents(buf[0..len]);
         // 50ms debounce: drain follow-up events (matching macOS latency)
         while (true) {
             const n2 = std.posix.poll(&pfds, 50) catch break;
             if (n2 == 0) break;
             const len2 = std.posix.read(self.fd, &buf) catch break;
-            self.parseEvents(buf[0..len2]) catch break;
+            if (try self.parseEvents(buf[0..len2])) saw_real = true;
         }
-        return .changed;
+        return if (saw_real) .changed else .timeout;
     }
 
-    /// Parse events to auto-mark newly created subdirectories.
-    fn parseEvents(self: *Linux, buf: []u8) !void {
+    /// Parses events: auto-marks newly created subdirs and returns true if any
+    /// event was outside the excluded paths.
+    fn parseEvents(self: *Linux, buf: []u8) !bool {
         const fan = std.os.linux.fanotify;
         const M = fan.event_metadata;
         var meta: [*]align(1) M = @ptrCast(@alignCast(buf.ptr));
         var remaining = buf.len;
+        var saw_real = false;
         while (remaining >= @sizeOf(M) and meta[0].event_len >= @sizeOf(M) and meta[0].event_len <= remaining) {
-            if (meta[0].mask.CREATE and meta[0].mask.ONDIR) {
-                const fid: *align(1) fan.event_info_fid = @ptrCast(meta + 1);
-                if (fid.hdr.info_type == .DFID_NAME) {
-                    const file_handle: *align(1) std.os.linux.file_handle = @ptrCast(&fid.handle);
-                    const name_ptr: [*:0]u8 = @ptrCast((&file_handle.f_handle).ptr + file_handle.handle_bytes);
-                    const name = std.mem.span(name_ptr);
-                    var path_buf: [std.fs.max_path_bytes]u8 = undefined;
-                    if (std.fmt.bufPrint(&path_buf, "{s}/{s}", .{ self.watch_dir, name })) |new_dir| {
-                        if (!isPathExcluded(new_dir, self.excludes)) {
-                            markDirTree(self.io, self.fd, self.mask, new_dir, self.excludes);
-                        }
-                    } else |_| {}
+            // Determine the event path to check against excludes.
+            const fid: *align(1) fan.event_info_fid = @ptrCast(meta + 1);
+            if (fid.hdr.info_type == .DFID_NAME) {
+                const file_handle: *align(1) std.os.linux.file_handle = @ptrCast(&fid.handle);
+                const name_ptr: [*:0]u8 = @ptrCast((&file_handle.f_handle).ptr + file_handle.handle_bytes);
+                const name = std.mem.span(name_ptr);
+                var path_buf: [std.fs.max_path_bytes]u8 = undefined;
+                if (joinPath(&path_buf, self.watch_dir, name)) |full_path| {
+                    if (isPathExcluded(full_path, self.excludes)) {
+                        remaining -= meta[0].event_len;
+                        meta = @ptrCast(@as([*]u8, @ptrCast(meta)) + meta[0].event_len);
+                        continue;
+                    }
+                    saw_real = true;
+                    if (meta[0].mask.CREATE and meta[0].mask.ONDIR) {
+                        markDirTree(self.io, self.fd, self.mask, full_path, self.excludes);
+                    }
                 }
+            } else {
+                saw_real = true;
             }
             remaining -= meta[0].event_len;
             meta = @ptrCast(@as([*]u8, @ptrCast(meta)) + meta[0].event_len);
         }
+        return saw_real;
     }
 
     /// Recursively marks `dir_path` and subdirectories on the fanotify `fd`, skipping `excludes`.
@@ -167,7 +209,7 @@ const Linux = struct {
         while (iter.next(io) catch null) |entry| {
             if (entry.kind != .directory) continue;
             var buf: [std.fs.max_path_bytes]u8 = undefined;
-            const sub = std.fmt.bufPrint(&buf, "{s}/{s}", .{ dir_path, entry.name }) catch continue;
+            const sub = joinPath(&buf, dir_path, entry.name) orelse continue;
             markDirTree(io, fd, mask, sub, excludes);
         }
     }
