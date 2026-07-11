@@ -9,6 +9,13 @@ fn stripDotSlash(path: []const u8) []const u8 {
     return path;
 }
 
+/// Joins two path segments into `buf`, avoiding double slashes (e.g. `./` + `public` → `./public`).
+fn joinPath(buf: []u8, base: []const u8, child: []const u8) ?[]const u8 {
+    const trimmed = std.mem.trimEnd(u8, base, "/");
+    if (trimmed.len == 0) return std.fmt.bufPrint(buf, "{s}", .{child}) catch null;
+    return std.fmt.bufPrint(buf, "{s}/{s}", .{ trimmed, child }) catch null;
+}
+
 /// Returns true when `dir_path` is equal to or nested under any of `excludes`.
 fn isPathExcluded(dir_path: []const u8, excludes: []const []const u8) bool {
     if (excludes.len == 0) return false;
@@ -28,11 +35,12 @@ fn isPathExcluded(dir_path: []const u8, excludes: []const []const u8) bool {
     return false;
 }
 
-/// Joins two path segments into `buf`, avoiding double slashes (e.g. `./` + `public` → `./public`).
-fn joinPath(buf: []u8, base: []const u8, child: []const u8) ?[]const u8 {
-    const trimmed = std.mem.trimEnd(u8, base, "/");
-    if (trimmed.len == 0) return std.fmt.bufPrint(buf, "{s}", .{child}) catch null;
-    return std.fmt.bufPrint(buf, "{s}/{s}", .{ trimmed, child }) catch null;
+test "joinPath avoids double slash when base ends with /" {
+    var buf: [std.fs.max_path_bytes]u8 = undefined;
+    try std.testing.expectEqualStrings("./public", joinPath(&buf, "./", "public").?);
+    try std.testing.expectEqualStrings("example/public", joinPath(&buf, "example/", "public").?);
+    try std.testing.expectEqualStrings("example/public", joinPath(&buf, "example", "public").?);
+    try std.testing.expectEqualStrings("public", joinPath(&buf, "", "public").?);
 }
 
 test "isPathExcluded matches exact and nested paths" {
@@ -44,14 +52,6 @@ test "isPathExcluded matches exact and nested paths" {
     try std.testing.expect(!isPathExcluded("./content", &.{"public"}));
     try std.testing.expect(!isPathExcluded("publics", &.{"public"}));
     try std.testing.expect(!isPathExcluded("./publics", &.{"public"}));
-}
-
-test "joinPath avoids double slash when base ends with /" {
-    var buf: [std.fs.max_path_bytes]u8 = undefined;
-    try std.testing.expectEqualStrings("./public", joinPath(&buf, "./", "public").?);
-    try std.testing.expectEqualStrings("example/public", joinPath(&buf, "example/", "public").?);
-    try std.testing.expectEqualStrings("example/public", joinPath(&buf, "example", "public").?);
-    try std.testing.expectEqualStrings("public", joinPath(&buf, "", "public").?);
 }
 
 test "isPathExcluded with joinPath reproduces the ./ + public bug" {
