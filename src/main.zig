@@ -240,7 +240,7 @@ fn serveHandler(
 
     var sig: sse.ReloadSignal = .{}; // .init fields default to .init
 
-    var watcher = try fs_watcher.Watcher.init(io, arena, &.{source_dir});
+    var watcher = try fs_watcher.Watcher.init(io, arena, &.{source_dir}, &.{output_dir});
     defer watcher.deinit();
 
     var server = try webserver.init(io, listen_ip, listen_port);
