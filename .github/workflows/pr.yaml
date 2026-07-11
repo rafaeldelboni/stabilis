@@ -64,3 +64,16 @@ jobs:
           curl -sS http://127.0.0.1:8000/posts/hello-world | grep -q 'smoke marker'
           kill $SERVE_PID 2>/dev/null
           cat tmp/serve.log
+
+      - name: Serve with output inside watched dir, verify no rebuild loop
+        run: |
+          ./zig-out/bin/stabilis serve -S example > tmp/serve-loop.log 2>&1 &
+          SERVE_PID=$!
+          sleep 1
+          echo "loop marker" >> example/content/posts/hello-world.md
+          sleep 2
+          kill $SERVE_PID 2>/dev/null
+          cat tmp/serve-loop.log
+          rebuilds=$(grep -c 'Rebuilt' tmp/serve-loop.log)
+          echo "Rebuild count: $rebuilds"
+          test "$rebuilds" -le 2
