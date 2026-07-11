@@ -3,16 +3,13 @@ const builtin = @import("builtin");
 
 pub const WaitResult = enum { changed, timeout };
 
-/// Strips a leading `./` so that prefix comparisons like `startsWith("public/")`
-/// work whether the caller passed `./public/` or `public/`.
+/// Strips a leading `./` so prefix comparisons work with `./public/` or `public/`.
 fn stripDotSlash(path: []const u8) []const u8 {
     if (path.len >= 2 and path[0] == '.' and path[1] == '/') return path[2..];
     return path;
 }
 
 /// Returns true when `dir_path` is equal to or nested under any of `excludes`.
-/// Comparison is byte-wise on slash-stripped forms, so `./public/` and
-/// `public/` are treated identically.
 fn isPathExcluded(dir_path: []const u8, excludes: []const []const u8) bool {
     if (excludes.len == 0) return false;
     const stripped = stripDotSlash(dir_path);
@@ -40,8 +37,7 @@ pub const Watcher = struct {
         else => @compileError("fs_watcher: unsupported OS, only Linux and macOS"),
     };
 
-    /// Creates a watcher monitoring the given `paths` for filesystem changes,
-    /// ignoring any changes inside `excludes` (e.g. the build output directory).
+    /// Creates a watcher monitoring `paths`, ignoring changes inside `excludes`.
     pub fn init(
         io: std.Io,
         arena: *std.heap.ArenaAllocator,
@@ -160,8 +156,7 @@ const Linux = struct {
         }
     }
 
-    /// Recursively marks `dir_path` and all its subdirectories with `mask` on the fanotify `fd`.
-    /// Skips any `dir_path` (or subdirectory) that is equal to or nested under `excludes`.
+    /// Recursively marks `dir_path` and subdirectories on the fanotify `fd`, skipping `excludes`.
     fn markDirTree(io: std.Io, fd: std.posix.fd_t, mask: std.os.linux.fanotify.MarkMask, dir_path: []const u8, excludes: []const []const u8) void {
         if (isPathExcluded(dir_path, excludes)) return;
         const cwd = std.Io.Dir.cwd();
@@ -339,10 +334,7 @@ const MacOs = struct {
         }
     }
 
-    /// FSEvents callback: signals the semaphore on the first non-history event.
-    /// Path-based exclusion filtering is not needed here because
-    /// `ignore_self = true` suppresses events from the current process (the
-    /// build writing into the output directory).
+    /// FSEvents callback: signals the semaphore on the first non-history event (ignore_self filters build writes).
     fn eventCallback(
         _: ConstFSEventStreamRef,
         client_callback_info: ?*anyopaque,
