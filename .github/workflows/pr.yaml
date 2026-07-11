@@ -54,7 +54,7 @@ jobs:
           ./zig-out/bin/stabilis build -S example -d tmp/site -c
           find tmp/site | sort
 
-      - name: Serve site, verify HTTP responses and watcher rebuild
+      - name: Serve and verify watcher rebuild
         run: |
           ./zig-out/bin/stabilis serve -S example -d tmp/site > tmp/serve.log 2>&1 &
           SERVE_PID=$!
@@ -65,7 +65,7 @@ jobs:
           kill $SERVE_PID 2>/dev/null
           cat tmp/serve.log
 
-      - name: Serve with output inside watched dir, verify no rebuild loop
+      - name: Serve from watched dir and verify no rebuild loop
         run: |
           cd example
           ../zig-out/bin/stabilis serve -S ./ > ../tmp/serve-loop.log 2>&1 &
