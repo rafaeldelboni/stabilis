@@ -72,18 +72,29 @@ fn findSectionEnd(template: []const u8, name: []const u8, start: usize) !struct 
 }
 
 /// Iterates over a list value, merging parent scope into each item, and renders the section body for each.
+/// Applies sort and top modifiers from the section tag when present.
 fn renderSection(
     arena: *std.heap.ArenaAllocator,
     inner: []const u8,
     templates: Templates,
     context: Context,
     value: CtxValue,
+    modifiers: logic.SectionModifiers,
     output: *std.ArrayList(u8),
 ) !void {
     const allocator = arena.allocator();
     switch (value) {
         .list => |items| {
-            for (items) |item| {
+            var list: []const Context = items;
+            if (modifiers.sort_key) |key| {
+                const copy = try allocator.dupe(Context, items);
+                logic.sortContextList(copy, key, modifiers.sort_direction);
+                list = copy;
+            }
+            if (modifiers.top) |n| {
+                list = logic.topN(list, n);
+            }
+            for (list) |item| {
                 var child_ctx: Context = .{};
                 var parent_it = context.map.iterator();
                 while (parent_it.next()) |entry| {
@@ -157,7 +168,7 @@ pub fn render(
             .section_open => {
                 const section = try findSectionEnd(template, tag.name, tag.close_pos);
                 if (context.map.get(tag.name)) |value| {
-                    try renderSection(arena, section.inner, templates, context, value, &output);
+                    try renderSection(arena, section.inner, templates, context, value, tag.modifiers, &output);
                 }
                 pos = section.end;
             },
@@ -445,4 +456,159 @@ test "findSectionEnd section with surrounding text" {
     const result = try findSectionEnd(template, "x", 14);
     try std.testing.expectEqualStrings("mid", result.inner);
     try std.testing.expectEqual(@as(usize, 25), result.end);
+}
+
+test "render section with sort desc modifier" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    var context: Context = .{};
+    try context.map.put(allocator, "posts", .{ .list = &.{
+        blk: {
+            var ctx: Context = .{};
+            try ctx.map.put(allocator, "title", .{ .string = "Bananas" });
+            try ctx.map.put(allocator, "date", .{ .string = "1977-01-01" });
+            break :blk ctx;
+        },
+        blk: {
+            var ctx: Context = .{};
+            try ctx.map.put(allocator, "title", .{ .string = "Apples" });
+            try ctx.map.put(allocator, "date", .{ .string = "1977-01-02" });
+            break :blk ctx;
+        },
+    } });
+
+    var templates: Templates = .{};
+    defer templates.deinit(allocator);
+
+    const tmpl = "{{# posts sort=date desc }}{{ title }}|{{/ posts }}";
+    const result = try render(&arena, tmpl, templates, context);
+    try std.testing.expectEqualStrings("Apples|Bananas|", result);
+}
+
+test "render section with sort asc modifier" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    var context: Context = .{};
+    try context.map.put(allocator, "posts", .{ .list = &.{
+        blk: {
+            var ctx: Context = .{};
+            try ctx.map.put(allocator, "title", .{ .string = "Bananas" });
+            try ctx.map.put(allocator, "date", .{ .string = "1977-01-01" });
+            break :blk ctx;
+        },
+        blk: {
+            var ctx: Context = .{};
+            try ctx.map.put(allocator, "title", .{ .string = "Apples" });
+            try ctx.map.put(allocator, "date", .{ .string = "1977-01-02" });
+            break :blk ctx;
+        },
+    } });
+
+    var templates: Templates = .{};
+    defer templates.deinit(allocator);
+
+    const tmpl = "{{# posts sort=date asc }}{{ title }}|{{/ posts }}";
+    const result = try render(&arena, tmpl, templates, context);
+    try std.testing.expectEqualStrings("Bananas|Apples|", result);
+}
+
+test "render section with top modifier" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    var context: Context = .{};
+    try context.map.put(allocator, "posts", .{ .list = &.{
+        blk: {
+            var ctx: Context = .{};
+            try ctx.map.put(allocator, "title", .{ .string = "A" });
+            try ctx.map.put(allocator, "date", .{ .string = "2026-03-01" });
+            break :blk ctx;
+        },
+        blk: {
+            var ctx: Context = .{};
+            try ctx.map.put(allocator, "title", .{ .string = "B" });
+            try ctx.map.put(allocator, "date", .{ .string = "2026-02-01" });
+            break :blk ctx;
+        },
+        blk: {
+            var ctx: Context = .{};
+            try ctx.map.put(allocator, "title", .{ .string = "C" });
+            try ctx.map.put(allocator, "date", .{ .string = "2026-01-01" });
+            break :blk ctx;
+        },
+    } });
+
+    var templates: Templates = .{};
+    defer templates.deinit(allocator);
+
+    const tmpl = "{{# posts sort=date desc top=2 }}{{ title }}|{{/ posts }}";
+    const result = try render(&arena, tmpl, templates, context);
+    try std.testing.expectEqualStrings("A|B|", result);
+}
+
+test "render section with top before sort modifier" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    var context: Context = .{};
+    try context.map.put(allocator, "posts", .{ .list = &.{
+        blk: {
+            var ctx: Context = .{};
+            try ctx.map.put(allocator, "title", .{ .string = "A" });
+            try ctx.map.put(allocator, "date", .{ .string = "2026-03-01" });
+            break :blk ctx;
+        },
+        blk: {
+            var ctx: Context = .{};
+            try ctx.map.put(allocator, "title", .{ .string = "B" });
+            try ctx.map.put(allocator, "date", .{ .string = "2026-02-01" });
+            break :blk ctx;
+        },
+        blk: {
+            var ctx: Context = .{};
+            try ctx.map.put(allocator, "title", .{ .string = "C" });
+            try ctx.map.put(allocator, "date", .{ .string = "2026-01-01" });
+            break :blk ctx;
+        },
+    } });
+
+    var templates: Templates = .{};
+    defer templates.deinit(allocator);
+
+    const tmpl = "{{# posts top=2 sort=date desc }}{{ title }}|{{/ posts }}";
+    const result = try render(&arena, tmpl, templates, context);
+    try std.testing.expectEqualStrings("A|B|", result);
+}
+
+test "render section without modifiers is unchanged" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    var context: Context = .{};
+    try context.map.put(allocator, "posts", .{ .list = &.{
+        blk: {
+            var ctx: Context = .{};
+            try ctx.map.put(allocator, "title", .{ .string = "Bananas" });
+            break :blk ctx;
+        },
+        blk: {
+            var ctx: Context = .{};
+            try ctx.map.put(allocator, "title", .{ .string = "Apples" });
+            break :blk ctx;
+        },
+    } });
+
+    var templates: Templates = .{};
+    defer templates.deinit(allocator);
+
+    const tmpl = "{{# posts }}{{ title }}|{{/ posts }}";
+    const result = try render(&arena, tmpl, templates, context);
+    try std.testing.expectEqualStrings("Bananas|Apples|", result);
 }
