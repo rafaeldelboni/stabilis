@@ -551,6 +551,41 @@ test "render section with top modifier" {
     try std.testing.expectEqualStrings("A|B|", result);
 }
 
+test "render section with top before sort modifier" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    var context: Context = .{};
+    try context.map.put(allocator, "posts", .{ .list = &.{
+        blk: {
+            var ctx: Context = .{};
+            try ctx.map.put(allocator, "title", .{ .string = "A" });
+            try ctx.map.put(allocator, "date", .{ .string = "2026-03-01" });
+            break :blk ctx;
+        },
+        blk: {
+            var ctx: Context = .{};
+            try ctx.map.put(allocator, "title", .{ .string = "B" });
+            try ctx.map.put(allocator, "date", .{ .string = "2026-02-01" });
+            break :blk ctx;
+        },
+        blk: {
+            var ctx: Context = .{};
+            try ctx.map.put(allocator, "title", .{ .string = "C" });
+            try ctx.map.put(allocator, "date", .{ .string = "2026-01-01" });
+            break :blk ctx;
+        },
+    } });
+
+    var templates: Templates = .{};
+    defer templates.deinit(allocator);
+
+    const tmpl = "{{# posts top=2 sort=date desc }}{{ title }}|{{/ posts }}";
+    const result = try render(&arena, tmpl, templates, context);
+    try std.testing.expectEqualStrings("A|B|", result);
+}
+
 test "render section without modifiers is unchanged" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
