@@ -3,7 +3,6 @@ const std = @import("std");
 const config = @import("../logic/config.zig");
 const config_adapter = @import("config.zig");
 const template = @import("template.zig");
-const time = @import("time.zig");
 const models = @import("../models.zig");
 const Context = models.Context;
 const Page = models.Page;
@@ -26,7 +25,7 @@ pub fn parseFilePath(
 }
 
 /// Renders a page into HTML by merging its context with posts and menu, then applying the matching template.
-pub fn parseHtml(
+pub fn parse(
     arena: *std.heap.ArenaAllocator,
     page: Page,
     posts_list: []Context,
@@ -38,15 +37,7 @@ pub fn parseHtml(
     try context.map.put(allocator, "posts", .{ .list = posts_list });
     try context.map.put(allocator, "menu_main", .{ .list = site_data.menu_main });
     try context.map.put(allocator, "base_path", .{ .string = try config_adapter.basePath(allocator, site_data.base_uri) });
-    if (page.kind == .atom_feed) {
-        try context.map.put(allocator, "domain", .{ .string = site_data.domain });
-        try context.map.put(allocator, "updated", .{ .string = try time.toIsoString(arena, site_data.now) });
-        try context.map.put(allocator, "site_title", .{ .string = site_data.title });
-        try context.map.put(allocator, "site_author", .{ .string = site_data.author });
-        try context.map.put(allocator, "site_description", .{ .string = site_data.description });
-        try context.map.put(allocator, "site_version", .{ .string = site_data.version });
-        try context.map.put(allocator, "year", .{ .string = try std.fmt.allocPrint(allocator, "{d}", .{site_data.now.year}) });
-    }
+    try context.map.put(allocator, "year", .{ .string = try std.fmt.allocPrint(allocator, "{d}", .{site_data.now.year}) });
     const post_template = try template.pageKindToTemplate(page.kind, site_data.templates);
     return try template.render(arena, post_template, site_data.templates, context);
 }
@@ -90,7 +81,7 @@ test "parseFilePath atom feed is single file without index wrapper" {
     try std.testing.expectEqualStrings("public/feed.atom", result);
 }
 
-test "parseHtml renders page with template and context" {
+test "parse renders page with template and context" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
@@ -120,17 +111,22 @@ test "parseHtml renders page with template and context" {
         .menu_main = &.{},
     };
 
-    const result = try parseHtml(&arena, page, &.{}, site);
+    const result = try parse(&arena, page, &.{}, site);
     try std.testing.expectEqualStrings("<h1>About</h1><p>Hello</p>", result);
 }
 
-test "parseHtml injects site-level context (domain, updated, site_title, base_url)" {
+test "parse renders atom feed with feed-specific context from page" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
 
     var page_context: Context = .{};
-    try page_context.map.put(allocator, "title", .{ .string = "Post" });
+    try page_context.map.put(allocator, "site_title", .{ .string = "My Blog" });
+    try page_context.map.put(allocator, "site_author", .{ .string = "Jane Doe" });
+    try page_context.map.put(allocator, "site_description", .{ .string = "" });
+    try page_context.map.put(allocator, "site_version", .{ .string = "test" });
+    try page_context.map.put(allocator, "domain", .{ .string = "example.com" });
+    try page_context.map.put(allocator, "updated", .{ .string = "2003-12-13T18:30:02Z" });
 
     const page: Page = .{ .kind = .atom_feed, .context = page_context };
 
@@ -158,7 +154,7 @@ test "parseHtml injects site-level context (domain, updated, site_title, base_ur
         .menu_main = &.{},
     };
 
-    const result = try parseHtml(&arena, page, &.{}, site);
+    const result = try parse(&arena, page, &.{}, site);
     try std.testing.expectEqualStrings(
         "<feed><title>My Blog</title><updated>2003-12-13T18:30:02Z</updated>" ++
             "<author><name>Jane Doe</name></author>" ++

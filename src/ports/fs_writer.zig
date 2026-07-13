@@ -40,7 +40,7 @@ pub fn writePage(
     site_data: Site,
 ) !void {
     const file_path = try page.parseFilePath(arena, output_dir, cfg.output_index, page_data);
-    const html = try page.parseHtml(arena, page_data, post_list, site_data);
+    const html = try page.parse(arena, page_data, post_list, site_data);
     try writeFileDeep(io, html, file_path);
 }
 

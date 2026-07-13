@@ -80,6 +80,26 @@ fn upsertTag(arena: *std.heap.ArenaAllocator, cfg: *const Config, tags: *Tags, t
     return tag_entry.value_ptr.page.context;
 }
 
+fn buildFeedPage(
+    arena: *std.heap.ArenaAllocator,
+    cfg: *const Config,
+    domain: []const u8,
+    now: DateTime,
+    version: []const u8,
+) !Page {
+    const allocator = arena.allocator();
+    var context: Context = .{};
+    try context.map.put(allocator, "page_kind", .{ .string = "atom_feed" });
+    try context.map.put(allocator, "url", .{ .string = try buildUrl(arena, cfg, .atom_feed, "") });
+    try context.map.put(allocator, "domain", .{ .string = domain });
+    try context.map.put(allocator, "updated", .{ .string = try time.toIsoString(arena, now) });
+    try context.map.put(allocator, "site_title", .{ .string = cfg.title });
+    try context.map.put(allocator, "site_author", .{ .string = cfg.author });
+    try context.map.put(allocator, "site_description", .{ .string = cfg.description });
+    try context.map.put(allocator, "site_version", .{ .string = version });
+    return .{ .kind = .atom_feed, .context = context };
+}
+
 /// Parses loaded files into a `Site` (config, templates, pages, posts, menu).
 pub fn parse(
     arena: *std.heap.ArenaAllocator,
@@ -144,14 +164,6 @@ pub fn parse(
                         try context.map.put(allocator, "images", .{ .list = try parseImageList(allocator, page.frontmatter.images) });
                     try posts.append(allocator, Page{ .kind = page_kind, .context = context });
                 },
-                .post_list => {
-                    try pages.append(allocator, Page{ .kind = page_kind, .context = context });
-                    // synthetically create a page to generate the atom feed
-                    var feed_context: Context = .{ .map = try context.map.clone(allocator) };
-                    try feed_context.map.put(allocator, "page_kind", .{ .string = "atom_feed" });
-                    try feed_context.map.put(allocator, "url", .{ .string = try buildUrl(arena, cfg, .atom_feed, "") });
-                    try pages.append(allocator, Page{ .kind = .atom_feed, .context = feed_context });
-                },
                 else => try pages.append(allocator, Page{ .kind = page_kind, .context = context }),
             }
         }
@@ -159,6 +171,8 @@ pub fn parse(
             if (std.mem.cutPrefix(u8, file.rel_path, cfg.templates_prefix)) |template_key|
                 try templates.map.put(allocator, template_key, file.contents);
     }
+
+    try pages.append(allocator, try buildFeedPage(arena, cfg, domain, now, version));
 
     const main_menu = try std.mem.concat(allocator, Context, &.{
         cfg.menu_main,
@@ -220,7 +234,7 @@ test "parse with only config populates site metadata" {
     try std.testing.expectEqual(@as(usize, 1), site.menu_main.len);
     try std.testing.expectEqualStrings("About", site.menu_main[0].map.get("name").?.string);
     try std.testing.expectEqualStrings("/about", site.menu_main[0].map.get("url").?.string);
-    try std.testing.expectEqual(@as(usize, 0), site.pages.len);
+    try std.testing.expectEqual(@as(usize, 1), site.pages.len);
     try std.testing.expectEqual(@as(usize, 0), site.posts.len);
     try std.testing.expectEqual(@as(usize, 0), site.templates.map.count());
 }
@@ -244,7 +258,7 @@ test "parse empty files returns defaults" {
     try std.testing.expectEqualStrings("", site.base_url);
     try std.testing.expectEqual(@as(i16, 2003), site.now.year);
     try std.testing.expectEqual(@as(usize, 0), site.menu_main.len);
-    try std.testing.expectEqual(@as(usize, 0), site.pages.len);
+    try std.testing.expectEqual(@as(usize, 1), site.pages.len);
     try std.testing.expectEqual(@as(usize, 0), site.posts.len);
 }
 
@@ -275,7 +289,7 @@ test "parse post populates posts list with frontmatter in context" {
         .year = 2003,
     }, "test");
     try std.testing.expectEqual(@as(usize, 1), site.posts.len);
-    try std.testing.expectEqual(@as(usize, 0), site.pages.len);
+    try std.testing.expectEqual(@as(usize, 1), site.pages.len);
 
     const post = site.posts[0];
     try std.testing.expectEqual(PageKind.post, post.kind);
@@ -315,7 +329,7 @@ test "parse page (non-post) goes to pages list" {
         .year = 2003,
     }, "test");
     try std.testing.expectEqual(@as(usize, 0), site.posts.len);
-    try std.testing.expectEqual(@as(usize, 1), site.pages.len);
+    try std.testing.expectEqual(@as(usize, 2), site.pages.len);
     try std.testing.expectEqual(PageKind.page, site.pages[0].kind);
     try std.testing.expectEqualStrings("page", site.pages[0].context.map.get("page_kind").?.string);
     try std.testing.expectEqualStrings("About Us", site.pages[0].context.map.get("title").?.string);
@@ -473,7 +487,7 @@ test "smoke: full site with config, pages, posts, templates" {
     try std.testing.expectEqualStrings("About Us", site.menu_main[2].map.get("name").?.string);
     try std.testing.expectEqualStrings("about-us", site.menu_main[2].map.get("url").?.string);
 
-    // pages: home + post_list + atom_feed + about
+    // pages: home + post_list + about + atom_feed
     try std.testing.expectEqual(@as(usize, 4), site.pages.len);
 
     const home_page = site.pages[0];
@@ -488,18 +502,21 @@ test "smoke: full site with config, pages, posts, templates" {
     try std.testing.expectEqualStrings("post_list", post_list_page.context.map.get("page_kind").?.string);
     try std.testing.expectEqualStrings("Posts", post_list_page.context.map.get("title").?.string);
 
-    const feed_page = site.pages[2];
-    try std.testing.expectEqual(PageKind.atom_feed, feed_page.kind);
-    try std.testing.expectEqualStrings("atom_feed", feed_page.context.map.get("page_kind").?.string);
-    try std.testing.expectEqualStrings("Posts", feed_page.context.map.get("title").?.string);
-    try std.testing.expectEqualStrings("feed.atom", feed_page.context.map.get("url").?.string);
-
-    const about_page = site.pages[3];
+    const about_page = site.pages[2];
     try std.testing.expectEqual(PageKind.page, about_page.kind);
     try std.testing.expectEqualStrings("page", about_page.context.map.get("page_kind").?.string);
     try std.testing.expectEqualStrings("About Us", about_page.context.map.get("title").?.string);
     try std.testing.expectEqualStrings("about-us", about_page.context.map.get("url").?.string);
     try std.testing.expect(std.mem.containsAtLeast(u8, about_page.context.map.get("body").?.string, 1, "<h1>"));
+
+    const feed_page = site.pages[3];
+    try std.testing.expectEqual(PageKind.atom_feed, feed_page.kind);
+    try std.testing.expectEqualStrings("atom_feed", feed_page.context.map.get("page_kind").?.string);
+    try std.testing.expectEqualStrings("feed.atom", feed_page.context.map.get("url").?.string);
+    try std.testing.expectEqualStrings("Example Blog", feed_page.context.map.get("site_title").?.string);
+    try std.testing.expectEqualStrings("John Doe", feed_page.context.map.get("site_author").?.string);
+    try std.testing.expectEqualStrings("test", feed_page.context.map.get("site_version").?.string);
+    try std.testing.expectEqualStrings("localhost", feed_page.context.map.get("domain").?.string);
 
     // posts
     try std.testing.expectEqual(@as(usize, 1), site.posts.len);
