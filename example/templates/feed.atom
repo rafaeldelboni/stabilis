@@ -22,7 +22,7 @@
     <updated>{{ date }}</updated>
     {{# tags }}<category term="{{ slug }}" label="{{ title }}"/>{{/ tags }}
     <summary>{{ description }}</summary>
-    <content type="html"><![CDATA[{{{ body }}}]]></content>
+    <content type="html">{{ body }}</content>
   </entry>
   {{/ posts }}
 
