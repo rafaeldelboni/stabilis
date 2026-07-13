@@ -1,5 +1,7 @@
 title: Example Blog
 base_url: http://localhost:8000
+author: John Doe
+description: A blog built with stabilis
 menu:
   main:
     - { name: Home, url: / }

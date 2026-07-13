@@ -77,6 +77,8 @@ pub fn parse(arena: *std.heap.ArenaAllocator, config_file: []const u8) !Config {
     const site_base_url =
         if (site_config.map.get("base_url")) |base_url| base_url.string else return error.NoConfigBaseUrl;
     const site_base_uri = std.Uri.parse(site_base_url) catch std.Uri{ .scheme = "" };
+    const site_author = strField(site_config, "author", site_title);
+    const site_description = strField(site_config, "description", config.default_description);
     var menu_main: std.ArrayList(Context) = .empty;
     if (site_config.map.get("menu")) |menu| {
         if (menu.map.map.get("main")) |main| {
@@ -107,6 +109,8 @@ pub fn parse(arena: *std.heap.ArenaAllocator, config_file: []const u8) !Config {
         strField(site_config, "template_post_list_file_name", config.default.template_post_list_file_name);
     const template_tag_post_list_file_name =
         strField(site_config, "template_tag_post_list_file_name", config.default.template_tag_post_list_file_name);
+    const template_atom_feed_file_name =
+        strField(site_config, "template_atom_feed_file_name", config.default.template_atom_feed_file_name);
     const post_url_prefix = strField(site_config, "post_url_prefix", config.default.post_url_prefix);
 
     const home_page_path =
@@ -126,6 +130,8 @@ pub fn parse(arena: *std.heap.ArenaAllocator, config_file: []const u8) !Config {
         .title = site_title,
         .base_url = site_base_url,
         .base_uri = site_base_uri,
+        .author = site_author,
+        .description = site_description,
         .menu_main = menu_main.items,
 
         .content_dir = content_dir,
@@ -140,6 +146,7 @@ pub fn parse(arena: *std.heap.ArenaAllocator, config_file: []const u8) !Config {
         .template_page_file_name = template_page_file_name,
         .template_post_list_file_name = template_post_list_file_name,
         .template_tag_post_list_file_name = template_tag_post_list_file_name,
+        .template_atom_feed_file_name = template_atom_feed_file_name,
         .post_url_prefix = post_url_prefix,
 
         .home_page_path = home_page_path,
@@ -158,6 +165,8 @@ test "parse: site metadata and default layout" {
     const yaml =
         \\title: Example Blog
         \\base_url: http://localhost:8000
+        \\author: Jane Doe
+        \\description: A blog built with stabilis
         \\menu:
         \\  main:
         \\    - { name: Home, url: / }
@@ -169,6 +178,8 @@ test "parse: site metadata and default layout" {
     // site metadata from yaml
     try std.testing.expectEqualStrings("Example Blog", cfg.title);
     try std.testing.expectEqualStrings("http://localhost:8000", cfg.base_url);
+    try std.testing.expectEqualStrings("Jane Doe", cfg.author);
+    try std.testing.expectEqualStrings("A blog built with stabilis", cfg.description);
     try std.testing.expectEqual(@as(usize, 2), cfg.menu_main.len);
     try std.testing.expectEqualStrings("Home", cfg.menu_main[0].map.get("name").?.string);
     try std.testing.expectEqualStrings("", cfg.menu_main[0].map.get("url").?.string);
@@ -215,4 +226,21 @@ test "parse: yaml overrides layout primitive" {
     // non-overridden primitive still falls back
     try std.testing.expectEqualStrings("content", cfg.content_dir);
     try std.testing.expectEqualStrings("content/_index.md", cfg.home_page_path);
+}
+
+test "parse: author falls back to title when missing" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+
+    const yaml =
+        \\title: My Site
+        \\base_url: http://x
+        \\menu:
+        \\  main:
+        \\    - { name: Home, url: / }
+    ;
+
+    const cfg = try parse(&arena, yaml);
+    try std.testing.expectEqualStrings("My Site", cfg.author);
+    try std.testing.expectEqualStrings("", cfg.description);
 }

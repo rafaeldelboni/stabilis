@@ -44,6 +44,7 @@ pub fn contentTypeForPath(path: []const u8) []const u8 {
     if (std.mem.eql(u8, ext, ".js")) return "application/javascript";
     if (std.mem.eql(u8, ext, ".json")) return "application/json";
     if (std.mem.eql(u8, ext, ".xml")) return "application/xml";
+    if (std.mem.eql(u8, ext, ".atom")) return "application/atom+xml";
     if (std.mem.eql(u8, ext, ".png")) return "image/png";
     if (std.mem.eql(u8, ext, ".jpg") or std.mem.eql(u8, ext, ".jpeg")) return "image/jpeg";
     if (std.mem.eql(u8, ext, ".gif")) return "image/gif";
@@ -71,6 +72,8 @@ test "contentTypeForPath maps extensions to mime types" {
     try std.testing.expectEqualStrings("image/jpeg", contentTypeForPath("/img/photo.jpg"));
     try std.testing.expectEqualStrings("image/svg+xml", contentTypeForPath("/img/icon.svg"));
     try std.testing.expectEqualStrings("text/plain", contentTypeForPath("/robots.txt"));
+    try std.testing.expectEqualStrings("application/xml", contentTypeForPath("/feed.xml"));
+    try std.testing.expectEqualStrings("application/atom+xml", contentTypeForPath("/feed.atom"));
     try std.testing.expectEqualStrings("application/octet-stream", contentTypeForPath("/file.xyz"));
 }
 

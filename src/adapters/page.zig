@@ -3,13 +3,14 @@ const std = @import("std");
 const config = @import("../logic/config.zig");
 const config_adapter = @import("config.zig");
 const template = @import("template.zig");
+const time = @import("time.zig");
 const models = @import("../models.zig");
 const Context = models.Context;
 const Page = models.Page;
 const Site = models.Site;
 const Templates = models.Templates;
 
-/// Builds the output file path for a page as `output_dir/url/index.html`.
+/// Builds the output file path for a page, varying by page kind.
 pub fn parseFilePath(
     arena: *std.heap.ArenaAllocator,
     output_dir: []const u8,
@@ -18,7 +19,10 @@ pub fn parseFilePath(
 ) ![]const u8 {
     const allocator = arena.allocator();
     const url = page.context.map.get("url").?.string;
-    return try std.Io.Dir.path.join(allocator, &.{ output_dir, url, output_index });
+    return switch (page.kind) {
+        .atom_feed => try std.Io.Dir.path.join(allocator, &.{ output_dir, url }),
+        else => try std.Io.Dir.path.join(allocator, &.{ output_dir, url, output_index }),
+    };
 }
 
 /// Renders a page into HTML by merging its context with posts and menu, then applying the matching template.
@@ -30,6 +34,14 @@ pub fn parseHtml(
 ) ![]const u8 {
     const allocator = arena.allocator();
     var context: Context = .{ .map = try page.context.map.clone(allocator) };
+    try context.map.put(allocator, "domain", .{ .string = site_data.domain });
+    try context.map.put(allocator, "updated", .{ .string = try time.toIsoString(arena, site_data.now) });
+    try context.map.put(allocator, "site_title", .{ .string = site_data.title });
+    try context.map.put(allocator, "site_author", .{ .string = site_data.author });
+    try context.map.put(allocator, "site_description", .{ .string = site_data.description });
+    try context.map.put(allocator, "site_version", .{ .string = site_data.version });
+    try context.map.put(allocator, "year", .{ .string = try std.fmt.allocPrint(allocator, "{d}", .{site_data.now.year}) });
+    try context.map.put(allocator, "base_url", .{ .string = site_data.base_url });
     try context.map.put(allocator, "posts", .{ .list = posts_list });
     try context.map.put(allocator, "menu_main", .{ .list = site_data.menu_main });
     try context.map.put(allocator, "base_path", .{ .string = try config_adapter.basePath(allocator, site_data.base_uri) });
@@ -63,6 +75,19 @@ test "parseFilePath with root url" {
     try std.testing.expectEqualStrings("public/index.html", result);
 }
 
+test "parseFilePath atom feed is single file without index wrapper" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    var context: Context = .{};
+    try context.map.put(allocator, "url", .{ .string = "feed.atom" });
+
+    const page: Page = .{ .kind = .atom_feed, .context = context };
+    const result = try parseFilePath(&arena, "public", "index.html", page);
+    try std.testing.expectEqualStrings("public/feed.atom", result);
+}
+
 test "parseHtml renders page with template and context" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
@@ -81,6 +106,11 @@ test "parseHtml renders page with template and context" {
         .title = "Test",
         .base_url = "",
         .base_uri = .{ .scheme = "" },
+        .domain = "localhost",
+        .author = "",
+        .description = "",
+        .version = "test",
+        .now = .{ .sec = 0, .min = 0, .hour = 0, .day = 1, .month = 1, .year = 2003 },
         .templates = templates,
         .pages = &.{},
         .posts = &.{},
@@ -90,4 +120,51 @@ test "parseHtml renders page with template and context" {
 
     const result = try parseHtml(&arena, page, &.{}, site);
     try std.testing.expectEqualStrings("<h1>About</h1><p>Hello</p>", result);
+}
+
+test "parseHtml injects site-level context (domain, updated, site_title, base_url)" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    var page_context: Context = .{};
+    try page_context.map.put(allocator, "title", .{ .string = "Post" });
+
+    const page: Page = .{ .kind = .atom_feed, .context = page_context };
+
+    var templates: Templates = .{};
+    try templates.map.put(allocator, "feed.atom",
+        "<feed><title>{{ site_title }}</title><updated>{{ updated }}</updated>" ++
+            "<author><name>{{ site_author }}</name></author>" ++
+            "<generator uri=\"https://github.com/rafaeldelboni/stabilis\" version=\"{{ site_version }}\">stabilis</generator>" ++
+            "<rights>Copyright {{ year }} {{ site_author }}</rights>" ++
+            "<subtitle>{{ site_description }}</subtitle>" ++
+            "<id>urn:{{ domain }}</id><link href=\"{{ base_url }}\"/></feed>");
+
+    const site: Site = .{
+        .title = "My Blog",
+        .base_url = "example.com",
+        .base_uri = try std.Uri.parse("https://example.com"),
+        .domain = "example.com",
+        .author = "Jane Doe",
+        .description = "",
+        .version = "test",
+        .now = .{ .sec = 2, .min = 30, .hour = 18, .day = 13, .month = 12, .year = 2003 },
+        .templates = templates,
+        .pages = &.{},
+        .posts = &.{},
+        .tags = .{},
+        .menu_main = &.{},
+    };
+
+    const result = try parseHtml(&arena, page, &.{}, site);
+    try std.testing.expectEqualStrings(
+        "<feed><title>My Blog</title><updated>2003-12-13T18:30:02Z</updated>" ++
+            "<author><name>Jane Doe</name></author>" ++
+            "<generator uri=\"https://github.com/rafaeldelboni/stabilis\" version=\"test\">stabilis</generator>" ++
+            "<rights>Copyright 2003 Jane Doe</rights>" ++
+            "<subtitle></subtitle>" ++
+            "<id>urn:example.com</id><link href=\"example.com\"/></feed>",
+        result,
+    );
 }

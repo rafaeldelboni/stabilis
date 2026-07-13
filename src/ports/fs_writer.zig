@@ -122,6 +122,7 @@ test "copyDir mirrors example directory" {
         "content/posts/_index.md",
         "content/posts/hello-world.md",
         "site.yaml",
+        "templates/feed.atom",
         "templates/home.html",
         "templates/page.html",
         "templates/partials/header.html",
@@ -139,7 +140,7 @@ test "copyDir mirrors example directory" {
         f.close(io);
     }
 
-    try std.testing.expectEqual(expected.len, 10);
+    try std.testing.expectEqual(expected.len, 11);
 }
 
 test "extractTarToDirPath extracts a tar into a destination dir" {

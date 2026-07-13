@@ -67,6 +67,10 @@ Stabilis reads a `site.yaml` at the root of your source directory. `title` and `
 title: Example Blog
 base_url: https://example.com
 
+# Optional
+author: John Doe
+description: A blog built with stabilis
+
 # Optional menu
 menu:
   main:
@@ -87,6 +91,7 @@ template_post_file_name: post.html
 template_page_file_name: page.html
 template_post_list_file_name: post-list.html
 template_tag_post_list_file_name: tag-post-list.html
+template_atom_feed_file_name: feed.atom
 ```
 
 ## Built with
