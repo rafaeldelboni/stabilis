@@ -133,13 +133,12 @@ test "parseHtml injects site-level context (domain, updated, site_title, base_ur
     const page: Page = .{ .kind = .atom_feed, .context = page_context };
 
     var templates: Templates = .{};
-    try templates.map.put(allocator, "feed.atom",
-        "<feed><title>{{ site_title }}</title><updated>{{ updated }}</updated>" ++
-            "<author><name>{{ site_author }}</name></author>" ++
-            "<generator uri=\"https://github.com/rafaeldelboni/stabilis\" version=\"{{ site_version }}\">stabilis</generator>" ++
-            "<rights>Copyright {{ year }} {{ site_author }}</rights>" ++
-            "<subtitle>{{ site_description }}</subtitle>" ++
-            "<id>urn:{{ domain }}</id><link href=\"{{ base_url }}\"/></feed>");
+    try templates.map.put(allocator, "feed.atom", "<feed><title>{{ site_title }}</title><updated>{{ updated }}</updated>" ++
+        "<author><name>{{ site_author }}</name></author>" ++
+        "<generator uri=\"https://github.com/rafaeldelboni/stabilis\" version=\"{{ site_version }}\">stabilis</generator>" ++
+        "<rights>Copyright {{ year }} {{ site_author }}</rights>" ++
+        "<subtitle>{{ site_description }}</subtitle>" ++
+        "<id>urn:{{ domain }}</id><link href=\"{{ base_url }}\"/></feed>");
 
     const site: Site = .{
         .title = "My Blog",
