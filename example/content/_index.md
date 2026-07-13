@@ -31,11 +31,26 @@ Stabilis reads a `site.yaml` at the root of your source directory. Only `title` 
 title: Example Blog
 base_url: https://example.com
 
+# Optional — author appears in the Atom feed and falls back to title if missing
+author: John Doe
+
+# Optional — site description, used as the feed subtitle
+description: A blog built with stabilis
+
 menu:
   main:
     - { name: Home, url: / }
     - { name: Posts, url: /posts/ }
 ```
+
+## Atom feed
+
+Stabilis generates an Atom 1.0 feed at `feed.atom` alongside the post list page. The feed includes:
+
+- Feed-level: title, self-link, updated timestamp, author, generator (with version), copyright, subtitle, ID
+- Per entry: title, link, ID, published/updated dates, categories (from tags), summary (from frontmatter `description`), content (entity-escaped HTML)
+
+Feed readers discover it via the `<link rel="alternate" type="application/atom+xml">` in the page header.
 
 ## Init
 
