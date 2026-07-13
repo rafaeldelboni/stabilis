@@ -83,14 +83,12 @@ fn upsertTag(arena: *std.heap.ArenaAllocator, cfg: *const Config, tags: *Tags, t
 fn buildFeedPage(
     arena: *std.heap.ArenaAllocator,
     cfg: *const Config,
-    domain: []const u8,
     now: DateTime,
 ) !Page {
     const allocator = arena.allocator();
     var context: Context = .{};
     try context.map.put(allocator, "page_kind", .{ .string = "atom_feed" });
     try context.map.put(allocator, "url", .{ .string = try buildUrl(arena, cfg, .atom_feed, "") });
-    try context.map.put(allocator, "domain", .{ .string = domain });
     try context.map.put(allocator, "updated", .{ .string = try time.toIsoString(arena, now) });
     try context.map.put(allocator, "site_title", .{ .string = cfg.title });
     try context.map.put(allocator, "site_author", .{ .string = cfg.author });
@@ -170,7 +168,7 @@ pub fn parse(
                 try templates.map.put(allocator, template_key, file.contents);
     }
 
-    try pages.append(allocator, try buildFeedPage(arena, cfg, domain, now));
+    try pages.append(allocator, try buildFeedPage(arena, cfg, now));
 
     const main_menu = try std.mem.concat(allocator, Context, &.{
         cfg.menu_main,
@@ -457,7 +455,7 @@ test "smoke: full site with config, pages, posts, templates" {
         testFile("templates/post.html", "{{> partials/header.html }}\n<h1>{{ title }}</h1>\n<span>{{ date }}</span>\n{{{ body }}}\n</body></html>\n"),
         testFile("templates/page.html", "{{> partials/header.html }}\n<h1>{{ title }}</h1>\n<div class=\"content\">\n{{{ body }}}\n</div>\n</body></html>\n"),
         testFile("templates/post-list.html", "{{> partials/header.html }}\n<h1>{{ title }}</h1>\n{{{ body }}}\n<ul>{{# posts }}<li><a href=\"{{ url }}\">{{ title }}</a></li>{{/ posts }}</ul>\n</body></html>\n"),
-        testFile("templates/feed.atom", "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<feed xmlns=\"http://www.w3.org/2005/Atom\">\n  <title>{{ site_title }}</title>\n  <link href=\"{{ base_url }}\"/>\n  <link rel=\"self\" href=\"{{ base_url }}/feed.atom\"/>\n  <updated>{{ updated }}</updated>\n  <author><name>{{ site_author }}</name></author>\n  <generator uri=\"https://github.com/rafaeldelboni/stabilis\" version=\"{{ site_version }}\">stabilis</generator>\n  <rights>Copyright {{ year }} {{ site_author }}</rights>\n  <subtitle>{{ site_description }}</subtitle>\n  <id>urn:{{ domain }}</id>\n  {{# posts sort=date desc top=10 }}\n  <entry>\n    <title>{{ title }}</title>\n    <link href=\"{{ base_url }}/{{ url }}\"/>\n    <id>urn:{{ domain }}:{{ page_kind }}:{{ slug }}</id>\n    <published>{{ date }}</published>\n    <updated>{{ date }}</updated>\n    {{# tags }}<category term=\"{{ slug }}\" label=\"{{ title }}\"/>{{/ tags }}\n    <summary>{{ description }}</summary>\n    <content type=\"html\">{{ body }}</content>\n  </entry>\n  {{/ posts }}\n</feed>\n"),
+        testFile("templates/feed.atom", "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<feed xmlns=\"http://www.w3.org/2005/Atom\">\n  <title>{{ site_title }}</title>\n  <link href=\"{{ base_url }}\"/>\n  <link rel=\"self\" href=\"{{ base_url }}/feed.atom\"/>\n  <updated>{{ updated }}</updated>\n  <author><name>{{ site_author }}</name></author>\n  <generator uri=\"https://github.com/rafaeldelboni/stabilis\" version=\"{{ site_version }}\">stabilis</generator>\n  <rights>Copyright {{ year }} {{ site_author }}</rights>\n  <subtitle>{{ site_description }}</subtitle>\n  <id>{{ base_url }}/</id>\n  {{# posts sort=date desc top=10 }}\n  <entry>\n    <title>{{ title }}</title>\n    <link href=\"{{ base_url }}/{{ url }}\"/>\n    <id>{{ base_url }}/{{ url }}</id>\n    <published>{{ date }}</published>\n    <updated>{{ date }}</updated>\n    {{# tags }}<category term=\"{{ slug }}\" label=\"{{ title }}\"/>{{/ tags }}\n    <summary>{{ description }}</summary>\n    <content type=\"html\">{{ body }}</content>\n  </entry>\n  {{/ posts }}\n</feed>\n"),
     };
 
     const site = try parse(&arena, &cfg, &files, false, .{
@@ -513,7 +511,6 @@ test "smoke: full site with config, pages, posts, templates" {
     try std.testing.expectEqualStrings("feed.atom", feed_page.context.map.get("url").?.string);
     try std.testing.expectEqualStrings("Example Blog", feed_page.context.map.get("site_title").?.string);
     try std.testing.expectEqualStrings("John Doe", feed_page.context.map.get("site_author").?.string);
-    try std.testing.expectEqualStrings("localhost", feed_page.context.map.get("domain").?.string);
 
     // posts
     try std.testing.expectEqual(@as(usize, 1), site.posts.len);
