@@ -100,7 +100,6 @@ test "parse renders page with template and context" {
         .title = "Test",
         .base_url = "",
         .base_uri = .{ .scheme = "" },
-        .domain = "localhost",
         .author = "",
         .description = "",
         .version = "test",
@@ -125,7 +124,6 @@ test "parse renders atom feed with feed-specific context from page" {
     try page_context.map.put(allocator, "site_title", .{ .string = "My Blog" });
     try page_context.map.put(allocator, "site_author", .{ .string = "Jane Doe" });
     try page_context.map.put(allocator, "site_description", .{ .string = "" });
-    try page_context.map.put(allocator, "domain", .{ .string = "example.com" });
     try page_context.map.put(allocator, "updated", .{ .string = "2003-12-13T18:30:02Z" });
 
     const page: Page = .{ .kind = .atom_feed, .context = page_context };
@@ -136,13 +134,12 @@ test "parse renders atom feed with feed-specific context from page" {
         "<generator uri=\"https://github.com/rafaeldelboni/stabilis\" version=\"{{ site_version }}\">stabilis</generator>" ++
         "<rights>Copyright {{ year }} {{ site_author }}</rights>" ++
         "<subtitle>{{ site_description }}</subtitle>" ++
-        "<id>urn:{{ domain }}</id><link href=\"{{ base_url }}\"/></feed>");
+        "<id>{{ base_url }}/</id><link href=\"{{ base_url }}\"/></feed>");
 
     const site: Site = .{
         .title = "My Blog",
         .base_url = "example.com",
         .base_uri = try std.Uri.parse("https://example.com"),
-        .domain = "example.com",
         .author = "Jane Doe",
         .description = "",
         .version = "test",
@@ -161,7 +158,7 @@ test "parse renders atom feed with feed-specific context from page" {
             "<generator uri=\"https://github.com/rafaeldelboni/stabilis\" version=\"test\">stabilis</generator>" ++
             "<rights>Copyright 2003 Jane Doe</rights>" ++
             "<subtitle></subtitle>" ++
-            "<id>urn:example.com</id><link href=\"example.com\"/></feed>",
+            "<id>example.com/</id><link href=\"example.com\"/></feed>",
         result,
     );
 }

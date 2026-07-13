@@ -11,13 +11,13 @@
   <generator uri="https://github.com/rafaeldelboni/stabilis" version="{{ site_version }}">stabilis</generator>
   <rights>Copyright {{ year }} {{ site_author }}</rights>
   <subtitle>{{ site_description }}</subtitle>
-  <id>urn:{{ domain }}</id>
+  <id>{{ base_url }}/</id>
 
   {{# posts sort=date desc top=10 }}
   <entry>
     <title>{{ title }}</title>
     <link href="{{ base_url }}/{{ url }}"/>
-    <id>urn:{{ domain }}:{{ page_kind }}:{{ slug }}</id>
+    <id>{{ base_url }}/{{ url }}</id>
     <published>{{ date }}</published>
     <updated>{{ date }}</updated>
     {{# tags }}<category term="{{ slug }}" label="{{ title }}"/>{{/ tags }}

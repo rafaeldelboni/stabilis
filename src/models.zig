@@ -117,7 +117,6 @@ pub const Site = struct {
     title: []const u8,
     base_url: []const u8,
     base_uri: std.Uri,
-    domain: []const u8,
     author: []const u8,
     description: []const u8,
     version: []const u8,
