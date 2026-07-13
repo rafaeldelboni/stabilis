@@ -17,12 +17,17 @@ pub const template_post_file_name = "post.html";
 pub const template_page_file_name = "page.html";
 pub const template_post_list_file_name = "post-list.html";
 pub const template_tag_post_list_file_name = "tag-post-list.html";
+pub const template_atom_feed_file_name = "feed.atom";
+pub const default_author = "";
+pub const default_description = "";
 
 /// All defaults as a `Config` value. Used as fallback by `adapters/config.zig`
 pub const default = Config{
     .title = "",
     .base_url = "",
     .base_uri = .{ .scheme = "" },
+    .author = default_author,
+    .description = default_description,
     .menu_main = &.{},
 
     .content_dir = content_dir,
@@ -37,6 +42,7 @@ pub const default = Config{
     .template_page_file_name = template_page_file_name,
     .template_post_list_file_name = template_post_list_file_name,
     .template_tag_post_list_file_name = template_tag_post_list_file_name,
+    .template_atom_feed_file_name = template_atom_feed_file_name,
 
     .home_page_path = content_dir ++ "/" ++ index_file_name,
     .post_list_path = content_dir ++ "/" ++ posts_dir ++ "/" ++ index_file_name,
@@ -55,6 +61,7 @@ pub fn templateNameFor(kind: PageKind) []const u8 {
         .page => template_page_file_name,
         .post_list => template_post_list_file_name,
         .tag_post_list => template_tag_post_list_file_name,
+        .atom_feed => template_atom_feed_file_name,
     };
 }
 
@@ -64,4 +71,5 @@ test "templateNameFor: each kind" {
     try std.testing.expectEqualStrings("page.html", templateNameFor(.page));
     try std.testing.expectEqualStrings("post-list.html", templateNameFor(.post_list));
     try std.testing.expectEqualStrings("tag-post-list.html", templateNameFor(.tag_post_list));
+    try std.testing.expectEqualStrings("feed.atom", templateNameFor(.atom_feed));
 }

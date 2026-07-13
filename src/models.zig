@@ -4,6 +4,8 @@ pub const Config = struct {
     title: []const u8,
     base_url: []const u8,
     base_uri: std.Uri,
+    author: []const u8,
+    description: []const u8,
     menu_main: []const Context,
 
     content_dir: []const u8,
@@ -18,6 +20,7 @@ pub const Config = struct {
     template_page_file_name: []const u8,
     template_post_list_file_name: []const u8,
     template_tag_post_list_file_name: []const u8,
+    template_atom_feed_file_name: []const u8,
     post_url_prefix: []const u8,
 
     home_page_path: []const u8,
@@ -91,6 +94,7 @@ pub const PageKind = enum {
     page,
     post_list,
     tag_post_list,
+    atom_feed,
 };
 
 pub const Templates = std.json.ArrayHashMap([]const u8);
@@ -113,6 +117,11 @@ pub const Site = struct {
     title: []const u8,
     base_url: []const u8,
     base_uri: std.Uri,
+    domain: []const u8,
+    author: []const u8,
+    description: []const u8,
+    version: []const u8,
+    now: DateTime,
     templates: Templates,
     pages: []const Page,
     posts: []const Page,

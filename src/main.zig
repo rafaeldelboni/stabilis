@@ -135,6 +135,7 @@ fn build(
     source_dir: []const u8,
     base_url_override: ?[]const u8,
 ) ![]const u8 {
+    const now = time.now(io);
     const output_dir = destination orelse models.default_output_dir;
 
     if (clear_dir) try fs_writer.deleteDir(io, output_dir);
@@ -155,7 +156,7 @@ fn build(
         },
         else => return err,
     };
-    const site_data = try site.parse(arena, &cfg, files, build_drafts);
+    const site_data = try site.parse(arena, &cfg, files, build_drafts, now, build_options.version);
     if (site_data.posts.len == 0 and site_data.pages.len == 0) return error.NoFilesFound;
 
     try renderSite(arena, io, &cfg, output_dir, site_data);

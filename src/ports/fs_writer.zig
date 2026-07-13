@@ -40,7 +40,7 @@ pub fn writePage(
     site_data: Site,
 ) !void {
     const file_path = try page.parseFilePath(arena, output_dir, cfg.output_index, page_data);
-    const html = try page.parseHtml(arena, page_data, post_list, site_data);
+    const html = try page.parse(arena, page_data, post_list, site_data);
     try writeFileDeep(io, html, file_path);
 }
 
@@ -122,6 +122,7 @@ test "copyDir mirrors example directory" {
         "content/posts/_index.md",
         "content/posts/hello-world.md",
         "site.yaml",
+        "templates/feed.atom",
         "templates/home.html",
         "templates/page.html",
         "templates/partials/header.html",
@@ -139,7 +140,7 @@ test "copyDir mirrors example directory" {
         f.close(io);
     }
 
-    try std.testing.expectEqual(expected.len, 10);
+    try std.testing.expectEqual(expected.len, 11);
 }
 
 test "extractTarToDirPath extracts a tar into a destination dir" {

@@ -2,7 +2,7 @@
 title: Hello, World
 date: 2026-06-01T10:00:00Z
 tags: [zig, blogging]
-description: First post on the new SSG.
+description: First post on the new SSG — this text appears as the Atom feed entry summary.
 ---
 
 ## Getting started
@@ -11,6 +11,7 @@ This is the **first post**. It has:
 - Frontmatter with tags
 - A date
 - Markdown body
+- A `description` field that feeds the Atom `<summary>`
 
 ```zig
 const std = @import("std");

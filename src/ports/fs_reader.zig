@@ -140,7 +140,7 @@ test "walkDir reads example directory" {
 
     const results = try walkDir(std.testing.io, &arena, "example");
 
-    try std.testing.expectEqual(16, results.len);
+    try std.testing.expectEqual(17, results.len);
 
     const expected: []const []const u8 = &.{
         "content/_index.md",
@@ -152,6 +152,7 @@ test "walkDir reads example directory" {
         "static/fonts/recursive-wght-slnt.woff2",
         "static/images/vangogh-skull-1887.jpg",
         "static/style.css",
+        "templates/feed.atom",
         "templates/home.html",
         "templates/page.html",
         "templates/partials/footer.html",
