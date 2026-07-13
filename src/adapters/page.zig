@@ -24,7 +24,7 @@ pub fn parseFilePath(
     };
 }
 
-/// Renders a page into HTML by merging its context with posts and menu, then applying the matching template.
+/// Renders a page by merging its context with site data and applying the matching template.
 pub fn parse(
     arena: *std.heap.ArenaAllocator,
     page: Page,
