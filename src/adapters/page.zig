@@ -38,6 +38,7 @@ pub fn parse(
     try context.map.put(allocator, "menu_main", .{ .list = site_data.menu_main });
     try context.map.put(allocator, "base_path", .{ .string = try config_adapter.basePath(allocator, site_data.base_uri) });
     try context.map.put(allocator, "year", .{ .string = try std.fmt.allocPrint(allocator, "{d}", .{site_data.now.year}) });
+    try context.map.put(allocator, "site_version", .{ .string = site_data.version });
     const post_template = try template.pageKindToTemplate(page.kind, site_data.templates);
     return try template.render(arena, post_template, site_data.templates, context);
 }
@@ -124,7 +125,6 @@ test "parse renders atom feed with feed-specific context from page" {
     try page_context.map.put(allocator, "site_title", .{ .string = "My Blog" });
     try page_context.map.put(allocator, "site_author", .{ .string = "Jane Doe" });
     try page_context.map.put(allocator, "site_description", .{ .string = "" });
-    try page_context.map.put(allocator, "site_version", .{ .string = "test" });
     try page_context.map.put(allocator, "domain", .{ .string = "example.com" });
     try page_context.map.put(allocator, "updated", .{ .string = "2003-12-13T18:30:02Z" });
 

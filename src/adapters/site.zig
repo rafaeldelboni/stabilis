@@ -85,7 +85,6 @@ fn buildFeedPage(
     cfg: *const Config,
     domain: []const u8,
     now: DateTime,
-    version: []const u8,
 ) !Page {
     const allocator = arena.allocator();
     var context: Context = .{};
@@ -96,7 +95,6 @@ fn buildFeedPage(
     try context.map.put(allocator, "site_title", .{ .string = cfg.title });
     try context.map.put(allocator, "site_author", .{ .string = cfg.author });
     try context.map.put(allocator, "site_description", .{ .string = cfg.description });
-    try context.map.put(allocator, "site_version", .{ .string = version });
     return .{ .kind = .atom_feed, .context = context };
 }
 
@@ -172,7 +170,7 @@ pub fn parse(
                 try templates.map.put(allocator, template_key, file.contents);
     }
 
-    try pages.append(allocator, try buildFeedPage(arena, cfg, domain, now, version));
+    try pages.append(allocator, try buildFeedPage(arena, cfg, domain, now));
 
     const main_menu = try std.mem.concat(allocator, Context, &.{
         cfg.menu_main,
@@ -515,7 +513,6 @@ test "smoke: full site with config, pages, posts, templates" {
     try std.testing.expectEqualStrings("feed.atom", feed_page.context.map.get("url").?.string);
     try std.testing.expectEqualStrings("Example Blog", feed_page.context.map.get("site_title").?.string);
     try std.testing.expectEqualStrings("John Doe", feed_page.context.map.get("site_author").?.string);
-    try std.testing.expectEqualStrings("test", feed_page.context.map.get("site_version").?.string);
     try std.testing.expectEqualStrings("localhost", feed_page.context.map.get("domain").?.string);
 
     // posts
