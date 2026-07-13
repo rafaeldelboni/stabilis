@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>stabilis</title>
+  <link rel="alternate" type="application/atom+xml" href="/stabilis/feed.atom" />
   <link rel="stylesheet" href="/stabilis/style.css">
   <link rel="preload" href="/stabilis/fonts/recursive-wght-slnt.woff2" as="font" type="font/woff2" crossorigin>
   <style>
@@ -48,11 +49,24 @@ curl -fsSL .../install.sh | bash -s -- --version v0.1.0
 <pre><code class="language-yaml">title: Example Blog
 base_url: https://example.com
 
+# Optional — author appears in the Atom feed and falls back to title if missing
+author: John Doe
+
+# Optional — site description, used as the feed subtitle
+description: A blog built with stabilis
+
 menu:
   main:
     - { name: Home, url: / }
     - { name: Posts, url: /posts/ }
 </code></pre>
+<h2>Atom feed</h2>
+<p>Stabilis generates an Atom 1.0 feed at <code>feed.atom</code> alongside the post list page. The feed includes:</p>
+<ul>
+<li>Feed-level: title, self-link, updated timestamp, author, generator (with version), copyright, subtitle, ID</li>
+<li>Per entry: title, link, ID, published/updated dates, categories (from tags), summary (from frontmatter <code>description</code>), content (entity-escaped HTML)</li>
+</ul>
+<p>Feed readers discover it via the <code>&lt;link rel=&quot;alternate&quot; type=&quot;application/atom+xml&quot;&gt;</code> in the page header.</p>
 <h2>Init</h2>
 <p>Scaffold a new site from the bundled example:</p>
 <pre><code class="language-bash">stabilis init -d my-blog    # → ./my-blog with a working example site
@@ -93,7 +107,7 @@ stabilis new page &quot;About&quot;           # → content/about.md
 
   </main>
   <footer>
-    Made with <a href="https://ziglang.org">Zig</a> and ♥
+    &copy; 2026 Made with <a href="https://ziglang.org">Zig</a> and &#9829; &middot; stabilis v0.1.15
   </footer>
 </body>
 </html>

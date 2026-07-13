@@ -1,0 +1,209 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+
+  <title>Example Blog</title>
+  <link href="https://rafael.delboni.cc/stabilis"/>
+  <link rel="self" href="https://rafael.delboni.cc/stabilis/feed.atom"/>
+  <updated>2026-07-13T02:43:36Z</updated>
+  <author>
+    <name>John Doe</name>
+  </author>
+  <generator uri="https://github.com/rafaeldelboni/stabilis" version="v0.1.15">stabilis</generator>
+  <rights>Copyright 2026 John Doe</rights>
+  <subtitle>A blog built with stabilis</subtitle>
+  <id>urn:rafael.delboni.cc</id>
+
+  
+  <entry>
+    <title>Github Flavored Markdown - Syntax guide</title>
+    <link href="https://rafael.delboni.cc/stabilis/posts/github-flavored-markdown-syntax-guide"/>
+    <id>urn:rafael.delboni.cc:post:github-flavored-markdown-syntax-guide</id>
+    <published>2026-07-02T23:11:38Z</published>
+    <updated>2026-07-02T23:11:38Z</updated>
+    <category term="markdown" label="markdown"/><category term="zig" label="zig"/>
+    <summary>Here’s an overview of Markdown syntax that you can use anywhere on GitHub.com or in your own text files.</summary>
+    <content type="html">&lt;p&gt;Here’s an overview of Markdown syntax that you can use anywhere on GitHub.com or in your own text files.  &lt;a href=&quot;https://guides.github.com/features/mastering-markdown/&quot;&gt;font&lt;/a&gt;&lt;/p&gt;
+&lt;h2&gt;Headers&lt;/h2&gt;
+&lt;h1&gt;This is an &lt;h1&gt; tag&lt;/h1&gt;
+&lt;h2&gt;This is an &lt;h2&gt; tag&lt;/h2&gt;
+&lt;h6&gt;This is an &lt;h6&gt; tag&lt;/h6&gt;
+&lt;h2&gt;Emphasis&lt;/h2&gt;
+&lt;p&gt;&lt;em&gt;This text will be italic&lt;/em&gt;
+&lt;em&gt;This will also be italic&lt;/em&gt;&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;This text will be bold&lt;/strong&gt;
+&lt;strong&gt;This will also be bold&lt;/strong&gt;&lt;/p&gt;
+&lt;p&gt;&lt;em&gt;You &lt;strong&gt;can&lt;/strong&gt; combine them&lt;/em&gt;&lt;/p&gt;
+&lt;h2&gt;Lists&lt;/h2&gt;
+&lt;h3&gt;Unordered&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;Item 1&lt;/li&gt;
+&lt;li&gt;Item 2&lt;ul&gt;
+&lt;li&gt;Item 2a&lt;/li&gt;
+&lt;li&gt;Item 2b&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3&gt;Ordered&lt;/h3&gt;
+&lt;ol&gt;
+&lt;li&gt;Item 1&lt;/li&gt;
+&lt;li&gt;Item 2&lt;/li&gt;
+&lt;li&gt;Item 3&lt;ol&gt;
+&lt;li&gt;Item 3a&lt;/li&gt;
+&lt;li&gt;Item 3b&lt;/li&gt;
+&lt;/ol&gt;
+&lt;/li&gt;
+&lt;/ol&gt;
+&lt;h2&gt;Images&lt;/h2&gt;
+&lt;p&gt;&lt;img src=&quot;/stabilis/images/vangogh-skull-1887.jpg&quot; alt=&quot;Vincent van Gogh (1853 - 1890), Paris, May 1887&quot;&gt;&lt;/p&gt;
+&lt;h2&gt;Links&lt;/h2&gt;
+&lt;p&gt;&lt;a href=&quot;http://github.com&quot;&gt;http://github.com&lt;/a&gt; - automatic!
+&lt;a href=&quot;http://github.com&quot;&gt;GitHub&lt;/a&gt;&lt;/p&gt;
+&lt;h2&gt;Blockquotes&lt;/h2&gt;
+&lt;p&gt;As Carl Sagan said:&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;If you wish to make an apple pie from scratch,
+you must first invent the universe.&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;h2&gt;Inline code&lt;/h2&gt;
+&lt;p&gt;I think you should use an
+&lt;code&gt;&amp;lt;addr&amp;gt;&lt;/code&gt; element here instead.&lt;/p&gt;
+&lt;h1&gt;GitHub Flavored Markdown&lt;/h1&gt;
+&lt;h2&gt;Syntax highlighting&lt;/h2&gt;
+&lt;p&gt;Here’s an example of how you can use syntax highlighting with GitHub Flavored Markdown:&lt;/p&gt;
+&lt;pre&gt;&lt;code class=&quot;language-javascript&quot;&gt;function fancyAlert(arg) {
+  if(arg) {
+    $.facebox({div:'#foo'})
+  }
+}
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;You can also simply indent your code by four spaces:&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;function fancyAlert(arg) {
+  if(arg) {
+    $.facebox({div:'#foo'})
+  }
+}
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;&lt;em&gt;(Be aware the code won't be highlighted because the language cannot be identified by prism)&lt;/em&gt;&lt;/p&gt;
+&lt;h2&gt;Task Lists&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li class=&quot;task-list-item&quot;&gt;&lt;input type=&quot;checkbox&quot; class=&quot;task-list-item-checkbox&quot; disabled checked&gt;@mentions, #refs, &lt;a href=&quot;&quot;&gt;links&lt;/a&gt;, &lt;strong&gt;formatting&lt;/strong&gt;, and &lt;del&gt;tags&lt;/del&gt; supported&lt;/li&gt;
+&lt;li class=&quot;task-list-item&quot;&gt;&lt;input type=&quot;checkbox&quot; class=&quot;task-list-item-checkbox&quot; disabled checked&gt;list syntax required (any unordered or ordered list supported)&lt;/li&gt;
+&lt;li class=&quot;task-list-item&quot;&gt;&lt;input type=&quot;checkbox&quot; class=&quot;task-list-item-checkbox&quot; disabled checked&gt;this is a complete item&lt;/li&gt;
+&lt;li class=&quot;task-list-item&quot;&gt;&lt;input type=&quot;checkbox&quot; class=&quot;task-list-item-checkbox&quot; disabled&gt;this is an incomplete item&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2&gt;Tables&lt;/h2&gt;
+&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th&gt;First Header&lt;/th&gt;
+&lt;th&gt;Second Header&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td&gt;Content from cell 1&lt;/td&gt;
+&lt;td&gt;Content from cell 2&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;Content in the first column&lt;/td&gt;
+&lt;td&gt;Content in the second column&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;h2&gt;Automatic linking for URLs&lt;/h2&gt;
+&lt;p&gt;Any URL (like &lt;a href=&quot;http://www.github.com/&quot;&gt;http://www.github.com/&lt;/a&gt;) will be automatically converted into a clickable link.&lt;/p&gt;
+&lt;h2&gt;Strikethrough&lt;/h2&gt;
+&lt;p&gt;Any word wrapped with two tildes (like &lt;del&gt;this&lt;/del&gt;) will appear crossed out.&lt;/p&gt;
+</content>
+  </entry>
+  
+  <entry>
+    <title>Hello, World</title>
+    <link href="https://rafael.delboni.cc/stabilis/posts/hello-world"/>
+    <id>urn:rafael.delboni.cc:post:hello-world</id>
+    <published>2026-06-01T10:00:00Z</published>
+    <updated>2026-06-01T10:00:00Z</updated>
+    <category term="zig" label="zig"/><category term="blogging" label="blogging"/>
+    <summary>First post on the new SSG — this text appears as the Atom feed entry summary.</summary>
+    <content type="html">&lt;h2&gt;Getting started&lt;/h2&gt;
+&lt;p&gt;This is the &lt;strong&gt;first post&lt;/strong&gt;. It has:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Frontmatter with tags&lt;/li&gt;
+&lt;li&gt;A date&lt;/li&gt;
+&lt;li&gt;Markdown body&lt;/li&gt;
+&lt;li&gt;A &lt;code&gt;description&lt;/code&gt; field that feeds the Atom &lt;code&gt;&amp;lt;summary&amp;gt;&lt;/code&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;pre&gt;&lt;code class=&quot;language-zig&quot;&gt;const std = @import(&amp;quot;std&amp;quot;);
+
+pub fn main() !void {
+    std.debug.print(&amp;quot;Hello from Zig!\n&amp;quot;, .{});
+}
+&lt;/code&gt;&lt;/pre&gt;
+&lt;h2&gt;Text and emphasis&lt;/h2&gt;
+&lt;p&gt;Such hello much world, &lt;em&gt;consectetur adipisicing elit&lt;/em&gt;, sed do eiusmod tempor
+incididunt ut &lt;strong&gt;labore et dolore magna aliqua&lt;/strong&gt;. &lt;em&gt;&lt;strong&gt;Duis aute irure dolor&lt;/strong&gt;&lt;/em&gt; in
+reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.
+&lt;del&gt;Excepteur sint occaecat&lt;/del&gt; cupidatat non proident.&lt;/p&gt;
+&lt;hr&gt;
+&lt;h3&gt;Lists&lt;/h3&gt;
+&lt;p&gt;Unordered, with nesting:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;item-1&lt;ul&gt;
+&lt;li&gt;sub-item-1&lt;/li&gt;
+&lt;li&gt;sub-item-2&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;item-2&lt;ul&gt;
+&lt;li&gt;sub-item-3&lt;/li&gt;
+&lt;li&gt;sub-item-4&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;item-3&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Ordered, with nesting:&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;item-1&lt;ol&gt;
+&lt;li&gt;sub-item-1&lt;/li&gt;
+&lt;li&gt;sub-item-2&lt;/li&gt;
+&lt;/ol&gt;
+&lt;/li&gt;
+&lt;li&gt;item-2&lt;ol&gt;
+&lt;li&gt;sub-item-3&lt;/li&gt;
+&lt;li&gt;sub-item-4&lt;/li&gt;
+&lt;/ol&gt;
+&lt;/li&gt;
+&lt;li&gt;item-3&lt;/li&gt;
+&lt;/ol&gt;
+&lt;h3&gt;Tables&lt;/h3&gt;
+&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th align=&quot;left&quot;&gt;Table Header-1&lt;/th&gt;
+&lt;th align=&quot;center&quot;&gt;Table Header-2&lt;/th&gt;
+&lt;th align=&quot;right&quot;&gt;Table Header-3&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td align=&quot;left&quot;&gt;Table Data-1&lt;/td&gt;
+&lt;td align=&quot;center&quot;&gt;Table Data-2&lt;/td&gt;
+&lt;td align=&quot;right&quot;&gt;Table Data-3&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td align=&quot;left&quot;&gt;TD-4&lt;/td&gt;
+&lt;td align=&quot;center&quot;&gt;Td-5&lt;/td&gt;
+&lt;td align=&quot;right&quot;&gt;TD-6&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;h3&gt;Images&lt;/h3&gt;
+&lt;p&gt;You can drop images right in:&lt;/p&gt;
+&lt;p&gt;&lt;img src=&quot;https://cloud.githubusercontent.com/assets/5456665/13322882/e74f6626-dc00-11e5-921d-f6d024a01eaa.png&quot; alt=&quot;GitHub Logo&quot; title=&quot;GitHub&quot;&gt;&lt;/p&gt;
+&lt;h3&gt;Links&lt;/h3&gt;
+&lt;p&gt;A bare URL like &lt;a href=&quot;https://github.com/rafaeldelboni/stabilis&quot;&gt;https://github.com/rafaeldelboni/stabilis&lt;/a&gt; is auto-linked,
+and you can also write an explicit one: &lt;a href=&quot;https://github.com/rafaeldelboni/stabilis&quot;&gt;stabilis&lt;/a&gt;.&lt;/p&gt;
+</content>
+  </entry>
+  
+
+</feed>
