@@ -34,17 +34,19 @@ pub fn parseHtml(
 ) ![]const u8 {
     const allocator = arena.allocator();
     var context: Context = .{ .map = try page.context.map.clone(allocator) };
-    try context.map.put(allocator, "domain", .{ .string = site_data.domain });
-    try context.map.put(allocator, "updated", .{ .string = try time.toIsoString(arena, site_data.now) });
-    try context.map.put(allocator, "site_title", .{ .string = site_data.title });
-    try context.map.put(allocator, "site_author", .{ .string = site_data.author });
-    try context.map.put(allocator, "site_description", .{ .string = site_data.description });
-    try context.map.put(allocator, "site_version", .{ .string = site_data.version });
-    try context.map.put(allocator, "year", .{ .string = try std.fmt.allocPrint(allocator, "{d}", .{site_data.now.year}) });
     try context.map.put(allocator, "base_url", .{ .string = site_data.base_url });
     try context.map.put(allocator, "posts", .{ .list = posts_list });
     try context.map.put(allocator, "menu_main", .{ .list = site_data.menu_main });
     try context.map.put(allocator, "base_path", .{ .string = try config_adapter.basePath(allocator, site_data.base_uri) });
+    if (page.kind == .atom_feed) {
+        try context.map.put(allocator, "domain", .{ .string = site_data.domain });
+        try context.map.put(allocator, "updated", .{ .string = try time.toIsoString(arena, site_data.now) });
+        try context.map.put(allocator, "site_title", .{ .string = site_data.title });
+        try context.map.put(allocator, "site_author", .{ .string = site_data.author });
+        try context.map.put(allocator, "site_description", .{ .string = site_data.description });
+        try context.map.put(allocator, "site_version", .{ .string = site_data.version });
+        try context.map.put(allocator, "year", .{ .string = try std.fmt.allocPrint(allocator, "{d}", .{site_data.now.year}) });
+    }
     const post_template = try template.pageKindToTemplate(page.kind, site_data.templates);
     return try template.render(arena, post_template, site_data.templates, context);
 }
