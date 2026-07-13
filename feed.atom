@@ -4,29 +4,29 @@
   <title>Example Blog</title>
   <link href="https://rafael.delboni.cc/stabilis"/>
   <link rel="self" href="https://rafael.delboni.cc/stabilis/feed.atom"/>
-  <updated>2026-07-13T02:43:36Z</updated>
+  <updated>2026-07-13T13:36:50Z</updated>
   <author>
     <name>John Doe</name>
   </author>
-  <generator uri="https://github.com/rafaeldelboni/stabilis" version="v0.1.15">stabilis</generator>
+  <generator uri="https://github.com/rafaeldelboni/stabilis" version="v0.1.16">stabilis</generator>
   <rights>Copyright 2026 John Doe</rights>
   <subtitle>A blog built with stabilis</subtitle>
-  <id>urn:rafael.delboni.cc</id>
+  <id>https://rafael.delboni.cc/stabilis/</id>
 
   
   <entry>
     <title>Github Flavored Markdown - Syntax guide</title>
     <link href="https://rafael.delboni.cc/stabilis/posts/github-flavored-markdown-syntax-guide"/>
-    <id>urn:rafael.delboni.cc:post:github-flavored-markdown-syntax-guide</id>
+    <id>https://rafael.delboni.cc/stabilis/posts/github-flavored-markdown-syntax-guide</id>
     <published>2026-07-02T23:11:38Z</published>
     <updated>2026-07-02T23:11:38Z</updated>
     <category term="markdown" label="markdown"/><category term="zig" label="zig"/>
     <summary>Here’s an overview of Markdown syntax that you can use anywhere on GitHub.com or in your own text files.</summary>
     <content type="html">&lt;p&gt;Here’s an overview of Markdown syntax that you can use anywhere on GitHub.com or in your own text files.  &lt;a href=&quot;https://guides.github.com/features/mastering-markdown/&quot;&gt;font&lt;/a&gt;&lt;/p&gt;
 &lt;h2&gt;Headers&lt;/h2&gt;
-&lt;h1&gt;This is an &lt;h1&gt; tag&lt;/h1&gt;
-&lt;h2&gt;This is an &lt;h2&gt; tag&lt;/h2&gt;
-&lt;h6&gt;This is an &lt;h6&gt; tag&lt;/h6&gt;
+&lt;h1&gt;This is an &lt;code&gt;&amp;lt;h1&amp;gt;&lt;/code&gt; tag&lt;/h1&gt;
+&lt;h2&gt;This is an &lt;code&gt;&amp;lt;h2&amp;gt;&lt;/code&gt; tag&lt;/h2&gt;
+&lt;h6&gt;This is an &lt;code&gt;&amp;lt;h6&amp;gt;&lt;/code&gt; tag&lt;/h6&gt;
 &lt;h2&gt;Emphasis&lt;/h2&gt;
 &lt;p&gt;&lt;em&gt;This text will be italic&lt;/em&gt;
 &lt;em&gt;This will also be italic&lt;/em&gt;&lt;/p&gt;
@@ -120,7 +120,7 @@ you must first invent the universe.&lt;/p&gt;
   <entry>
     <title>Hello, World</title>
     <link href="https://rafael.delboni.cc/stabilis/posts/hello-world"/>
-    <id>urn:rafael.delboni.cc:post:hello-world</id>
+    <id>https://rafael.delboni.cc/stabilis/posts/hello-world</id>
     <published>2026-06-01T10:00:00Z</published>
     <updated>2026-06-01T10:00:00Z</updated>
     <category term="zig" label="zig"/><category term="blogging" label="blogging"/>
