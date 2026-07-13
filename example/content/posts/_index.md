@@ -3,4 +3,4 @@ title: Posts
 description: All blog posts, newest first.
 ---
 
-things i've written.
+Things I've written.

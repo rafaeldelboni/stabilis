@@ -107,9 +107,6 @@ pub fn parse(
 ) !Site {
     const allocator = arena.allocator();
     const base_path = try config_adapter.basePath(allocator, cfg.base_uri);
-    const domain = if (cfg.base_uri.host) |host| switch (host) {
-        .raw, .percent_encoded => |s| s,
-    } else "localhost";
 
     var templates: Templates = .{};
     var pages: std.ArrayList(Page) = .empty;
@@ -179,7 +176,6 @@ pub fn parse(
         .title = cfg.title,
         .base_url = cfg.base_url,
         .base_uri = cfg.base_uri,
-        .domain = domain,
         .author = cfg.author,
         .description = cfg.description,
         .version = version,
