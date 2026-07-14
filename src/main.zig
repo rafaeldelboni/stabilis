@@ -1,7 +1,8 @@
 const std = @import("std");
 const build_options = @import("build_options");
 
-const cli_adapter = @import("adapters/cli.zig");
+const vex = @import("vexillum");
+
 const config_adapter = @import("adapters/config.zig");
 const frontmatter = @import("adapters/frontmatter.zig");
 const page = @import("adapters/page.zig");
@@ -20,12 +21,10 @@ const NewPostResult = models.NewPostResult;
 const NewPageResult = models.NewPageResult;
 const ServeResult = models.ServeResult;
 const InitResult = models.InitResult;
-const modelsCli = @import("models/cli.zig");
-const cli_help = @import("ports/cli.zig");
-const http = @import("ports/http.zig");
 const fs_reader = @import("ports/fs_reader.zig");
 const fs_watcher = @import("ports/fs_watcher.zig");
 const fs_writer = @import("ports/fs_writer.zig");
+const http = @import("ports/http.zig");
 const printer = @import("ports/printer.zig");
 const sse = @import("ports/sse.zig");
 const time = @import("ports/time.zig");
@@ -321,13 +320,13 @@ pub fn main(init: std.process.Init) !u8 {
     var arena: std.heap.ArenaAllocator = std.heap.ArenaAllocator.init(init.gpa);
     defer arena.deinit();
 
-    var diag = modelsCli.Diagnostics{};
+    var diag = vex.Diagnostics{};
     const cli = models.stabilis_cli;
     const args = try init.minimal.args.toSlice(arena.allocator());
 
-    const out = cli_adapter.parse(&arena, args, cli, &diag) catch |err| {
-        if (err != error.NoCommand) try cli_help.printDiagError(io, &diag, err);
-        try cli_help.printHelp(io, args, cli);
+    const out = vex.parse(&arena, args, cli, &diag) catch |err| {
+        if (err != error.NoCommand) try vex.printDiagError(io, &diag, err);
+        try vex.printHelp(io, args, cli);
         return 2;
     };
     if (out.flags.version) {
@@ -335,7 +334,7 @@ pub fn main(init: std.process.Init) !u8 {
         return 0;
     }
     if (out.flags.help) {
-        try cli_help.printHelp(io, args, cli);
+        try vex.printHelp(io, args, cli);
         return 0;
     }
 
@@ -365,7 +364,6 @@ pub fn main(init: std.process.Init) !u8 {
 }
 
 test {
-    _ = @import("adapters/cli.zig");
     _ = @import("adapters/config.zig");
     _ = @import("adapters/frontmatter.zig");
     _ = @import("adapters/markdown.zig");
@@ -381,7 +379,6 @@ test {
     _ = @import("logic/template.zig");
     _ = @import("logic/webserver.zig");
     _ = @import("logic/yaml_lexer.zig");
-    _ = @import("ports/cli.zig");
     _ = @import("ports/fs_reader.zig");
     _ = @import("ports/fs_watcher.zig");
     _ = @import("ports/fs_writer.zig");

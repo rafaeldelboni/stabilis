@@ -8,13 +8,13 @@ menus: [main]
 
 ## Built with
 
-One external library does the heavy lifting:
+Two external libraries do the heavy lifting:
 
 - [md4c](https://github.com/mity/md4c) — fast C Markdown parser (CommonMark + GFM), used to render post bodies to HTML.
+- [vexillum](https://github.com/rafaeldelboni/vexillum) — a comptime-driven command/flag parser with generated help.
 
 Everything else is written from scratch in Zig — a few of these may graduate into standalone libraries later:
 
-- **CLI** — a comptime-driven command/flag parser with generated help *(planned to move into its own library)*.
 - **YAML lexer** — a small reader for `site.yaml` and Markdown frontmatter.
 - **Template engine** — Mustache-style rendering: variables, sections, partials, and HTML escaping.
 - **Frontmatter parser** — pulls per-file metadata out of Markdown.

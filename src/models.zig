@@ -1,5 +1,7 @@
 const std = @import("std");
 
+const vex = @import("vexillum");
+
 pub const Config = struct {
     title: []const u8,
     base_url: []const u8,
@@ -30,8 +32,6 @@ pub const Config = struct {
     templates_prefix: []const u8,
     tag_post_list_url_prefix: []const u8,
 };
-
-const modelsCli = @import("./models/cli.zig");
 
 pub const SliceBetween = struct {
     content: []const u8,
@@ -185,7 +185,7 @@ pub const CommandsResult = union(enum) {
     new: union(enum) { post: NewPostResult, page: NewPageResult },
 };
 
-pub const stabilis_cli = modelsCli.Cli{
+pub const stabilis_cli = vex.Cli{
     .name = "stabilis",
     .description = "A static site generator",
     .flags = .{
@@ -203,7 +203,7 @@ pub const stabilis_cli = modelsCli.Cli{
                 .name = "init",
                 .help = "Scaffold a new site from the example",
                 .body = .{
-                    .command = modelsCli.CommandOptions{
+                    .command = vex.CommandOptions{
                         .Result = InitResult,
                         .flags = &.{
                             .{ .long = "--dest", .short = "-d", .field = "destination", .help = "Output directory" },
@@ -216,7 +216,7 @@ pub const stabilis_cli = modelsCli.Cli{
                 .name = "serve",
                 .help = "Build and serve the site locally",
                 .body = .{
-                    .command = modelsCli.CommandOptions{
+                    .command = vex.CommandOptions{
                         .Result = ServeResult,
                         .flags = &.{
                             .{ .long = "--dest", .short = "-d", .field = "destination", .help = "Output directory" },
@@ -234,7 +234,7 @@ pub const stabilis_cli = modelsCli.Cli{
                 .name = "build",
                 .help = "Build the site",
                 .body = .{
-                    .command = modelsCli.CommandOptions{
+                    .command = vex.CommandOptions{
                         .Result = BuildResult,
                         .flags = &.{
                             .{ .long = "--dest", .short = "-d", .field = "destination", .help = "Output directory" },
@@ -255,7 +255,7 @@ pub const stabilis_cli = modelsCli.Cli{
                             .name = "post",
                             .help = "Scaffold new post",
                             .body = .{
-                                .command = modelsCli.CommandOptions{
+                                .command = vex.CommandOptions{
                                     .Result = NewPostResult,
                                     .flags = &.{
                                         .{ .long = "--desc", .short = "-d", .field = "description", .help = "One-line description" },
@@ -270,7 +270,7 @@ pub const stabilis_cli = modelsCli.Cli{
                             .name = "page",
                             .help = "Scaffold new page",
                             .body = .{
-                                .command = modelsCli.CommandOptions{
+                                .command = vex.CommandOptions{
                                     .Result = NewPageResult,
                                     .flags = &.{
                                         .{ .long = "--slug", .short = "-s", .field = "slug", .help = "URL-friendly identifier (defaults to title)" },
