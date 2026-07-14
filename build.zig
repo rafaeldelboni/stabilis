@@ -81,7 +81,6 @@ pub fn build(b: *std.Build) void {
         .filters = test_filters,
     });
     exe_tests.root_module.linkLibrary(md4c_lib);
-    // exe_tests.root_module.addImport("vexillum", vexillum.module("vexillum"));
     test_step.dependOn(&b.addRunArtifact(exe_tests).step);
 }
 
