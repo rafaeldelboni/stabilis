@@ -36,6 +36,10 @@
             .url = "https://github.com/mity/md4c/archive/refs/tags/release-0.5.3.tar.gz",
             .hash = "N-V-__8AAF-DEADsiGuy83YqbGOj9AVrUnWIMka5RE7AHvK7",
         },
+        .vexillum = .{
+            .url = "https://github.com/rafaeldelboni/vexillum/archive/v0.1.0.tar.gz",
+            .hash = "vexillum-0.1.0-Q7ECz8XLAADUvgra_imksBI-tGOfDEb7HJQBzsXbANx7",
+        },
     },
     .paths = .{
         "build.zig",

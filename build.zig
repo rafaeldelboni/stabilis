@@ -35,6 +35,9 @@ pub fn build(b: *std.Build) void {
     exe.root_module.linkLibrary(md4c_lib);
     exe.root_module.addIncludePath(md4c_dep.path("src"));
 
+    const vexillum = b.dependency("vexillum", .{});
+    exe.root_module.addImport("vexillum", vexillum.module("vexillum"));
+
     // Version: prefer an explicit -Dversion (set by CI from the tag),
     // otherwise fall back to `git describe` for local builds.
     const version = b.option([]const u8, "version", "Override the build version string") orelse
@@ -54,6 +57,7 @@ pub fn build(b: *std.Build) void {
         .root_module = exe.root_module,
     });
     test_check.root_module.linkLibrary(md4c_lib);
+    test_check.root_module.addImport("vexillum", vexillum.module("vexillum"));
     const check = b.step("check", "Check if stabilis compiles");
     check.dependOn(&exe_check.step);
     check.dependOn(&test_check.step);
@@ -77,6 +81,7 @@ pub fn build(b: *std.Build) void {
         .filters = test_filters,
     });
     exe_tests.root_module.linkLibrary(md4c_lib);
+    // exe_tests.root_module.addImport("vexillum", vexillum.module("vexillum"));
     test_step.dependOn(&b.addRunArtifact(exe_tests).step);
 }
 
