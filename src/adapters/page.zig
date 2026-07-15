@@ -34,11 +34,14 @@ pub fn parse(
     const allocator = arena.allocator();
     var context: Context = .{ .map = try page.context.map.clone(allocator) };
     try context.map.put(allocator, "base_url", .{ .string = site_data.base_url });
-    try context.map.put(allocator, "posts", .{ .list = posts_list });
+    if (!context.map.contains("posts")) try context.map.put(allocator, "posts", .{ .list = posts_list });
     try context.map.put(allocator, "menu_main", .{ .list = site_data.menu_main });
     try context.map.put(allocator, "base_path", .{ .string = try config_adapter.basePath(allocator, site_data.base_uri) });
     try context.map.put(allocator, "year", .{ .string = try std.fmt.allocPrint(allocator, "{d}", .{site_data.now.year}) });
     try context.map.put(allocator, "site_version", .{ .string = site_data.version });
+    try context.map.put(allocator, "site_title", .{ .string = site_data.title });
+    try context.map.put(allocator, "site_author", .{ .string = site_data.author });
+    try context.map.put(allocator, "site_description", .{ .string = site_data.description });
     const post_template = try template.pageKindToTemplate(page.kind, site_data.templates);
     return try template.render(arena, post_template, site_data.templates, context);
 }
@@ -107,7 +110,6 @@ test "parse renders page with template and context" {
         .templates = templates,
         .pages = &.{},
         .posts = &.{},
-        .tags = .{},
         .menu_main = &.{},
     };
 
@@ -121,9 +123,6 @@ test "parse renders atom feed with feed-specific context from page" {
     const allocator = arena.allocator();
 
     var page_context: Context = .{};
-    try page_context.map.put(allocator, "site_title", .{ .string = "My Blog" });
-    try page_context.map.put(allocator, "site_author", .{ .string = "Jane Doe" });
-    try page_context.map.put(allocator, "site_description", .{ .string = "" });
     try page_context.map.put(allocator, "updated", .{ .string = "2003-12-13T18:30:02Z" });
 
     const page: Page = .{ .kind = .atom_feed, .context = page_context };
@@ -147,7 +146,6 @@ test "parse renders atom feed with feed-specific context from page" {
         .templates = templates,
         .pages = &.{},
         .posts = &.{},
-        .tags = .{},
         .menu_main = &.{},
     };
 

@@ -124,7 +124,6 @@ pub const Site = struct {
     templates: Templates,
     pages: []const Page,
     posts: []const Page,
-    tags: Tags,
     menu_main: []Context,
 };
 
