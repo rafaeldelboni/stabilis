@@ -90,9 +90,6 @@ fn buildFeedPage(
     try context.map.put(allocator, "page_kind", .{ .string = "atom_feed" });
     try context.map.put(allocator, "url", .{ .string = try buildUrl(arena, cfg, .atom_feed, "") });
     try context.map.put(allocator, "updated", .{ .string = try time.toIsoString(arena, now) });
-    try context.map.put(allocator, "site_title", .{ .string = cfg.title });
-    try context.map.put(allocator, "site_author", .{ .string = cfg.author });
-    try context.map.put(allocator, "site_description", .{ .string = cfg.description });
     return .{ .kind = .atom_feed, .context = context };
 }
 
@@ -167,6 +164,17 @@ pub fn parse(
 
     try pages.append(allocator, try buildFeedPage(arena, cfg, now));
 
+    for (tags.map.values()) |tag| {
+        const tagged = try allocator.alloc(Context, tag.indexes.items.len);
+        for (tag.indexes.items, 0..) |idx, i| tagged[i] = posts.items[idx].context;
+        var tag_context: Context = .{ .map = try tag.page.context.map.clone(allocator) };
+        try tag_context.map.put(allocator, "posts", .{ .list = tagged });
+        try pages.append(allocator, .{
+            .kind = .tag_post_list,
+            .context = tag_context,
+        });
+    }
+
     const main_menu = try std.mem.concat(allocator, Context, &.{
         cfg.menu_main,
         page_main_menu.items,
@@ -184,7 +192,6 @@ pub fn parse(
         .templates = templates,
         .pages = pages.items,
         .posts = posts.items,
-        .tags = tags,
     };
 }
 
@@ -281,7 +288,8 @@ test "parse post populates posts list with frontmatter in context" {
         .year = 2003,
     }, "test");
     try std.testing.expectEqual(@as(usize, 1), site.posts.len);
-    try std.testing.expectEqual(@as(usize, 1), site.pages.len);
+    // feed page + one tag page per tag (zig, ssg)
+    try std.testing.expectEqual(@as(usize, 3), site.pages.len);
 
     const post = site.posts[0];
     try std.testing.expectEqual(PageKind.post, post.kind);
@@ -479,8 +487,8 @@ test "smoke: full site with config, pages, posts, templates" {
     try std.testing.expectEqualStrings("About Us", site.menu_main[2].map.get("name").?.string);
     try std.testing.expectEqualStrings("about-us", site.menu_main[2].map.get("url").?.string);
 
-    // pages: home + post_list + about + atom_feed
-    try std.testing.expectEqual(@as(usize, 4), site.pages.len);
+    // pages: home + post_list + about + atom_feed + 2 tag pages
+    try std.testing.expectEqual(@as(usize, 6), site.pages.len);
 
     const home_page = site.pages[0];
     try std.testing.expectEqual(PageKind.home, home_page.kind);
@@ -505,8 +513,6 @@ test "smoke: full site with config, pages, posts, templates" {
     try std.testing.expectEqual(PageKind.atom_feed, feed_page.kind);
     try std.testing.expectEqualStrings("atom_feed", feed_page.context.map.get("page_kind").?.string);
     try std.testing.expectEqualStrings("feed.atom", feed_page.context.map.get("url").?.string);
-    try std.testing.expectEqualStrings("Example Blog", feed_page.context.map.get("site_title").?.string);
-    try std.testing.expectEqualStrings("John Doe", feed_page.context.map.get("site_author").?.string);
 
     // posts
     try std.testing.expectEqual(@as(usize, 1), site.posts.len);
@@ -525,14 +531,18 @@ test "smoke: full site with config, pages, posts, templates" {
     try std.testing.expectEqualStrings("zig", tags[0].map.get("title").?.string);
     try std.testing.expectEqualStrings("blogging", tags[1].map.get("title").?.string);
 
-    // site tags
-    try std.testing.expectEqual(@as(usize, 2), site.tags.map.count());
-    const zig_tag = site.tags.map.get("zig").?;
-    try std.testing.expectEqualStrings("zig", zig_tag.page.context.map.get("title").?.string);
-    try std.testing.expectEqualStrings("posts/tags/zig", zig_tag.page.context.map.get("url").?.string);
-    try std.testing.expectEqual(PageKind.tag_post_list, zig_tag.page.kind);
-    try std.testing.expectEqual(@as(usize, 1), zig_tag.indexes.items.len);
-    try std.testing.expectEqual(@as(usize, 0), zig_tag.indexes.items[0]);
+    // tag pages are appended after the feed page, carrying their filtered posts
+    const zig_tag_page = site.pages[4];
+    try std.testing.expectEqual(PageKind.tag_post_list, zig_tag_page.kind);
+    try std.testing.expectEqualStrings("zig", zig_tag_page.context.map.get("title").?.string);
+    try std.testing.expectEqualStrings("posts/tags/zig", zig_tag_page.context.map.get("url").?.string);
+    const zig_posts = zig_tag_page.context.map.get("posts").?.list;
+    try std.testing.expectEqual(@as(usize, 1), zig_posts.len);
+    try std.testing.expectEqualStrings("Hello, World", zig_posts[0].map.get("title").?.string);
+
+    const blogging_tag_page = site.pages[5];
+    try std.testing.expectEqual(PageKind.tag_post_list, blogging_tag_page.kind);
+    try std.testing.expectEqualStrings("blogging", blogging_tag_page.context.map.get("title").?.string);
 
     // templates
     try std.testing.expect(site.templates.map.get("partials/header.html") != null);
