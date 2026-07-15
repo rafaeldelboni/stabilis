@@ -128,39 +128,35 @@ fn renderSite(
 fn build(
     arena: *std.heap.ArenaAllocator,
     io: std.Io,
-    clear_dir: bool,
-    build_drafts: bool,
-    destination: ?[]const u8,
-    source_dir: []const u8,
-    base_url_override: ?[]const u8,
+    opts: models.BuildOptions,
 ) ![]const u8 {
     const now = time.now(io);
-    const output_dir = destination orelse models.default_output_dir;
+    const output_dir = opts.destination orelse models.default_output_dir;
 
-    if (clear_dir) try fs_writer.deleteDir(io, output_dir);
+    if (opts.clear_dir) try fs_writer.deleteDir(io, output_dir);
 
-    var cfg = try readConfig(arena, io, source_dir);
-    if (base_url_override) |override| {
+    var cfg = try readConfig(arena, io, opts.source_dir);
+    if (opts.base_url_override) |override| {
         cfg.base_url = override;
         cfg.base_uri = std.Uri.parse(override) catch std.Uri{ .scheme = "" };
     }
-    const files = fs_reader.loadFiles(arena, io, &cfg, source_dir) catch |err| switch (err) {
+    const files = fs_reader.loadFiles(arena, io, &cfg, opts.source_dir) catch |err| switch (err) {
         error.ContentDirNotFound => {
-            try printer.errPrint(io, "Content directory not found: {s}/{s}\n", .{ source_dir, cfg.content_dir });
+            try printer.errPrint(io, "Content directory not found: {s}/{s}\n", .{ opts.source_dir, cfg.content_dir });
             return error.Handled;
         },
         error.TemplatesDirNotFound => {
-            try printer.errPrint(io, "Templates directory not found: {s}/{s}\n", .{ source_dir, cfg.templates_dir });
+            try printer.errPrint(io, "Templates directory not found: {s}/{s}\n", .{ opts.source_dir, cfg.templates_dir });
             return error.Handled;
         },
         else => return err,
     };
-    const site_data = try site.parse(arena, &cfg, files, build_drafts, now, build_options.version);
+    const site_data = try site.parse(arena, &cfg, files, opts.build_drafts, now, build_options.version);
     if (site_data.posts.len == 0 and site_data.pages.len == 0) return error.NoFilesFound;
 
     try renderSite(arena, io, &cfg, output_dir, site_data);
 
-    const static_source = try std.Io.Dir.path.join(arena.allocator(), &.{ source_dir, cfg.static_dir });
+    const static_source = try std.Io.Dir.path.join(arena.allocator(), &.{ opts.source_dir, cfg.static_dir });
 
     fs_writer.copyDir(io, arena, static_source, output_dir) catch |err| switch (err) {
         error.FileNotFound => {},
@@ -177,7 +173,13 @@ fn buildHandler(
     source_dir: []const u8,
 ) !u8 {
     const start = std.Io.Clock.Timestamp.now(io, .awake);
-    const output_dir = try build(arena, io, args.build_drafts, args.clear_dir, args.destination, source_dir, args.base_url);
+    const output_dir = try build(arena, io, .{
+        .build_drafts = args.build_drafts,
+        .clear_dir = args.clear_dir,
+        .destination = args.destination,
+        .source_dir = source_dir,
+        .base_url_override = args.base_url,
+    });
     const elapsed = start.untilNow(io);
 
     printer.print(io, "Built {s} -> {s} in {d}ms\n", .{
@@ -206,7 +208,13 @@ fn watcherStart(
         };
         if (result == .changed) {
             const start = std.Io.Clock.Timestamp.now(io, .awake);
-            const output_dir = build(arena, io, !args.no_drafts, false, args.destination, source_dir, args.base_url) catch |err| {
+            const output_dir = build(arena, io, .{
+                .clear_dir = args.clear_dir,
+                .build_drafts = !args.no_drafts,
+                .destination = args.destination,
+                .source_dir = source_dir,
+                .base_url_override = args.base_url,
+            }) catch |err| {
                 log.err("Build error: {s}", .{@errorName(err)});
                 return;
             };
@@ -236,7 +244,13 @@ fn serveHandler(
 
     try printer.print(io, "Press Ctrl+C to stop\n", .{});
 
-    _ = try build(arena, io, !args.no_drafts, false, args.destination, source_dir, args.base_url);
+    _ = try build(arena, io, .{
+        .clear_dir = args.clear_dir,
+        .build_drafts = !args.no_drafts,
+        .destination = args.destination,
+        .source_dir = source_dir,
+        .base_url_override = args.base_url,
+    });
 
     var sig: sse.ReloadSignal = .{}; // .init fields default to .init
 

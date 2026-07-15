@@ -153,6 +153,7 @@ pub const ServeResult = struct {
     no_drafts: bool = false,
     port: ?u16 = null,
     bind: ?[]const u8 = null,
+    clear_dir: bool = false,
     base_url: ?[]const u8 = null,
     open: bool = false,
 };
@@ -172,6 +173,14 @@ pub const FlagsResult = struct {
     source_dir: ?[]const u8 = null,
     version: bool = false,
     help: bool = false,
+};
+
+pub const BuildOptions = struct {
+    clear_dir: bool = false,
+    build_drafts: bool = false,
+    destination: ?[]const u8 = null,
+    source_dir: []const u8,
+    base_url_override: ?[]const u8 = null,
 };
 
 pub const default_output_dir = "public";
@@ -223,6 +232,7 @@ pub const stabilis_cli = vex.Cli{
                             .{ .long = "--no-drafts", .short = "-n", .field = "no_drafts", .help = "Don't include draft content" },
                             .{ .long = "--port", .short = "-p", .field = "port", .help = "Port to serve on" },
                             .{ .long = "--bind", .short = "-b", .field = "bind", .help = "IP address to bind" },
+                            .{ .long = "--clear-dir", .short = "-c", .field = "clear_dir", .help = "Clear destination directory" },
                             .{ .long = "--base-url", .short = "-u", .field = "base_url", .help = "Override base_url from site.yaml" },
                             .{ .long = "--open", .short = "-o", .field = "open", .help = "Open browser after serving" },
                         },
