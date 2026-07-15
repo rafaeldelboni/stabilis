@@ -4,11 +4,11 @@
   <title>Example Blog</title>
   <link href="https://rafael.delboni.cc/stabilis"/>
   <link rel="self" href="https://rafael.delboni.cc/stabilis/feed.atom"/>
-  <updated>2026-07-15T01:30:04Z</updated>
+  <updated>2026-07-15T20:01:15Z</updated>
   <author>
     <name>John Doe</name>
   </author>
-  <generator uri="https://github.com/rafaeldelboni/stabilis" version="v0.1.18">stabilis</generator>
+  <generator uri="https://github.com/rafaeldelboni/stabilis" version="v0.1.19">stabilis</generator>
   <rights>Copyright 2026 John Doe</rights>
   <subtitle>A blog built with stabilis</subtitle>
   <id>https://rafael.delboni.cc/stabilis/</id>
